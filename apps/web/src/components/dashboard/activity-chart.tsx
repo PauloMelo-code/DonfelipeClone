@@ -159,7 +159,8 @@ export function ActivityChart({ data }: ActivityChartProps) {
               stroke="#818CF8"
               strokeWidth={2.5}
               fill="url(#gradPublicacoes)"
-              activeDot={(props: Record<string, unknown>) => <ActiveDot cx={props.cx as number} cy={props.cy as number} stroke={props.stroke as string} />}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              activeDot={(props: any) => <ActiveDot cx={props.cx} cy={props.cy} stroke={props.stroke} />}
               dot={false}
               animationDuration={1200}
               animationEasing="ease-in-out"
@@ -172,7 +173,8 @@ export function ActivityChart({ data }: ActivityChartProps) {
               stroke="#E8731A"
               strokeWidth={2.5}
               fill="url(#gradCapturas)"
-              activeDot={(props: Record<string, unknown>) => <ActiveDot cx={props.cx as number} cy={props.cy as number} stroke={props.stroke as string} />}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              activeDot={(props: any) => <ActiveDot cx={props.cx} cy={props.cy} stroke={props.stroke} />}
               dot={false}
               animationDuration={1200}
               animationEasing="ease-in-out"
