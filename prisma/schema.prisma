@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("ADMIN")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+model Vehicle {
+  id              String    @id @default(cuid())
+  model           String
+  brand           String?
+  year            Int
+  yearModel       Int?
+  km              Int
+  price           Float
+  sellingPrice    Float?
+  fipePrice       Float?
+  transmission    String?
+  fuel            String?
+  color           String?
+  plate           String?
+  features        String    @default("[]")
+  photos          String    @default("[]")
+  rawDescription  String?
+  sourceGroupId   String?
+  sourceMessageId String?
+  sellerPhone     String?
+  vehicleHash     String
+  status          String    @default("PENDING")
+  formattedAd     String?
+  rejectionReason String?
+  capturedAt      DateTime  @default(now())
+  approvedAt      DateTime?
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sourceGroup WhatsAppGroup? @relation("SourceVehicles", fields: [sourceGroupId], references: [groupId])
+  postHistory PostHistory[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+  @@index([vehicleHash])
+  @@index([capturedAt])
+  @@map("vehicles")
+}
+
+model PostHistory {
+  id            String   @id @default(cuid())
+  vehicleId     String
+  vehicleHash   String
+  targetGroupId String
+  postedAt      DateTime @default(now())
+  messageId     String?
+  success       Boolean  @default(true)
+  errorMessage  String?
+
+  vehicle     Vehicle       @relation(fields: [vehicleId], references: [id])
+  targetGroup WhatsAppGroup @relation("TargetPosts", fields: [targetGroupId], references: [groupId])
+
+  @@index([vehicleHash, targetGroupId, postedAt])
+  @@index([postedAt])
+  @@map("post_history")
+}
+
+model WhatsAppGroup {
+  id        String   @id @default(cuid())
+  groupId   String   @unique
+  name      String
+  role      String
+  active    Boolean  @default(true)
+  filters   String?
+  photoUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sourceVehicles Vehicle[]     @relation("SourceVehicles")
+  targetPosts    PostHistory[] @relation("TargetPosts")
+
+  @@map("whatsapp_groups")
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String?
+  entityId   String?
+  details    String?
+  userId     String?
+  vehicleId  String?
+  createdAt  DateTime @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

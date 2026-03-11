@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth } from "@/lib/auth";
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireAuth();
+  if (!auth.success) return auth.response;
+
+  try {
+    const { id } = await params;
+
+    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    if (!vehicle) {
+      return NextResponse.json(
+        { error: "Veiculo nao encontrado" },
+        { status: 404 }
+      );
+    }
+
+    if (vehicle.status !== "PENDING" && vehicle.status !== "APPROVED") {
+      return NextResponse.json(
+        {
+          error: `Veiculo nao pode ser rejeitado no status ${vehicle.status}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let rejectionReason: string | null = null;
+    try {
+      const body = await request.json();
+      rejectionReason = body.rejectionReason || null;
+    } catch {
+      // Body is optional for rejection
+    }
+
+    const updated = await prisma.vehicle.update({
+      where: { id },
+      data: {
+        status: "REJECTED",
+        rejectionReason,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "VEHICLE_REJECTED",
+        entityType: "Vehicle",
+        entityId: id,
+        vehicleId: id,
+        userId: auth.user.id,
+        details: rejectionReason
+          ? JSON.stringify({ reason: rejectionReason })
+          : null,
+      },
+    });
+
+    return NextResponse.json({
+      ...updated,
+      features: JSON.parse(updated.features),
+      photos: JSON.parse(updated.photos),
+    });
+  } catch (error) {
+    console.error("[Vehicles] Error rejecting vehicle:", error);
+    return NextResponse.json(
+      { error: "Erro ao rejeitar veiculo" },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+*.md
+.turbo
+.vscode
+.claude
+dist
+out
+build
+*.db
+npm-debug.log
+.DS_Store

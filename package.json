@@ -1,0 +1,22 @@
+{
+  "name": "cugini",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cugini Repasses - Plataforma de Monitoramento e Republicacao de Veiculos",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:generate": "prisma generate --schema=prisma/schema.prisma",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio --schema=prisma/schema.prisma"
+  },
+  "packageManager": "pnpm@10.30.3",
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "bcryptjs": "^3.0.2",
+    "prisma": "^6.19.2",
+    "tsx": "^4.21.0"
+  }
+}
