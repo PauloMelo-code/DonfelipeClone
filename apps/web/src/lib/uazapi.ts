@@ -51,27 +51,30 @@ export interface SendPresencePayload {
 // ---------------------------------------------------------------------------
 
 class UazapiClient {
-  private client: AxiosInstance;
+  private _client: AxiosInstance | null = null;
 
-  constructor() {
-    const baseURL = process.env.UAZAPI_BASE_URL;
-    const token = process.env.UAZAPI_TOKEN;
+  private get client(): AxiosInstance {
+    if (!this._client) {
+      const baseURL = process.env.UAZAPI_BASE_URL;
+      const token = process.env.UAZAPI_TOKEN;
 
-    if (!baseURL) {
-      throw new Error("UAZAPI_BASE_URL environment variable is not set");
+      if (!baseURL) {
+        throw new Error("UAZAPI_BASE_URL environment variable is not set");
+      }
+      if (!token) {
+        throw new Error("UAZAPI_TOKEN environment variable is not set");
+      }
+
+      this._client = axios.create({
+        baseURL,
+        timeout: 30_000,
+        headers: {
+          "Content-Type": "application/json",
+          token,
+        },
+      });
     }
-    if (!token) {
-      throw new Error("UAZAPI_TOKEN environment variable is not set");
-    }
-
-    this.client = axios.create({
-      baseURL,
-      timeout: 30_000,
-      headers: {
-        "Content-Type": "application/json",
-        token,
-      },
-    });
+    return this._client;
   }
 
   /**
