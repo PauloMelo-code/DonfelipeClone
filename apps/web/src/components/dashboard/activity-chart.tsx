@@ -59,10 +59,8 @@ function CustomTooltip({
   );
 }
 
-function ActiveDot(props: Record<string, unknown>) {
-  const cx = props.cx as number;
-  const cy = props.cy as number;
-  const stroke = props.stroke as string;
+function ActiveDot(props: { cx?: number; cy?: number; stroke?: string }) {
+  const { cx, cy, stroke } = props;
   if (cx == null || cy == null) return null;
   return (
     <g>
@@ -161,7 +159,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
               stroke="#818CF8"
               strokeWidth={2.5}
               fill="url(#gradPublicacoes)"
-              activeDot={ActiveDot}
+              activeDot={(props: Record<string, unknown>) => <ActiveDot cx={props.cx as number} cy={props.cy as number} stroke={props.stroke as string} />}
               dot={false}
               animationDuration={1200}
               animationEasing="ease-in-out"
@@ -174,7 +172,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
               stroke="#E8731A"
               strokeWidth={2.5}
               fill="url(#gradCapturas)"
-              activeDot={ActiveDot}
+              activeDot={(props: Record<string, unknown>) => <ActiveDot cx={props.cx as number} cy={props.cy as number} stroke={props.stroke as string} />}
               dot={false}
               animationDuration={1200}
               animationEasing="ease-in-out"
