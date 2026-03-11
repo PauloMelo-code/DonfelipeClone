@@ -43,11 +43,12 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy prisma for migrations
+# Copy prisma schema + client runtime
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+
+# Install prisma CLI + bcryptjs (pnpm symlinks don't copy properly)
+RUN npm install --no-save prisma@6.19.2 @prisma/engines@6.19.2 bcryptjs@3.0.3
 
 # Copy entrypoint
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
