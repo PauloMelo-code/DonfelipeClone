@@ -22,9 +22,13 @@ interface VehicleData {
 // OpenAI Client
 // ---------------------------------------------------------------------------
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 // ---------------------------------------------------------------------------
 // System Prompt
@@ -164,7 +168,7 @@ export async function extractVehicleFromText(
   text: string
 ): Promise<VehicleData | null> {
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       temperature: 0.1,
       response_format: {
@@ -213,7 +217,7 @@ export async function extractVehicleFromImage(
       });
     }
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       temperature: 0.1,
       response_format: {
