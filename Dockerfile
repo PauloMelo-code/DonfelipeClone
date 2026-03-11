@@ -26,9 +26,6 @@ ENV NODE_ENV=production
 RUN pnpm db:generate
 RUN pnpm --filter web build
 
-# Compile seed to JS so runtime doesn't need tsx
-RUN npx esbuild prisma/seed.ts --bundle --platform=node --outfile=prisma/seed.js --external:@prisma/client
-
 # ── Runtime ───────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -46,7 +43,7 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy prisma for migrations + seed
+# Copy prisma for migrations
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
