@@ -50,8 +50,10 @@ COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma
 # Install prisma CLI + client + bcryptjs (pnpm symlinks don't copy properly)
 RUN npm install --no-save prisma@6.19.2 @prisma/engines@6.19.2 @prisma/client@6.19.2 bcryptjs@3.0.3
 
-# Create .next/cache dir with correct permissions for nextjs user
-RUN mkdir -p /app/apps/web/.next/cache && chown -R nextjs:nodejs /app/apps/web/.next/cache
+# Fix permissions for nextjs user
+RUN mkdir -p /app/apps/web/.next/cache && \
+    chown -R nextjs:nodejs /app/apps/web/.next/cache && \
+    chown -R nextjs:nodejs /app/node_modules/.prisma
 
 # Copy entrypoint
 COPY docker-entrypoint.sh ./docker-entrypoint.sh

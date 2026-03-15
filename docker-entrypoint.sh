@@ -1,9 +1,6 @@
 #!/bin/sh
 set -e
 
-echo "Generating Prisma client..."
-npx prisma generate --schema=prisma/schema.prisma
-
 echo "Running database migrations..."
 npx prisma db push --schema=prisma/schema.prisma --skip-generate --accept-data-loss
 
