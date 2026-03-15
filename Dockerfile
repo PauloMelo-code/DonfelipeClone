@@ -26,9 +26,6 @@ ENV NODE_ENV=production
 RUN pnpm db:generate
 RUN pnpm --filter web build
 
-# Compile seed.ts to JS for runtime
-RUN npx esbuild prisma/seed.ts --bundle --platform=node --outfile=prisma/seed.js --external:@prisma/client --external:bcryptjs
-
 # ── Runtime ───────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
