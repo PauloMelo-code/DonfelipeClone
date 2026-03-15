@@ -47,8 +47,8 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma ./node_modules/.prisma
 
-# Install prisma CLI + bcryptjs (pnpm symlinks don't copy properly)
-RUN npm install --no-save prisma@6.19.2 @prisma/engines@6.19.2 bcryptjs@3.0.3
+# Install prisma CLI + client + bcryptjs (pnpm symlinks don't copy properly)
+RUN npm install --no-save prisma@6.19.2 @prisma/engines@6.19.2 @prisma/client@6.19.2 bcryptjs@3.0.3
 
 # Create .next/cache dir with correct permissions for nextjs user
 RUN mkdir -p /app/apps/web/.next/cache && chown -R nextjs:nodejs /app/apps/web/.next/cache
