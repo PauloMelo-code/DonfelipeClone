@@ -5,7 +5,8 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ export default function GruposPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [search, setSearch] = useState("");
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -93,8 +95,9 @@ export default function GruposPage() {
     }
   };
 
-  const sourceGroups = groups.filter((g) => g.role === "SOURCE");
-  const targetGroups = groups.filter((g) => g.role === "TARGET");
+  const searchLower = search.toLowerCase();
+  const sourceGroups = groups.filter((g) => g.role === "SOURCE" && (!search || g.name.toLowerCase().includes(searchLower)));
+  const targetGroups = groups.filter((g) => g.role === "TARGET" && (!search || g.name.toLowerCase().includes(searchLower)));
 
   return (
     <>
@@ -127,6 +130,16 @@ export default function GruposPage() {
             <p className="text-xs mt-1">Clique em Sincronizar para importar grupos do WhatsApp</p>
           </div>
         ) : (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar grupo por nome..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 bg-card border-border"
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Source Groups */}
             <div>
