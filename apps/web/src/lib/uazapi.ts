@@ -82,10 +82,22 @@ class UazapiClient {
    * @param force - If true, forces a refresh from WhatsApp servers.
    */
   async listGroups(force?: boolean): Promise<GroupInfo[]> {
-    const { data } = await this.client.get<GroupInfo[]>("/group/list", {
+    const { data } = await this.client.get("/group/list", {
       params: { force: force ?? false, noparticipants: true },
     });
-    return data;
+
+    // UAZAPI returns { groups: [...] } with JID/Name format
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw: any[] = Array.isArray(data) ? data : data?.groups ?? [];
+
+    return raw.map((g) => ({
+      id: g.JID || g.id || "",
+      subject: g.Name || g.subject || "",
+      size: g.Size || g.size || 0,
+      creation: g.Creation || g.creation || 0,
+      owner: g.OwnerJID || g.owner || "",
+      profilePictureUrl: g.profilePictureUrl || g.ProfilePictureUrl || undefined,
+    }));
   }
 
   /**
