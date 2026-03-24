@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
     console.log("[Webhook] Received:", JSON.stringify(raw).substring(0, 2000));
 
     // ── Normalize: UAZAPI flat format vs standard nested format ──
-    console.log("[Webhook] Keys:", Object.keys(raw).join(", "));
-    console.log("[Webhook] wa_chatid:", raw.wa_chatid, "| chatid:", raw.chatid, "| wa_chatId:", raw.wa_chatId);
-    const isUazapiFormat = !!raw.wa_chatid || !!raw.wa_chatId || !!raw.chatid || !!raw.EventType;
+    // UAZAPI sends: { BaseUrl, EventType, chat: { wa_chatid, wa_lastMessageTextVote, ... }, message: {...} }
+    const chat = raw.chat || {};
+    const isUazapiFormat = !!raw.EventType || !!chat.wa_chatid;
 
     let groupJid: string | null = null;
     let messageId: string;
@@ -80,37 +80,35 @@ export async function POST(request: NextRequest) {
     let imageUrl: string | null = null;
 
     if (isUazapiFormat) {
-      // UAZAPI flat format
-      const event = raw.EventType || raw.event || "messages";
+      const event = raw.EventType || "messages";
       if (event !== "messages") {
         return NextResponse.json({ status: "ignored", reason: "event_type" });
       }
 
-      groupJid = raw.wa_chatid || raw.wa_chatId || raw.chatid || raw.chatId || null;
-      messageId = raw.messageId || raw.stanzaID || raw.id || ("uazapi_" + Date.now());
-      isFromMe = raw.fromMe === true || raw.fromMe === "true";
-      pushName = raw.senderName || raw.pushName || null;
+      // Fields are inside chat object
+      groupJid = chat.wa_chatid || chat.chatid || null;
+      messageId = chat.stanzaID || chat.messageId || raw.id || ("uazapi_" + Date.now());
+      isFromMe = chat.fromMe === true || chat.fromMe === "true";
+      pushName = chat.senderName || chat.pushName || null;
 
-      // Extract text from UAZAPI fields
-      const msgType = raw.wa_lastMessageType || raw.messageType || "";
+      // Extract text based on message type
+      const msgType = chat.wa_lastMessageType || chat.messageType || "";
+      const content = chat.content || "";
+
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
-        textContent = raw.content || raw.wa_lastMessageTextVote || raw.text || null;
-      } else if (msgType === "ImageMessage") {
-        // Image: content may have caption, URL is in imagePreview or content URL
-        const contentUrl = raw.content || "";
-        if (contentUrl.startsWith("http")) {
-          imageUrl = contentUrl;
+        textContent = content || chat.wa_lastMessageTextVote || null;
+      } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
+        if (typeof content === "string" && content.startsWith("http")) {
+          imageUrl = content;
         }
-        textContent = raw.wa_lastMessageTextVote || raw.caption || null;
+        textContent = chat.wa_lastMessageTextVote || chat.caption || null;
       }
 
-      // Fallback: try content/text fields regardless of type
+      // Fallback: try text from any field
       if (!textContent) {
-        textContent = raw.content || raw.wa_lastMessageTextVote || raw.text || null;
-        // If content is a URL (image), don't use as text
-        if (textContent && textContent.startsWith("http")) {
-          if (!imageUrl) imageUrl = textContent;
-          textContent = null;
+        const fallback = chat.wa_lastMessageTextVote || content || null;
+        if (fallback && typeof fallback === "string" && !fallback.startsWith("http")) {
+          textContent = fallback;
         }
       }
 
