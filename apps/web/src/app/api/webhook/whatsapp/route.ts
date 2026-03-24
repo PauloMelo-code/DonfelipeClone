@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       groupJid = chat.wa_chatid || chat.chatid || null;
       messageId = chat.stanzaID || chat.messageId || raw.id || ("uazapi_" + Date.now());
       isFromMe = chat.fromMe === true || chat.fromMe === "true";
-      pushName = chat.senderName || chat.pushName || null;
+      pushName = chat.senderName || chat.pushName || chat.wa_name || null;
 
       // Extract text based on message type
       const msgType = chat.wa_lastMessageType || chat.messageType || "";
@@ -98,8 +98,14 @@ export async function POST(request: NextRequest) {
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
       } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
-        if (typeof content === "string" && content.startsWith("http")) {
-          imageUrl = content;
+        // Image URL can be in content, imagePreview, or message.content
+        const imgCandidate = content || chat.imagePreview || raw.imagePreview || "";
+        if (typeof imgCandidate === "string" && imgCandidate.startsWith("http")) {
+          imageUrl = imgCandidate;
+        }
+        // Also check message object URL field
+        if (!imageUrl && raw.message?.imageMessage?.url) {
+          imageUrl = raw.message.imageMessage.url;
         }
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
       }
