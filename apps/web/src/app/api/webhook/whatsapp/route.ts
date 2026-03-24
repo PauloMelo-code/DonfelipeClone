@@ -65,28 +65,31 @@ export async function POST(request: NextRequest) {
     }
 
     const rawPayload = await request.json();
-    console.log("[Webhook] Received:", JSON.stringify(rawPayload).substring(0, 500));
+    console.log("[Webhook] Received:", JSON.stringify(rawPayload).substring(0, 2000));
 
-    // UAZAPI may send data at root level or nested under "data"
-    const payload: WebhookPayload = rawPayload.data?.key
-      ? rawPayload
-      : { event: rawPayload.event || "messages", data: rawPayload };
-
-    const event = payload.event;
+    // ── Normalize UAZAPI payload format ──
+    // UAZAPI sends: { EventType, chat, id, message:{conversation,...}, key:{remoteJid,...}, ... }
+    // Or standard: { event, data: { key, message, pushName } }
+    const event = rawPayload.event || rawPayload.EventType || "messages";
     if (event !== "messages.upsert" && event !== "messages") {
       return NextResponse.json({ status: "ignored", reason: "event_type" });
     }
 
-    const { data } = payload;
-    const { key, message, pushName } = data;
-    const groupJid = key.remoteJid;
-    const messageId = key.id;
+    // Extract key, message, pushName from either format
+    const data = rawPayload.data || rawPayload;
+    const key = data.key || {};
+    const message = data.message || {};
+    const pushName = data.pushName || data.pushname || data.senderName || null;
+
+    // UAZAPI may put remoteJid in different places
+    const groupJid = key.remoteJid || data.remoteJid || data.chat?.jid || data.from || null;
+    const messageId = key.id || data.id || data.messageId || ("uazapi_" + Date.now());
 
     if (!groupJid || !groupJid.endsWith("@g.us")) {
       return NextResponse.json({ status: "ignored", reason: "not_group" });
     }
 
-    if (key.fromMe) {
+    if (key.fromMe || data.fromMe) {
       return NextResponse.json({ status: "ignored", reason: "own_message" });
     }
 
