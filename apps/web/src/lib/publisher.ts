@@ -117,6 +117,8 @@ export async function publishVehicle(
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features,
+      location: vehicle.location,
+      state: vehicle.state,
     },
     { profitMarginPercent }
   );
