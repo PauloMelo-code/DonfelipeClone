@@ -64,32 +64,83 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rawPayload = await request.json();
-    console.log("[Webhook] Received:", JSON.stringify(rawPayload).substring(0, 2000));
+    const raw = await request.json();
+    console.log("[Webhook] Received:", JSON.stringify(raw).substring(0, 2000));
 
-    // ── Normalize UAZAPI payload format ──
-    // UAZAPI sends: { EventType, chat, id, message:{conversation,...}, key:{remoteJid,...}, ... }
-    // Or standard: { event, data: { key, message, pushName } }
-    const event = rawPayload.event || rawPayload.EventType || "messages";
-    if (event !== "messages.upsert" && event !== "messages") {
-      return NextResponse.json({ status: "ignored", reason: "event_type" });
+    // ── Normalize: UAZAPI flat format vs standard nested format ──
+    const isUazapiFormat = !!raw.wa_chatid || !!raw.EventType;
+
+    let groupJid: string | null = null;
+    let messageId: string;
+    let isFromMe = false;
+    let pushName: string | null = null;
+    let textContent: string | null = null;
+    let imageUrl: string | null = null;
+
+    if (isUazapiFormat) {
+      // UAZAPI flat format
+      const event = raw.EventType || raw.event || "messages";
+      if (event !== "messages") {
+        return NextResponse.json({ status: "ignored", reason: "event_type" });
+      }
+
+      groupJid = raw.wa_chatid || null;
+      messageId = raw.messageId || raw.stanzaID || raw.id || ("uazapi_" + Date.now());
+      isFromMe = raw.fromMe === true || raw.fromMe === "true";
+      pushName = raw.senderName || raw.pushName || null;
+
+      // Extract text from UAZAPI fields
+      const msgType = raw.wa_lastMessageType || raw.messageType || "";
+      if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
+        textContent = raw.content || raw.wa_lastMessageTextVote || raw.text || null;
+      } else if (msgType === "ImageMessage") {
+        // Image: content may have caption, URL is in imagePreview or content URL
+        const contentUrl = raw.content || "";
+        if (contentUrl.startsWith("http")) {
+          imageUrl = contentUrl;
+        }
+        textContent = raw.wa_lastMessageTextVote || raw.caption || null;
+      }
+
+      // Also try message object if present
+      if (raw.message) {
+        if (!textContent && raw.message.conversation) {
+          textContent = raw.message.conversation;
+        }
+        if (!textContent && raw.message.extendedTextMessage?.text) {
+          textContent = raw.message.extendedTextMessage.text;
+        }
+        if (raw.message.imageMessage) {
+          imageUrl = imageUrl || raw.message.imageMessage.url || null;
+          textContent = textContent || raw.message.imageMessage.caption || null;
+        }
+      }
+    } else {
+      // Standard nested format
+      const event = raw.event || "messages";
+      if (event !== "messages.upsert" && event !== "messages") {
+        return NextResponse.json({ status: "ignored", reason: "event_type" });
+      }
+
+      const data = raw.data || raw;
+      const key = data.key || {};
+      const message = data.message || {};
+      groupJid = key.remoteJid || null;
+      messageId = key.id || ("std_" + Date.now());
+      isFromMe = !!key.fromMe;
+      pushName = data.pushName || null;
+      textContent = message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || null;
+      imageUrl = message.imageMessage?.url || null;
     }
 
-    // Extract key, message, pushName from either format
-    const data = rawPayload.data || rawPayload;
-    const key = data.key || {};
-    const message = data.message || {};
-    const pushName = data.pushName || data.pushname || data.senderName || null;
+    console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, pushName, textContent: textContent?.substring(0, 100), imageUrl: !!imageUrl });
 
-    // UAZAPI may put remoteJid in different places
-    const groupJid = key.remoteJid || data.remoteJid || data.chat?.jid || data.from || null;
-    const messageId = key.id || data.id || data.messageId || ("uazapi_" + Date.now());
-
+    // ── Validate ──
     if (!groupJid || !groupJid.endsWith("@g.us")) {
       return NextResponse.json({ status: "ignored", reason: "not_group" });
     }
 
-    if (key.fromMe || data.fromMe) {
+    if (isFromMe) {
       return NextResponse.json({ status: "ignored", reason: "own_message" });
     }
 
@@ -114,14 +165,6 @@ export async function POST(request: NextRequest) {
         reason: "duplicate_message",
       });
     }
-
-    const textContent =
-      message.conversation ||
-      message.extendedTextMessage?.text ||
-      message.imageMessage?.caption ||
-      null;
-
-    const imageUrl = message.imageMessage?.url || null;
 
     // ── Album handling: image without caption → attach to recent vehicle ──
     if (imageUrl && !textContent) {
