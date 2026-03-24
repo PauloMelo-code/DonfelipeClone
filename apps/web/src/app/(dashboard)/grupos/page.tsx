@@ -54,6 +54,27 @@ export default function GruposPage() {
     }
   };
 
+  const handleActivateAll = async (role: "SOURCE" | "TARGET", active: boolean) => {
+    const toUpdate = groups.filter((g) => g.role === role && g.active !== active);
+    if (toUpdate.length === 0) return;
+
+    try {
+      await Promise.all(
+        toUpdate.map((g) =>
+          fetch(`/api/groups/${g.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active }),
+          })
+        )
+      );
+      toast.success(`${toUpdate.length} grupos ${active ? "ativados" : "desativados"}`);
+      fetchGroups();
+    } catch {
+      toast.error("Erro ao atualizar grupos");
+    }
+  };
+
   const handleToggle = async (group: Group, field: "active" | "role") => {
     const body =
       field === "active"
@@ -109,11 +130,31 @@ export default function GruposPage() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Source Groups */}
             <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Radio className="h-4 w-4 text-success" />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Grupos Fonte ({sourceGroups.length})
-                </h3>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Radio className="h-4 w-4 text-success" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Grupos Fonte ({sourceGroups.length})
+                  </h3>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => handleActivateAll("SOURCE", true)}
+                  >
+                    Ativar todos
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => handleActivateAll("SOURCE", false)}
+                  >
+                    Desativar todos
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 {sourceGroups.map((group) => (
@@ -153,11 +194,31 @@ export default function GruposPage() {
 
             {/* Target Groups */}
             <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Target className="h-4 w-4 text-cugini-orange" />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                  Grupos Destino ({targetGroups.length})
-                </h3>
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-cugini-orange" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                    Grupos Destino ({targetGroups.length})
+                  </h3>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => handleActivateAll("TARGET", true)}
+                  >
+                    Ativar todos
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => handleActivateAll("TARGET", false)}
+                  >
+                    Desativar todos
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 {targetGroups.map((group) => (
