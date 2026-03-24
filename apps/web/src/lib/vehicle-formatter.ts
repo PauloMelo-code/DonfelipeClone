@@ -122,6 +122,8 @@ export function formatVehicleAd(
     transmission?: string | null;
     fuel?: string | null;
     features?: string | string[] | null;
+    location?: string | null;
+    state?: string | null;
   },
   settings: FormatSettings
 ): string {
@@ -187,6 +189,12 @@ export function formatVehicleAd(
   }
 
   lines.push(`POR: ${sellingPriceFmt}`);
+
+  // Location line
+  const loc = vehicle.location || vehicle.state;
+  if (loc) {
+    lines.push(`\uD83D\uDCCD ${vehicle.location ? vehicle.location : ""}${vehicle.location && vehicle.state ? "/" : ""}${vehicle.state || ""}`);
+  }
 
   return lines.join("\n");
 }

@@ -113,6 +113,34 @@ export async function POST(request: NextRequest) {
 
     const imageUrl = message.imageMessage?.url || null;
 
+    // ── Album handling: image without caption → attach to recent vehicle ──
+    if (imageUrl && !textContent) {
+      const ALBUM_WINDOW_MS = 90_000; // 90 seconds
+      const recentVehicle = await prisma.vehicle.findFirst({
+        where: {
+          sourceGroupId: groupJid,
+          capturedAt: { gte: new Date(Date.now() - ALBUM_WINDOW_MS) },
+        },
+        orderBy: { capturedAt: "desc" },
+      });
+
+      if (recentVehicle) {
+        const existingPhotos: string[] = JSON.parse(recentVehicle.photos || "[]");
+        existingPhotos.push(imageUrl);
+        await prisma.vehicle.update({
+          where: { id: recentVehicle.id },
+          data: { photos: JSON.stringify(existingPhotos) },
+        });
+        return NextResponse.json({
+          status: "photo_added",
+          vehicleId: recentVehicle.id,
+          photoCount: existingPhotos.length,
+        });
+      }
+
+      // No recent vehicle — try to extract from image alone
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let vehicleData: any = null;
 
@@ -139,6 +167,8 @@ export async function POST(request: NextRequest) {
     const fuel = (vehicleData.fuel as string) || null;
     const color = (vehicleData.color as string) || null;
     const plate = (vehicleData.plate as string) || null;
+    const location = (vehicleData.location as string) || null;
+    const state = (vehicleData.state as string) || null;
     const features = (vehicleData.features as string[]) || [];
     const photos = imageUrl ? [imageUrl] : [];
 
@@ -173,6 +203,19 @@ export async function POST(request: NextRequest) {
 
     const groupFilters = group.filters ? JSON.parse(group.filters) : null;
     if (groupFilters) {
+      // State filter: if group has allowedStates, only accept vehicles from those states
+      if (groupFilters.allowedStates && groupFilters.allowedStates.length > 0 && state) {
+        const allowed = (groupFilters.allowedStates as string[]).map((s: string) => s.toUpperCase());
+        if (!allowed.includes(state.toUpperCase())) {
+          return NextResponse.json({
+            status: "filtered",
+            reason: "state_not_allowed",
+            state,
+            allowedStates: allowed,
+          });
+        }
+      }
+
       const passesFilters = applyFilters(
         { model, brand: brand ?? undefined, year, km, price, transmission: transmission ?? undefined, fuel: fuel ?? undefined, features: features, photos },
         groupFilters
@@ -216,6 +259,8 @@ export async function POST(request: NextRequest) {
         fuel,
         color,
         plate,
+        location,
+        state,
         features: JSON.stringify(features),
         photos: JSON.stringify(photos),
         rawDescription: textContent,

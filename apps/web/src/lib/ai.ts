@@ -12,6 +12,8 @@ interface VehicleData {
   fuel?: string;
   color?: string;
   plate?: string;
+  location?: string;
+  state?: string;
   features: string[];
   photos: string[];
   rawDescription?: string;
@@ -48,6 +50,8 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 - fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO"
 - color: cor do veiculo
 - plate: placa se mencionada (formato ABC1D23 ou ABC-1234)
+- location: cidade/regiao mencionada (ex: "Florianopolis", "Porto Alegre")
+- state: sigla do estado brasileiro (ex: "RS", "SC", "SP"). Extraia de: "emplacado RS", "Florianopolis" (SC), "Porto Alegre" (RS), etc.
 - features: lista de opcionais/caracteristicas como array de strings
 - sellerPhone: telefone do vendedor se mencionado
 
@@ -97,6 +101,8 @@ const VEHICLE_JSON_SCHEMA = {
       },
       color: { type: ["string", "null"] as const },
       plate: { type: ["string", "null"] as const },
+      location: { type: ["string", "null"] as const },
+      state: { type: ["string", "null"] as const },
       features: {
         type: "array" as const,
         items: { type: "string" as const },
@@ -115,6 +121,8 @@ const VEHICLE_JSON_SCHEMA = {
       "fuel",
       "color",
       "plate",
+      "location",
+      "state",
       "features",
       "sellerPhone",
     ],
@@ -147,6 +155,8 @@ function parseResponse(raw: string): VehicleData | null {
       fuel: parsed.fuel ?? undefined,
       color: parsed.color ?? undefined,
       plate: parsed.plate ?? undefined,
+      location: parsed.location ?? undefined,
+      state: parsed.state ?? undefined,
       features: parsed.features ?? [],
       photos: [],
       rawDescription: undefined,

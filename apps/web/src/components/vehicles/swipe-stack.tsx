@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, ImageIcon } from "lucide-react";
+import { Check, X, Car, ZoomIn, ImageIcon, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SwipeVehicle {
@@ -25,6 +25,8 @@ interface SwipeVehicle {
   features: string[];
   photos: string[];
   status: string;
+  location?: string | null;
+  state?: string | null;
   rawDescription?: string | null;
   capturedAt?: string;
   sourceGroup?: { name: string; groupId: string } | null;
@@ -185,10 +187,16 @@ function SwipeCard({
             )}
           </div>
 
-          {vehicle.color && (
-            <p className="text-xs text-muted-foreground">
-              Cor: {vehicle.color}
-            </p>
+          {(vehicle.color || vehicle.location || vehicle.state) && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {vehicle.color && <span>Cor: {vehicle.color}</span>}
+              {(vehicle.location || vehicle.state) && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {vehicle.location}{vehicle.location && vehicle.state ? "/" : ""}{vehicle.state}
+                </span>
+              )}
+            </div>
           )}
 
           <div className="flex items-baseline justify-between">

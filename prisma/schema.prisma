@@ -36,6 +36,8 @@ model Vehicle {
   fuel            String?
   color           String?
   plate           String?
+  location        String?
+  state           String?
   features        String    @default("[]")
   photos          String    @default("[]")
   rawDescription  String?
