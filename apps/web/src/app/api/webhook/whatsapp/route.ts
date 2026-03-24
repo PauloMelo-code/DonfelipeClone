@@ -64,9 +64,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload: WebhookPayload = await request.json();
+    const rawPayload = await request.json();
+    console.log("[Webhook] Received:", JSON.stringify(rawPayload).substring(0, 500));
 
-    if (payload.event !== "messages.upsert") {
+    // UAZAPI may send data at root level or nested under "data"
+    const payload: WebhookPayload = rawPayload.data?.key
+      ? rawPayload
+      : { event: rawPayload.event || "messages", data: rawPayload };
+
+    const event = payload.event;
+    if (event !== "messages.upsert" && event !== "messages") {
       return NextResponse.json({ status: "ignored", reason: "event_type" });
     }
 
