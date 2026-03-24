@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
     console.log("[Webhook] Received:", JSON.stringify(raw).substring(0, 2000));
 
     // ── Normalize: UAZAPI flat format vs standard nested format ──
-    const isUazapiFormat = !!raw.wa_chatid || !!raw.EventType;
+    console.log("[Webhook] Keys:", Object.keys(raw).join(", "));
+    console.log("[Webhook] wa_chatid:", raw.wa_chatid, "| chatid:", raw.chatid, "| wa_chatId:", raw.wa_chatId);
+    const isUazapiFormat = !!raw.wa_chatid || !!raw.wa_chatId || !!raw.chatid || !!raw.EventType;
 
     let groupJid: string | null = null;
     let messageId: string;
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ status: "ignored", reason: "event_type" });
       }
 
-      groupJid = raw.wa_chatid || null;
+      groupJid = raw.wa_chatid || raw.wa_chatId || raw.chatid || raw.chatId || null;
       messageId = raw.messageId || raw.stanzaID || raw.id || ("uazapi_" + Date.now());
       isFromMe = raw.fromMe === true || raw.fromMe === "true";
       pushName = raw.senderName || raw.pushName || null;
@@ -100,6 +102,16 @@ export async function POST(request: NextRequest) {
           imageUrl = contentUrl;
         }
         textContent = raw.wa_lastMessageTextVote || raw.caption || null;
+      }
+
+      // Fallback: try content/text fields regardless of type
+      if (!textContent) {
+        textContent = raw.content || raw.wa_lastMessageTextVote || raw.text || null;
+        // If content is a URL (image), don't use as text
+        if (textContent && textContent.startsWith("http")) {
+          if (!imageUrl) imageUrl = textContent;
+          textContent = null;
+        }
       }
 
       // Also try message object if present
