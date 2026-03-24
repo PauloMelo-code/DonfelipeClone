@@ -183,23 +183,32 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Album handling: image without caption → attach to recent vehicle ──
+    const ALBUM_WINDOW_MS = 180_000; // 3 minutes
+
     if (imageUrl && !textContent) {
-      const ALBUM_WINDOW_MS = 90_000; // 90 seconds
+      // Find recent vehicle from same group (and same sender if known)
+      const albumWhere: Record<string, unknown> = {
+        sourceGroupId: groupJid,
+        status: { not: "PHOTO_PENDING" },
+        capturedAt: { gte: new Date(Date.now() - ALBUM_WINDOW_MS) },
+      };
+      if (pushName) {
+        albumWhere.sellerPhone = pushName;
+      }
       const recentVehicle = await prisma.vehicle.findFirst({
-        where: {
-          sourceGroupId: groupJid,
-          capturedAt: { gte: new Date(Date.now() - ALBUM_WINDOW_MS) },
-        },
+        where: albumWhere,
         orderBy: { capturedAt: "desc" },
       });
 
       if (recentVehicle) {
         const existingPhotos: string[] = JSON.parse(recentVehicle.photos || "[]");
-        existingPhotos.push(imageUrl);
-        await prisma.vehicle.update({
-          where: { id: recentVehicle.id },
-          data: { photos: JSON.stringify(existingPhotos) },
-        });
+        if (!existingPhotos.includes(imageUrl)) {
+          existingPhotos.push(imageUrl);
+          await prisma.vehicle.update({
+            where: { id: recentVehicle.id },
+            data: { photos: JSON.stringify(existingPhotos) },
+          });
+        }
         return NextResponse.json({
           status: "photo_added",
           vehicleId: recentVehicle.id,
@@ -207,7 +216,23 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // No recent vehicle — try to extract from image alone
+      // No recent vehicle — store as orphan photo for later association
+      // We store it temporarily as a vehicle stub with status PHOTO_PENDING
+      await prisma.vehicle.create({
+        data: {
+          model: "__PHOTO_PENDING__",
+          year: 0,
+          km: 0,
+          price: 0,
+          vehicleHash: "photo_" + messageId,
+          photos: JSON.stringify([imageUrl]),
+          sourceGroupId: groupJid,
+          sourceMessageId: messageId,
+          sellerPhone: pushName || null,
+          status: "PHOTO_PENDING",
+        },
+      });
+      return NextResponse.json({ status: "photo_stored", messageId });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,6 +365,37 @@ export async function POST(request: NextRequest) {
         status: "PENDING",
       },
     });
+
+    // ── Reverse album: collect orphan photos sent BEFORE the text (same group + sender) ──
+    const orphanWhere: Record<string, unknown> = {
+      sourceGroupId: groupJid,
+      status: "PHOTO_PENDING",
+      createdAt: { gte: new Date(Date.now() - ALBUM_WINDOW_MS) },
+    };
+    // Only match same sender to avoid mixing albums from different people
+    if (pushName) {
+      orphanWhere.sellerPhone = pushName;
+    }
+    const orphanPhotos = await prisma.vehicle.findMany({ where: orphanWhere });
+
+    if (orphanPhotos.length > 0) {
+      const allPhotos: string[] = JSON.parse(vehicle.photos || "[]");
+      for (const orphan of orphanPhotos) {
+        const orphanPhotosArr: string[] = JSON.parse(orphan.photos || "[]");
+        for (const url of orphanPhotosArr) {
+          if (!allPhotos.includes(url)) allPhotos.push(url);
+        }
+      }
+      await prisma.vehicle.update({
+        where: { id: vehicle.id },
+        data: { photos: JSON.stringify(allPhotos) },
+      });
+      // Delete orphan stubs
+      await prisma.vehicle.deleteMany({
+        where: { id: { in: orphanPhotos.map((o) => o.id) } },
+      });
+      console.log(`[Webhook] Attached ${orphanPhotos.length} orphan photo(s) to vehicle ${vehicle.id}`);
+    }
 
     await prisma.auditLog.create({
       data: {

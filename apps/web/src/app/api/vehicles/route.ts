@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       : "capturedAt";
     const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      status: { not: "PHOTO_PENDING" },
+    };
 
     if (status && status !== "ALL") {
       where.status = status;
