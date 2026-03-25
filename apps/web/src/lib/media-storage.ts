@@ -68,7 +68,11 @@ function downloadImage(url: string, timeout = 15000): Promise<ImageData | null> 
       res.on("data", (chunk: Buffer) => chunks.push(chunk));
       res.on("end", () => {
         const buffer = Buffer.concat(chunks);
-        const mimeType = res.headers["content-type"] || "image/jpeg";
+        let mimeType = res.headers["content-type"] || "image/jpeg";
+        // WhatsApp CDN often returns application/octet-stream for images
+        if (mimeType === "application/octet-stream" || mimeType.startsWith("application/")) {
+          mimeType = "image/jpeg";
+        }
         resolve({
           base64: buffer.toString("base64"),
           mimeType,
