@@ -98,14 +98,17 @@ export async function POST(request: NextRequest) {
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
       } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
-        // Image URL can be in content, imagePreview, or message.content
-        const imgCandidate = content || chat.imagePreview || raw.imagePreview || "";
-        if (typeof imgCandidate === "string" && imgCandidate.startsWith("http")) {
-          imageUrl = imgCandidate;
+        // Image URL: content field has the actual media URL, NOT imagePreview (that's the group/contact thumbnail)
+        if (typeof content === "string" && content.startsWith("http")) {
+          imageUrl = content;
         }
         // Also check message object URL field
         if (!imageUrl && raw.message?.imageMessage?.url) {
           imageUrl = raw.message.imageMessage.url;
+        }
+        // Also check message.content for URL
+        if (!imageUrl && raw.message?.content && typeof raw.message.content === "string" && raw.message.content.startsWith("http")) {
+          imageUrl = raw.message.content;
         }
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
       }
