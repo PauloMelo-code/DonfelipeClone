@@ -131,14 +131,13 @@ export async function POST(request: NextRequest) {
           try {
             const media = await uazapi.downloadMedia(waMessageId as string);
             if (media) {
-              // Use the public fileURL from UAZAPI (permanent, no expiration)
-              if (media.fileURL) {
-                imageUrl = media.fileURL;
-                console.log("[Webhook] Got UAZAPI fileURL:", media.fileURL.substring(0, 80));
-              } else if (media.base64Data) {
-                const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
+              const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
+              if (media.base64Data) {
                 imageUrl = `data:${mType};base64,${media.base64Data}`;
                 console.log("[Webhook] Got UAZAPI base64, size:", media.base64Data.length);
+              } else if (media.fileURL) {
+                imageUrl = media.fileURL;
+                console.log("[Webhook] Got UAZAPI fileURL:", media.fileURL.substring(0, 80));
               }
             }
           } catch (err) {
@@ -152,9 +151,13 @@ export async function POST(request: NextRequest) {
           if (imageUrl) break;
           try {
             const media = await uazapi.downloadMedia(fbId);
-            if (media?.fileURL) {
+            if (media?.base64Data) {
+              const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
+              imageUrl = `data:${mType};base64,${media.base64Data}`;
+              console.log("[Webhook] Got UAZAPI base64 via fallback ID:", fbId, "size:", media.base64Data.length);
+            } else if (media?.fileURL) {
               imageUrl = media.fileURL;
-              console.log("[Webhook] Got UAZAPI fileURL via fallback ID:", fbId, media.fileURL.substring(0, 80));
+              console.log("[Webhook] Got UAZAPI fileURL via fallback ID:", fbId);
             }
           } catch { /* ignore */ }
         }

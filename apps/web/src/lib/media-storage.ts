@@ -9,8 +9,25 @@ import { prisma } from "./prisma";
  * Falls back to the original URL if download fails.
  */
 export async function persistImage(originalUrl: string): Promise<string> {
-  // Already a local URL or data URI
-  if (originalUrl.startsWith("/api/media/") || originalUrl.startsWith("data:")) {
+  // Already a local URL
+  if (originalUrl.startsWith("/api/media/")) {
+    return originalUrl;
+  }
+
+  // Data URI (base64) — save directly to database
+  if (originalUrl.startsWith("data:")) {
+    try {
+      const match = originalUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const id = randomUUID();
+        await prisma.mediaFile.create({
+          data: { id, mimeType: match[1], data: match[2] },
+        });
+        return `/api/media/${id}`;
+      }
+    } catch (err) {
+      console.error("[MediaStorage] Failed to persist data URI:", err);
+    }
     return originalUrl;
   }
 

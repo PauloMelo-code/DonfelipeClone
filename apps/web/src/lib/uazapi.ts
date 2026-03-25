@@ -136,12 +136,11 @@ class UazapiClient {
    */
   async downloadMedia(messageId: string): Promise<{ base64Data: string; fileURL: string; mimetype: string } | null> {
     try {
-      // First try without base64 to get the fileURL (faster, less data)
       const { data } = await this.client.post("/message/download", {
         id: messageId,
-        return_base64: false,
+        return_base64: true,
       });
-      if (data?.fileURL || data?.base64Data) {
+      if (data?.base64Data || data?.fileURL) {
         return {
           base64Data: data.base64Data || "",
           fileURL: data.fileURL || "",
