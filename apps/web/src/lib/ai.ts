@@ -213,10 +213,22 @@ export async function extractVehicleFromImage(
   caption?: string
 ): Promise<VehicleData | null> {
   try {
+    // Convert local /api/media/ URLs to base64 data URIs for OpenAI
+    let visionUrl = imageUrl;
+    if (imageUrl.startsWith("/api/media/")) {
+      const mediaId = imageUrl.replace("/api/media/", "");
+      const { prisma: db } = await import("./prisma");
+      const media = await db.mediaFile.findUnique({ where: { id: mediaId } });
+      if (media) {
+        const mimeType = media.mimeType === "application/octet-stream" ? "image/jpeg" : media.mimeType;
+        visionUrl = `data:${mimeType};base64,${media.data}`;
+      }
+    }
+
     const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
       {
         type: "image_url",
-        image_url: { url: imageUrl, detail: "high" },
+        image_url: { url: visionUrl, detail: "high" },
       },
     ];
 
