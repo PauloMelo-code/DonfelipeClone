@@ -124,3 +124,13 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model MediaFile {
+  id          String   @id @default(uuid())
+  mimeType    String   @default("image/jpeg")
+  data        String   // base64 encoded
+  originalUrl String?
+  createdAt   DateTime @default(now())
+
+  @@map("media_files")
+}

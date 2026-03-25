@@ -8,6 +8,7 @@ import { generateVehicleHash } from "@/lib/deduplication";
 import { applyFilters } from "@/lib/vehicle-parser";
 import { rateLimit } from "@/lib/rate-limit";
 import { uazapi } from "@/lib/uazapi";
+import { persistImage } from "@/lib/media-storage";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -192,6 +193,17 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, pushName, textContent: textContent?.substring(0, 100), imageUrl: !!imageUrl });
+
+    // ── Persist image immediately (CDN URLs expire in minutes) ──
+    if (imageUrl && imageUrl.startsWith("http")) {
+      const persistedUrl = await persistImage(imageUrl);
+      if (persistedUrl !== imageUrl) {
+        console.log("[Webhook] Image persisted:", persistedUrl);
+        imageUrl = persistedUrl;
+      } else {
+        console.warn("[Webhook] Failed to persist image, keeping CDN URL");
+      }
+    }
 
     // ── Validate ──
     if (!groupJid || !groupJid.endsWith("@g.us")) {
