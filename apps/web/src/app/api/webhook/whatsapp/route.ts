@@ -7,6 +7,7 @@ import {
 import { generateVehicleHash } from "@/lib/deduplication";
 import { applyFilters } from "@/lib/vehicle-parser";
 import { rateLimit } from "@/lib/rate-limit";
+import { uazapi } from "@/lib/uazapi";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -98,18 +99,56 @@ export async function POST(request: NextRequest) {
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
       } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
-        // Image URL: content field has the actual media URL, NOT imagePreview (that's the group/contact thumbnail)
+        // content can be: a URL string, a JSON object with URL, or a stringified JSON
         if (typeof content === "string" && content.startsWith("http")) {
           imageUrl = content;
+        } else if (typeof content === "object" && content !== null && content.URL) {
+          // UAZAPI sends content as object: { URL, mimetype, fileSHA256, fileLength, mediaKey, ... }
+          imageUrl = content.URL;
+        } else if (typeof content === "string" && content.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(content);
+            if (parsed.URL) imageUrl = parsed.URL;
+          } catch { /* ignore parse errors */ }
         }
-        // Also check message object URL field
+
+        // Also check message object
         if (!imageUrl && raw.message?.imageMessage?.url) {
           imageUrl = raw.message.imageMessage.url;
         }
-        // Also check message.content for URL
-        if (!imageUrl && raw.message?.content && typeof raw.message.content === "string" && raw.message.content.startsWith("http")) {
-          imageUrl = raw.message.content;
+        if (!imageUrl && raw.message?.content) {
+          const mc = raw.message.content;
+          if (typeof mc === "string" && mc.startsWith("http")) {
+            imageUrl = mc;
+          } else if (typeof mc === "object" && mc !== null && mc.URL) {
+            imageUrl = mc.URL;
+          }
         }
+
+        // If we have media metadata, try downloading via UAZAPI endpoint
+        if (!imageUrl) {
+          const mediaInfo = typeof content === "object" && content !== null ? content : null;
+          const mediaUrl = mediaInfo?.URL || chat.mediaUrl || null;
+          const mediaKey = mediaInfo?.mediaKey || chat.mediaKey || null;
+          const mimetype = mediaInfo?.mimetype || chat.mimetype || "image/jpeg";
+          const fileSHA256 = mediaInfo?.fileSHA256 || chat.fileSHA256 || null;
+          const fileLength = mediaInfo?.fileLength || chat.fileLength || 0;
+
+          if (mediaUrl && mediaKey && fileSHA256) {
+            const base64 = await uazapi.downloadMedia({
+              Url: mediaUrl,
+              MediaKey: mediaKey,
+              Mimetype: mimetype,
+              FileSHA256: fileSHA256,
+              FileLength: Number(fileLength),
+            });
+            if (base64) {
+              imageUrl = `data:${mimetype};base64,${base64}`;
+              console.log("[Webhook] Downloaded media via UAZAPI, size:", base64.length);
+            }
+          }
+        }
+
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
       }
 

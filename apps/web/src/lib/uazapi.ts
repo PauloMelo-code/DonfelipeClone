@@ -46,6 +46,15 @@ export interface SendPresencePayload {
   delay?: number;
 }
 
+export interface DownloadMediaPayload {
+  Url: string;
+  MediaKey: string;
+  Mimetype: string;
+  FileSHA256: string;
+  FileLength: number;
+  FileEncSHA256?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -127,6 +136,24 @@ class UazapiClient {
    */
   async sendPresence(payload: SendPresencePayload): Promise<void> {
     await this.client.post("/message/presence", payload);
+  }
+
+  /**
+   * Download media from a WhatsApp message using UAZAPI.
+   * Returns base64-encoded media data.
+   */
+  async downloadMedia(payload: DownloadMediaPayload): Promise<string | null> {
+    try {
+      const { data } = await this.client.post("/download/media", payload);
+      // UAZAPI returns base64 data
+      if (typeof data === "string") return data;
+      if (data?.base64) return data.base64;
+      if (data?.data) return data.data;
+      return null;
+    } catch (err) {
+      console.error("[UAZAPI] Failed to download media:", err);
+      return null;
+    }
   }
 }
 
