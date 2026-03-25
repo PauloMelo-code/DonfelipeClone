@@ -109,13 +109,23 @@ export async function POST(request: NextRequest) {
           try { contentObj = JSON.parse(content); } catch { /* ignore */ }
         }
 
+        // Try multiple ID sources for /message/download
+        const ctxInfo = contentObj?.contextInfo as Record<string, unknown> | undefined;
+        const msgCtxInfo = raw.message?.contextInfo as Record<string, unknown> | undefined;
+
         const waMessageId =
-          contentObj?.contextInfo && (contentObj.contextInfo as Record<string, unknown>)?.stanzaID ||
-          raw.message?.contextInfo?.stanzaID ||
+          ctxInfo?.stanzaID ||
+          ctxInfo?.stanzaId ||
+          msgCtxInfo?.stanzaID ||
+          msgCtxInfo?.stanzaId ||
           chat.stanzaID ||
+          raw.message?.messageId ||
+          raw.message?.id ||
           null;
 
-        console.log("[Webhook] ImageMessage stanzaID:", waMessageId, "raw.id:", raw.id);
+        // Log all available IDs for debugging
+        console.log("[Webhook] ImageMessage IDs - stanzaID:", waMessageId, "raw.id:", raw.id,
+          "msg.id:", raw.message?.id, "contextInfo keys:", ctxInfo ? Object.keys(ctxInfo).join(",") : "none");
 
         if (waMessageId) {
           try {
@@ -136,15 +146,26 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fallback: try raw.id as message ID
-        if (!imageUrl && raw.id) {
+        // Fallback: try other IDs
+        const fallbackIds = [raw.id, raw.message?.id, raw.message?.messageId, chat.messageId].filter(Boolean);
+        for (const fbId of fallbackIds) {
+          if (imageUrl) break;
           try {
-            const media = await uazapi.downloadMedia(raw.id);
+            const media = await uazapi.downloadMedia(fbId);
             if (media?.fileURL) {
               imageUrl = media.fileURL;
-              console.log("[Webhook] Got UAZAPI fileURL via raw.id:", media.fileURL.substring(0, 80));
+              console.log("[Webhook] Got UAZAPI fileURL via fallback ID:", fbId, media.fileURL.substring(0, 80));
             }
           } catch { /* ignore */ }
+        }
+
+        // Last resort: use CDN URL directly and persist (may be encrypted but worth trying)
+        if (!imageUrl) {
+          const cdnUrl = contentObj?.URL as string || (typeof content === "string" && content.startsWith("http") ? content : null);
+          if (cdnUrl) {
+            imageUrl = cdnUrl;
+            console.warn("[Webhook] Using CDN URL as last resort:", cdnUrl.substring(0, 80));
+          }
         }
 
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
