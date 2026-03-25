@@ -20,6 +20,15 @@ export async function POST(
       );
     }
 
+    if (vehicle.status === "REJECTED") {
+      // Idempotent: already rejected, return success
+      return NextResponse.json({
+        ...vehicle,
+        features: JSON.parse(vehicle.features),
+        photos: JSON.parse(vehicle.photos),
+      });
+    }
+
     if (vehicle.status !== "PENDING" && vehicle.status !== "APPROVED") {
       return NextResponse.json(
         {

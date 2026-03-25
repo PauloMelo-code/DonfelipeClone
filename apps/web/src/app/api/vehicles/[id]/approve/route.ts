@@ -21,6 +21,15 @@ export async function POST(
       );
     }
 
+    if (vehicle.status === "APPROVED") {
+      // Idempotent: already approved, return success
+      return NextResponse.json({
+        ...vehicle,
+        features: JSON.parse(vehicle.features),
+        photos: JSON.parse(vehicle.photos),
+      });
+    }
+
     if (vehicle.status !== "PENDING") {
       return NextResponse.json(
         { error: `Veiculo nao pode ser aprovado no status ${vehicle.status}` },
