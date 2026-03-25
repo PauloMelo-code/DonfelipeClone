@@ -100,54 +100,49 @@ export async function POST(request: NextRequest) {
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
       } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
-        // content can be: a URL string, a JSON object with URL, or a stringified JSON
-        if (typeof content === "string" && content.startsWith("http")) {
-          imageUrl = content;
-        } else if (typeof content === "object" && content !== null && content.URL) {
-          // UAZAPI sends content as object: { URL, mimetype, fileSHA256, fileLength, mediaKey, ... }
-          imageUrl = content.URL;
+        // Extract media metadata from content (object or parsed JSON)
+        let mediaInfo: Record<string, unknown> | null = null;
+        if (typeof content === "object" && content !== null) {
+          mediaInfo = content;
         } else if (typeof content === "string" && content.startsWith("{")) {
+          try { mediaInfo = JSON.parse(content); } catch { /* ignore */ }
+        }
+
+        // Also check raw.message for media info
+        const msgContent = raw.message?.content;
+        if (!mediaInfo && typeof msgContent === "object" && msgContent !== null) {
+          mediaInfo = msgContent;
+        }
+
+        // ALWAYS try downloading via UAZAPI first (CDN URLs are encrypted)
+        const mediaUrl = mediaInfo?.URL as string || (typeof content === "string" && content.startsWith("http") ? content : null);
+        const mediaKey = mediaInfo?.mediaKey as string || chat.mediaKey || null;
+        const mimetype = mediaInfo?.mimetype as string || chat.mimetype || "image/jpeg";
+        const fileSHA256 = mediaInfo?.fileSHA256 as string || chat.fileSHA256 || null;
+        const fileLength = mediaInfo?.fileLength as number || chat.fileLength || 0;
+
+        if (mediaUrl && mediaKey) {
           try {
-            const parsed = JSON.parse(content);
-            if (parsed.URL) imageUrl = parsed.URL;
-          } catch { /* ignore parse errors */ }
-        }
-
-        // Also check message object
-        if (!imageUrl && raw.message?.imageMessage?.url) {
-          imageUrl = raw.message.imageMessage.url;
-        }
-        if (!imageUrl && raw.message?.content) {
-          const mc = raw.message.content;
-          if (typeof mc === "string" && mc.startsWith("http")) {
-            imageUrl = mc;
-          } else if (typeof mc === "object" && mc !== null && mc.URL) {
-            imageUrl = mc.URL;
-          }
-        }
-
-        // If we have media metadata, try downloading via UAZAPI endpoint
-        if (!imageUrl) {
-          const mediaInfo = typeof content === "object" && content !== null ? content : null;
-          const mediaUrl = mediaInfo?.URL || chat.mediaUrl || null;
-          const mediaKey = mediaInfo?.mediaKey || chat.mediaKey || null;
-          const mimetype = mediaInfo?.mimetype || chat.mimetype || "image/jpeg";
-          const fileSHA256 = mediaInfo?.fileSHA256 || chat.fileSHA256 || null;
-          const fileLength = mediaInfo?.fileLength || chat.fileLength || 0;
-
-          if (mediaUrl && mediaKey && fileSHA256) {
             const base64 = await uazapi.downloadMedia({
               Url: mediaUrl,
               MediaKey: mediaKey,
               Mimetype: mimetype,
-              FileSHA256: fileSHA256,
+              FileSHA256: fileSHA256 || "",
               FileLength: Number(fileLength),
             });
             if (base64) {
-              imageUrl = `data:${mimetype};base64,${base64}`;
+              const mType = mimetype === "application/octet-stream" ? "image/jpeg" : mimetype;
+              imageUrl = `data:${mType};base64,${base64}`;
               console.log("[Webhook] Downloaded media via UAZAPI, size:", base64.length);
             }
+          } catch (err) {
+            console.warn("[Webhook] UAZAPI download failed:", err);
           }
+        }
+
+        // Fallback: use CDN URL directly (may be encrypted/expired)
+        if (!imageUrl && mediaUrl) {
+          imageUrl = mediaUrl;
         }
 
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
