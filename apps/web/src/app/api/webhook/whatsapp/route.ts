@@ -100,49 +100,30 @@ export async function POST(request: NextRequest) {
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
       } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
-        // Extract media metadata from content (object or parsed JSON)
-        let mediaInfo: Record<string, unknown> | null = null;
-        if (typeof content === "object" && content !== null) {
-          mediaInfo = content;
-        } else if (typeof content === "string" && content.startsWith("{")) {
-          try { mediaInfo = JSON.parse(content); } catch { /* ignore */ }
-        }
+        // Download image via UAZAPI /message/download using the WhatsApp message ID
+        const waMessageId = chat.stanzaID || raw.message?.contextInfo?.stanzaID || null;
 
-        // Also check raw.message for media info
-        const msgContent = raw.message?.content;
-        if (!mediaInfo && typeof msgContent === "object" && msgContent !== null) {
-          mediaInfo = msgContent;
-        }
-
-        // ALWAYS try downloading via UAZAPI first (CDN URLs are encrypted)
-        const mediaUrl = mediaInfo?.URL as string || (typeof content === "string" && content.startsWith("http") ? content : null);
-        const mediaKey = mediaInfo?.mediaKey as string || chat.mediaKey || null;
-        const mimetype = mediaInfo?.mimetype as string || chat.mimetype || "image/jpeg";
-        const fileSHA256 = mediaInfo?.fileSHA256 as string || chat.fileSHA256 || null;
-        const fileLength = mediaInfo?.fileLength as number || chat.fileLength || 0;
-
-        if (mediaUrl && mediaKey) {
+        if (waMessageId) {
           try {
-            const base64 = await uazapi.downloadMedia({
-              Url: mediaUrl,
-              MediaKey: mediaKey,
-              Mimetype: mimetype,
-              FileSHA256: fileSHA256 || "",
-              FileLength: Number(fileLength),
-            });
-            if (base64) {
-              const mType = mimetype === "application/octet-stream" ? "image/jpeg" : mimetype;
-              imageUrl = `data:${mType};base64,${base64}`;
-              console.log("[Webhook] Downloaded media via UAZAPI, size:", base64.length);
+            const media = await uazapi.downloadMedia(waMessageId);
+            if (media) {
+              const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
+              imageUrl = `data:${mType};base64,${media.base64Data}`;
+              console.log("[Webhook] Downloaded media via UAZAPI, mimetype:", mType, "size:", media.base64Data.length);
             }
           } catch (err) {
             console.warn("[Webhook] UAZAPI download failed:", err);
           }
         }
 
-        // Fallback: use CDN URL directly (may be encrypted/expired)
-        if (!imageUrl && mediaUrl) {
-          imageUrl = mediaUrl;
+        // Fallback: try fileURL from UAZAPI or CDN URL from content
+        if (!imageUrl) {
+          const contentObj = typeof content === "object" && content !== null ? content : null;
+          const cdnUrl = contentObj?.URL || (typeof content === "string" && content.startsWith("http") ? content : null);
+          if (cdnUrl) {
+            imageUrl = cdnUrl as string;
+            console.warn("[Webhook] Using CDN URL as fallback (may be encrypted)");
+          }
         }
 
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;
