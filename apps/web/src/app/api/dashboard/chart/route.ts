@@ -8,42 +8,52 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const daysParam = parseInt(searchParams.get("days") || "14", 10);
     const now = new Date();
-    const days = [7, 14, 30].includes(daysParam) ? daysParam : 14;
-    const startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - days + 1);
-    startDate.setHours(0, 0, 0, 0);
 
-    // Fetch captures and publications for the last 14 days
+    let startDate: Date;
+    let endDate: Date = new Date(now);
+    endDate.setHours(23, 59, 59, 999);
+
+    const startParam = searchParams.get("startDate");
+    const endParam = searchParams.get("endDate");
+    const daysParam = parseInt(searchParams.get("days") || "14", 10);
+
+    if (startParam && endParam) {
+      startDate = new Date(startParam);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(endParam);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      const days = [7, 14, 30].includes(daysParam) ? daysParam : 14;
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - days + 1);
+      startDate.setHours(0, 0, 0, 0);
+    }
+
     const [captures, publications] = await Promise.all([
       prisma.vehicle.findMany({
-        where: { capturedAt: { gte: startDate } },
+        where: { capturedAt: { gte: startDate, lte: endDate } },
         select: { capturedAt: true },
       }),
       prisma.postHistory.findMany({
-        where: { postedAt: { gte: startDate }, success: true },
+        where: { postedAt: { gte: startDate, lte: endDate }, success: true },
         select: { postedAt: true },
       }),
     ]);
 
-    // Group by day
+    // Calculate number of days in range
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const totalDays = Math.round((endDate.getTime() - startDate.getTime()) / msPerDay) + 1;
+
     const chartData: { date: string; capturas: number; publicacoes: number }[] = [];
-    for (let i = 0; i < days; i++) {
+    for (let i = 0; i < totalDays; i++) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + i);
       const dayStr = d.toISOString().slice(0, 10);
       const label = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 
-      const capCount = captures.filter((c) => {
-        const cd = new Date(c.capturedAt);
-        return cd.toISOString().slice(0, 10) === dayStr;
-      }).length;
-
-      const pubCount = publications.filter((p) => {
-        const pd = new Date(p.postedAt);
-        return pd.toISOString().slice(0, 10) === dayStr;
-      }).length;
+      const capCount = captures.filter((c) => new Date(c.capturedAt).toISOString().slice(0, 10) === dayStr).length;
+      const pubCount = publications.filter((p) => new Date(p.postedAt).toISOString().slice(0, 10) === dayStr).length;
 
       chartData.push({ date: label, capturas: capCount, publicacoes: pubCount });
     }

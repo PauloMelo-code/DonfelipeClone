@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ActivityChart } from "@/components/dashboard/activity-chart";
+import { DateRange } from "@/components/dashboard/date-range-picker";
 import { Car, Clock, Send, TrendingUp } from "lucide-react";
 
 interface DashboardData {
@@ -28,16 +29,21 @@ interface ChartPoint {
 }
 
 export default function DashboardPage() {
+  const today = new Date();
   const [data, setData] = useState<DashboardData | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chartDays, setChartDays] = useState(14);
+  const [chartRange, setChartRange] = useState<DateRange>({
+    startDate: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 13, 0, 0, 0, 0),
+    endDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999),
+    label: "Últimos 14 dias",
+  });
 
   const fetchData = useCallback(async () => {
     try {
       const [dashRes, chartRes] = await Promise.all([
         fetch("/api/dashboard"),
-        fetch(`/api/dashboard/chart?days=${chartDays}`),
+        fetch(`/api/dashboard/chart?startDate=${chartRange.startDate.toISOString()}&endDate=${chartRange.endDate.toISOString()}`),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (chartRes.ok) setChartData(await chartRes.json());
@@ -46,7 +52,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [chartDays]);
+  }, [chartRange]);
 
   useEffect(() => {
     fetchData();
@@ -106,8 +112,8 @@ export default function DashboardPage() {
         {chartData.length > 0 && (
           <ActivityChart
             data={chartData}
-            days={chartDays}
-            onDaysChange={setChartDays}
+            dateRange={chartRange}
+            onDateRangeChange={setChartRange}
           />
         )}
 

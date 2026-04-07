@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { DateRangePicker, DateRange } from "./date-range-picker";
 
 interface ChartPoint {
   date: string;
@@ -18,8 +19,8 @@ interface ChartPoint {
 
 interface ActivityChartProps {
   data: ChartPoint[];
-  days: number;
-  onDaysChange: (days: number) => void;
+  dateRange: DateRange;
+  onDateRangeChange: (range: DateRange) => void;
 }
 
 function CustomTooltip({
@@ -72,13 +73,11 @@ function ActiveDot(props: { cx?: number; cy?: number; stroke?: string }) {
   );
 }
 
-const PERIOD_OPTIONS = [
-  { label: "7 dias", value: 7 },
-  { label: "14 dias", value: 14 },
-  { label: "30 dias", value: 30 },
-];
+export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityChartProps) {
+  const totalDays = Math.round(
+    (dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1;
 
-export function ActivityChart({ data, days, onDaysChange }: ActivityChartProps) {
   return (
     <div className="glass rounded-2xl p-6">
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
@@ -87,22 +86,8 @@ export function ActivityChart({ data, days, onDaysChange }: ActivityChartProps) 
         </h3>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Period selector */}
-          <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/50 p-0.5 gap-0.5">
-            {PERIOD_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => onDaysChange(opt.value)}
-                className={
-                  days === opt.value
-                    ? "rounded-md px-3 py-1 text-xs font-medium bg-cugini-orange text-white transition-all"
-                    : "rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          {/* Date range picker */}
+          <DateRangePicker value={dateRange} onChange={onDateRangeChange} />
 
           {/* Legend */}
           <div className="flex items-center gap-5 text-xs">
@@ -161,7 +146,7 @@ export function ActivityChart({ data, days, onDaysChange }: ActivityChartProps) 
               tickLine={false}
               tick={{ fontSize: 11, fill: "#8B8B8F" }}
               dy={8}
-              interval={days === 30 ? 4 : "preserveStartEnd"}
+              interval={totalDays > 20 ? 4 : "preserveStartEnd"}
             />
 
             <YAxis
