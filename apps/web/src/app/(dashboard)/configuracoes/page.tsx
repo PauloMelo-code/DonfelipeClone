@@ -14,7 +14,7 @@ interface Settings {
   delay_min_seconds: string;
   delay_max_seconds: string;
   filter_min_year: string;
-  filter_max_price: string;
+  filter_min_price: string;
 }
 
 type WaState = "open" | "connecting" | "close" | "error" | "unknown";
@@ -25,7 +25,7 @@ export default function ConfiguracoesPage() {
     delay_min_seconds: "30",
     delay_max_seconds: "120",
     filter_min_year: "2018",
-    filter_max_price: "300000",
+    filter_min_price: "30000",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -282,11 +282,11 @@ export default function ConfiguracoesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Preco maximo (R$)</Label>
+              <Label>Preco minimo (R$)</Label>
               <Input
                 type="number"
-                value={settings.filter_max_price}
-                onChange={(e) => update("filter_max_price", e.target.value)}
+                value={settings.filter_min_price}
+                onChange={(e) => update("filter_min_price", e.target.value)}
                 className="bg-card border-border"
               />
             </div>

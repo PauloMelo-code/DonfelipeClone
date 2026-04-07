@@ -174,7 +174,7 @@ async function main() {
     { key: "delay_min_seconds", value: "30" },
     { key: "delay_max_seconds", value: "120" },
     { key: "filter_min_year", value: "2018" },
-    { key: "filter_max_price", value: "300000" },
+    { key: "filter_min_price", value: "30000" },
     { key: "auction_emoji", value: "\u{1F697}" }
   ];
   for (const s of settings) {

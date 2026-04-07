@@ -326,6 +326,22 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Filtro global de preco minimo (configuravel via Settings, padrao R$30.000)
+    const minPriceSetting = await prisma.setting.findUnique({
+      where: { key: "filter_min_price" },
+    });
+    const parsedMinPrice = minPriceSetting ? parseFloat(minPriceSetting.value) : NaN;
+    const minPrice = isNaN(parsedMinPrice) ? 30000 : parsedMinPrice;
+
+    if (price < minPrice) {
+      return NextResponse.json({
+        status: "filtered",
+        reason: "vehicle_price_too_low",
+        price,
+        minPrice,
+      });
+    }
+
     const groupFilters = group.filters ? JSON.parse(group.filters) : null;
     if (groupFilters) {
       // State filter: if group has allowedStates, only accept vehicles from those states

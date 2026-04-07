@@ -77,7 +77,7 @@ export const ALLOWED_SETTING_KEYS = [
   "delay_min_seconds",
   "delay_max_seconds",
   "filter_min_year",
-  "filter_max_price",
+  "filter_min_price",
   "filter_max_km",
 ] as const;
 
