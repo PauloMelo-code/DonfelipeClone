@@ -22,8 +22,8 @@ type WaState = "open" | "connecting" | "close" | "error" | "unknown";
 export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings>({
     profit_margin_percent: "10",
-    delay_min_seconds: "30",
-    delay_max_seconds: "120",
+    delay_min_seconds: "5",
+    delay_max_seconds: "15",
     filter_min_year: "2018",
     filter_min_price: "30000",
   });

@@ -191,8 +191,8 @@ async function main() {
   // ---- Settings ----
   const settings = [
     { key: "profit_margin_percent", value: "10" },
-    { key: "delay_min_seconds", value: "30" },
-    { key: "delay_max_seconds", value: "120" },
+    { key: "delay_min_seconds", value: "5" },
+    { key: "delay_max_seconds", value: "15" },
     { key: "filter_min_year", value: "2018" },
     { key: "filter_min_price", value: "30000" },
     { key: "auction_emoji", value: "\uD83D\uDE97" },

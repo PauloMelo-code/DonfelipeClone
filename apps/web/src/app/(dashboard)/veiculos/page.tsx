@@ -34,6 +34,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ZoomIn,
+  CheckSquare,
+  Square,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -142,6 +145,10 @@ export default function VeiculosPage() {
   const [margin, setMargin] = useState(10);
   const [targetGroups, setTargetGroups] = useState<WhatsAppGroup[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set());
+  const [batchPublishing, setBatchPublishing] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; current: string } | null>(null);
 
   const fetchVehicles = useCallback(async () => {
     try {
@@ -159,8 +166,53 @@ export default function VeiculosPage() {
 
   useEffect(() => {
     setLoading(true);
+    setBatchSelected(new Set());
     fetchVehicles();
   }, [fetchVehicles]);
+
+  const toggleBatchSelect = (id: string) => {
+    setBatchSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllApproved = () => {
+    const approvedIds = filtered.filter((v) => v.status === "APPROVED").map((v) => v.id);
+    setBatchSelected((prev) =>
+      prev.size === approvedIds.length ? new Set() : new Set(approvedIds)
+    );
+  };
+
+  const handleBatchPublish = async () => {
+    if (batchSelected.size === 0 || selectedGroupIds.length === 0) return;
+    setBatchPublishing(true);
+    setBatchProgress({ done: 0, total: batchSelected.size, current: "" });
+    try {
+      const ids = Array.from(batchSelected);
+      const res = await fetch("/api/vehicles/batch-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleIds: ids, targetGroupIds: selectedGroupIds }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`${data.totalPublished} de ${data.total} veiculos publicados!`);
+        setBatchSelected(new Set());
+        setShowBatchModal(false);
+        fetchVehicles();
+      } else {
+        toast.error("Erro ao publicar em lote");
+      }
+    } catch {
+      toast.error("Erro de conexao");
+    } finally {
+      setBatchPublishing(false);
+      setBatchProgress(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!search) return vehicles;
@@ -406,14 +458,30 @@ export default function VeiculosPage() {
           </Tabs>
 
           {!isPending && (
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar veiculo..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-card border-border"
-              />
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {activeTab === "APPROVED" && filtered.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={selectAllApproved}
+                  className="gap-1.5 border-border text-xs shrink-0"
+                >
+                  {batchSelected.size === filtered.filter((v) => v.status === "APPROVED").length && batchSelected.size > 0
+                    ? <CheckSquare className="h-3.5 w-3.5 text-cugini-orange" />
+                    : <Square className="h-3.5 w-3.5" />
+                  }
+                  Selecionar todos
+                </Button>
+              )}
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar veiculo..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 bg-card border-border"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -469,6 +537,17 @@ export default function VeiculosPage() {
                   >
                     {/* Image */}
                     <div className="relative h-52 bg-card">
+                      {activeTab === "APPROVED" && (
+                        <button
+                          className="absolute top-2 left-2 z-10"
+                          onClick={(e) => { e.stopPropagation(); toggleBatchSelect(vehicle.id); }}
+                        >
+                          {batchSelected.has(vehicle.id)
+                            ? <CheckSquare className="h-6 w-6 text-cugini-orange drop-shadow" />
+                            : <Square className="h-6 w-6 text-white/70 drop-shadow" />
+                          }
+                        </button>
+                      )}
                       {photos.length > 0 ? (
                         <img
                           src={photos[0]}
@@ -606,6 +685,42 @@ export default function VeiculosPage() {
           </motion.div>
         )}
       </div>
+
+      {/* Sticky batch action bar */}
+      {activeTab === "APPROVED" && batchSelected.size > 0 && (
+        <div className="fixed bottom-16 md:bottom-4 left-0 right-0 md:left-64 z-30 px-4">
+          <div className="max-w-2xl mx-auto glass border border-cugini-orange/20 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
+            <Layers className="h-5 w-5 text-cugini-orange shrink-0" />
+            <span className="text-sm font-medium flex-1">
+              {batchSelected.size} veiculo{batchSelected.size > 1 ? "s" : ""} selecionado{batchSelected.size > 1 ? "s" : ""}
+            </span>
+            <button
+              onClick={() => setBatchSelected(new Set())}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Limpar
+            </button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (targetGroups.length === 0) {
+                  fetch("/api/groups?role=TARGET&active=true")
+                    .then((r) => r.json())
+                    .then((data) => {
+                      setTargetGroups(data);
+                      setSelectedGroupIds(data.map((g: WhatsAppGroup) => g.id));
+                    });
+                }
+                setShowBatchModal(true);
+              }}
+              className="gap-1.5 gradient-orange text-white border-0 shrink-0"
+            >
+              <Send className="h-3.5 w-3.5" />
+              Publicar em lote
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* WhatsApp Preview Dialog (read-only) */}
       <Dialog open={!!previewVehicle} onOpenChange={(open) => !open && setPreviewVehicle(null)}>
@@ -1114,6 +1229,79 @@ export default function VeiculosPage() {
                 )}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Publish Modal */}
+      <Dialog open={showBatchModal} onOpenChange={(open) => !open && setShowBatchModal(false)}>
+        <DialogContent showCloseButton={false} className="sm:max-w-md p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
+          <div className="flex flex-col max-h-[85vh]">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-semibold">Publicar em lote</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {batchSelected.size} veiculo{batchSelected.size !== 1 ? "s" : ""} selecionado{batchSelected.size !== 1 ? "s" : ""}
+                </p>
+              </div>
+              <button onClick={() => setShowBatchModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {batchPublishing ? (
+                <div className="flex flex-col items-center gap-4 py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
+                  <p className="text-sm text-muted-foreground">Publicando veiculos...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Enviar para:</span>
+                    </div>
+                    {targetGroups.map((group) => (
+                      <label key={group.id} className={cn(
+                        "flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-colors",
+                        selectedGroupIds.includes(group.id)
+                          ? "bg-cugini-orange/10 border border-cugini-orange/20"
+                          : "bg-card/50 border border-border hover:bg-accent"
+                      )}>
+                        <input
+                          type="checkbox"
+                          checked={selectedGroupIds.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedGroupIds((p) => [...p, group.id]);
+                            else setSelectedGroupIds((p) => p.filter((id) => id !== group.id));
+                          }}
+                          className="accent-cugini-orange w-4 h-4"
+                        />
+                        <span className="text-sm">{group.name}</span>
+                      </label>
+                    ))}
+                    {targetGroups.length === 0 && (
+                      <p className="text-xs text-muted-foreground/60">Nenhum grupo destino configurado</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+            {!batchPublishing && (
+              <div className="px-5 py-4 border-t border-white/10 flex gap-3">
+                <Button variant="outline" className="flex-1 border-border" onClick={() => setShowBatchModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1 gradient-orange text-white border-0 gap-1.5"
+                  onClick={handleBatchPublish}
+                  disabled={selectedGroupIds.length === 0}
+                >
+                  <Send className="h-4 w-4" />
+                  Confirmar e publicar
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
