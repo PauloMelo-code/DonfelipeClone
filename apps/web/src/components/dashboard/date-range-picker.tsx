@@ -205,6 +205,14 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const [selecting, setSelecting] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [hoverDate, setHoverDate] = useState<Date | null>(null);
   const [activePreset, setActivePreset] = useState(value.label);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   const today = new Date();
   const [leftMonth, setLeftMonth] = useState(today.getMonth() - 1 < 0 ? 11 : today.getMonth() - 1);
@@ -275,20 +283,29 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 rounded-xl border border-white/[0.08] bg-[#0D0D0F] shadow-2xl flex overflow-hidden">
+        <div className={cn(
+          "absolute right-0 top-full mt-2 z-50 rounded-xl border border-white/[0.08] bg-[#0D0D0F] shadow-2xl flex overflow-hidden",
+          isMobile && "left-0 right-0 flex-col"
+        )}>
           {/* Presets */}
-          <div className="w-40 border-r border-white/[0.06] py-2">
-            <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
-              Presets
-            </p>
+          <div className={cn(
+            "border-white/[0.06] py-2",
+            isMobile ? "border-b flex flex-wrap gap-1 px-2 pb-3" : "w-40 border-r"
+          )}>
+            {!isMobile && (
+              <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/40">
+                Presets
+              </p>
+            )}
             {presets.map((p) => (
               <button
                 key={p.label}
                 onClick={() => applyPreset(p)}
                 className={cn(
-                  "w-full text-left px-3 py-1.5 text-xs transition-colors",
+                  "text-left px-3 py-1.5 text-xs transition-colors rounded-lg",
+                  isMobile ? "border border-white/[0.06]" : "w-full",
                   activePreset === p.label
-                    ? "bg-cugini-orange/10 text-cugini-orange font-medium"
+                    ? "bg-cugini-orange/10 text-cugini-orange font-medium border-cugini-orange/20"
                     : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                 )}
               >
@@ -304,19 +321,21 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 Selecione a data final
               </p>
             )}
-            <div className="flex gap-6">
-              <MiniCalendar
-                month={leftMonth}
-                year={leftYear}
-                selecting={selecting}
-                hoverDate={hoverDate}
-                onDayClick={handleDayClick}
-                onDayHover={setHoverDate}
-                onPrev={prevMonth}
-                onNext={undefined}
-                showPrev={true}
-                showNext={false}
-              />
+            <div className={cn("flex gap-6", isMobile && "justify-center")}>
+              {!isMobile && (
+                <MiniCalendar
+                  month={leftMonth}
+                  year={leftYear}
+                  selecting={selecting}
+                  hoverDate={hoverDate}
+                  onDayClick={handleDayClick}
+                  onDayHover={setHoverDate}
+                  onPrev={prevMonth}
+                  onNext={undefined}
+                  showPrev={true}
+                  showNext={false}
+                />
+              )}
               <MiniCalendar
                 month={rightMonth}
                 year={rightYear}
@@ -324,9 +343,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 hoverDate={hoverDate}
                 onDayClick={handleDayClick}
                 onDayHover={setHoverDate}
-                onPrev={undefined}
+                onPrev={prevMonth}
                 onNext={nextMonth}
-                showPrev={false}
+                showPrev={true}
                 showNext={true}
               />
             </div>
