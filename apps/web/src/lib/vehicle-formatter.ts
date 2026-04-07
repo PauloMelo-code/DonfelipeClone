@@ -115,10 +115,10 @@ export function formatVehicleAd(
     ? `${vehicle.year}/${vehicle.yearModel}`
     : `${vehicle.year}`;
 
-  // --- First line: model + transmission ---
+  // --- First line: model + transmission (bold for WhatsApp) ---
   const modelLine = transmissionLabel
-    ? `${vehicle.model} ${transmissionLabel}`
-    : vehicle.model;
+    ? `*${vehicle.model} ${transmissionLabel}*`
+    : `*${vehicle.model}*`;
 
   // --- Build ad ---
   const lines: string[] = [
@@ -142,7 +142,8 @@ export function formatVehicleAd(
     lines.push(`Fipe: ${priceFormatted(vehicle.fipePrice)}`);
   }
 
-  lines.push(`Por: ${sellingPriceFmt}`);
+  // Bold price for WhatsApp
+  lines.push(`Por: *${sellingPriceFmt}*`);
 
   return lines.join("\n");
 }

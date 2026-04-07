@@ -117,6 +117,7 @@ export async function publishVehicle(
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features,
+      rawDescription: vehicle.rawDescription,
       location: vehicle.location,
       state: vehicle.state,
     },
