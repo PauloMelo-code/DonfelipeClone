@@ -31,12 +31,13 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartDays, setChartDays] = useState(14);
 
   const fetchData = useCallback(async () => {
     try {
       const [dashRes, chartRes] = await Promise.all([
         fetch("/api/dashboard"),
-        fetch("/api/dashboard/chart"),
+        fetch(`/api/dashboard/chart?days=${chartDays}`),
       ]);
       if (dashRes.ok) setData(await dashRes.json());
       if (chartRes.ok) setChartData(await chartRes.json());
@@ -45,7 +46,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [chartDays]);
 
   useEffect(() => {
     fetchData();
@@ -103,7 +104,11 @@ export default function DashboardPage() {
 
         {/* Activity Chart */}
         {chartData.length > 0 && (
-          <ActivityChart data={chartData} />
+          <ActivityChart
+            data={chartData}
+            days={chartDays}
+            onDaysChange={setChartDays}
+          />
         )}
 
         {/* Summary Cards */}

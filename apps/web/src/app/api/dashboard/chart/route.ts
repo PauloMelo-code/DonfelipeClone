@@ -1,14 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
 
   try {
+    const { searchParams } = new URL(request.url);
+    const daysParam = parseInt(searchParams.get("days") || "14", 10);
     const now = new Date();
-    const days = 14;
+    const days = [7, 14, 30].includes(daysParam) ? daysParam : 14;
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);

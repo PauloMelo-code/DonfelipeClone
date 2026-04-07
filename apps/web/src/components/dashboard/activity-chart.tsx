@@ -18,6 +18,8 @@ interface ChartPoint {
 
 interface ActivityChartProps {
   data: ChartPoint[];
+  days: number;
+  onDaysChange: (days: number) => void;
 }
 
 function CustomTooltip({
@@ -70,33 +72,60 @@ function ActiveDot(props: { cx?: number; cy?: number; stroke?: string }) {
   );
 }
 
-export function ActivityChart({ data }: ActivityChartProps) {
+const PERIOD_OPTIONS = [
+  { label: "7 dias", value: 7 },
+  { label: "14 dias", value: 14 },
+  { label: "30 dias", value: 30 },
+];
+
+export function ActivityChart({ data, days, onDaysChange }: ActivityChartProps) {
   return (
     <div className="glass rounded-2xl p-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
         <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-          Atividade (ultimos 14 dias)
+          Atividade
         </h3>
-        <div className="flex items-center gap-5 text-xs">
-          <div className="flex items-center gap-2">
-            <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                background: "linear-gradient(135deg, #E8731A, #FF8C2E)",
-                boxShadow: "0 0 8px rgba(232,115,26,0.5)",
-              }}
-            />
-            <span className="text-muted-foreground">Capturas</span>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Period selector */}
+          <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/50 p-0.5 gap-0.5">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onDaysChange(opt.value)}
+                className={
+                  days === opt.value
+                    ? "rounded-md px-3 py-1 text-xs font-medium bg-cugini-orange text-white transition-all"
+                    : "rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-all"
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
-          <div className="flex items-center gap-2">
-            <div
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                background: "linear-gradient(135deg, #6366F1, #A78BFA)",
-                boxShadow: "0 0 8px rgba(99,102,241,0.5)",
-              }}
-            />
-            <span className="text-muted-foreground">Publicacoes</span>
+
+          {/* Legend */}
+          <div className="flex items-center gap-5 text-xs">
+            <div className="flex items-center gap-2">
+              <div
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  background: "linear-gradient(135deg, #E8731A, #FF8C2E)",
+                  boxShadow: "0 0 8px rgba(232,115,26,0.5)",
+                }}
+              />
+              <span className="text-muted-foreground">Capturas</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div
+                className="h-2.5 w-2.5 rounded-full"
+                style={{
+                  background: "linear-gradient(135deg, #6366F1, #A78BFA)",
+                  boxShadow: "0 0 8px rgba(99,102,241,0.5)",
+                }}
+              />
+              <span className="text-muted-foreground">Publicacoes</span>
+            </div>
           </div>
         </div>
       </div>
@@ -108,13 +137,11 @@ export function ActivityChart({ data }: ActivityChartProps) {
             margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
           >
             <defs>
-              {/* Orange gradient for Capturas */}
               <linearGradient id="gradCapturas" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#FF8C2E" stopOpacity={0.4} />
                 <stop offset="40%" stopColor="#E8731A" stopOpacity={0.15} />
                 <stop offset="100%" stopColor="#E8731A" stopOpacity={0.02} />
               </linearGradient>
-              {/* Purple/Indigo gradient for Publicacoes */}
               <linearGradient id="gradPublicacoes" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.35} />
                 <stop offset="40%" stopColor="#6366F1" stopOpacity={0.12} />
@@ -134,6 +161,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
               tickLine={false}
               tick={{ fontSize: 11, fill: "#8B8B8F" }}
               dy={8}
+              interval={days === 30 ? 4 : "preserveStartEnd"}
             />
 
             <YAxis
@@ -152,7 +180,6 @@ export function ActivityChart({ data }: ActivityChartProps) {
               }}
             />
 
-            {/* Publicacoes area (behind) */}
             <Area
               type="monotone"
               dataKey="publicacoes"
@@ -162,11 +189,10 @@ export function ActivityChart({ data }: ActivityChartProps) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               activeDot={(props: any) => <ActiveDot cx={props.cx} cy={props.cy} stroke={props.stroke} />}
               dot={false}
-              animationDuration={1200}
+              animationDuration={800}
               animationEasing="ease-in-out"
             />
 
-            {/* Capturas area (front) */}
             <Area
               type="monotone"
               dataKey="capturas"
@@ -176,7 +202,7 @@ export function ActivityChart({ data }: ActivityChartProps) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               activeDot={(props: any) => <ActiveDot cx={props.cx} cy={props.cy} stroke={props.stroke} />}
               dot={false}
-              animationDuration={1200}
+              animationDuration={800}
               animationEasing="ease-in-out"
             />
           </AreaChart>
