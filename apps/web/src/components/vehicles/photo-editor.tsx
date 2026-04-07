@@ -299,213 +299,154 @@ export function PhotoEditor({
       ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${brushSize}' height='${brushSize}' viewBox='0 0 ${brushSize} ${brushSize}'%3E%3Ccircle cx='${brushSize / 2}' cy='${brushSize / 2}' r='${brushSize / 2 - 1}' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") ${brushSize / 2} ${brushSize / 2}, crosshair`
       : "crosshair";
 
-  const editorContent = (
-    <div className={cn("space-y-3", fullscreen ? "p-4" : "p-4")}>
-      {/* Photo thumbnails */}
-      {photos.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {photos.map((photo, i) => (
-            <button
-              key={i}
-              onClick={() => setSelectedIndex(i)}
-              className={cn(
-                "flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all",
-                selectedIndex === i
-                  ? "border-cugini-orange ring-1 ring-cugini-orange/30"
-                  : editedPhotos[i]
-                  ? "border-blue-500/50"
-                  : "border-white/10 hover:border-white/30"
-              )}
-            >
-              <img
-                src={editedPhotos[i] || photo}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Tool selector */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button
-          size="sm"
-          variant={tool === "blur" ? "default" : "outline"}
-          onClick={() => { setTool("blur"); setCurrentRect(null); }}
-          className={cn(
-            "gap-1.5 text-xs",
-            tool === "blur" && "gradient-orange text-white border-0"
-          )}
-        >
-          <Droplets className="h-3.5 w-3.5" />
-          Blur
-        </Button>
-        <Button
-          size="sm"
-          variant={tool === "crop" ? "default" : "outline"}
-          onClick={() => { setTool("crop"); setCurrentRect(null); }}
-          className={cn(
-            "gap-1.5 text-xs",
-            tool === "crop" && "gradient-orange text-white border-0"
-          )}
-        >
-          <Crop className="h-3.5 w-3.5" />
-          Recortar
-        </Button>
-        <Button
-          size="sm"
-          variant={tool === "pencil" ? "default" : "outline"}
-          onClick={() => { setTool("pencil"); setCurrentRect(null); }}
-          className={cn(
-            "gap-1.5 text-xs",
-            tool === "pencil" && "gradient-orange text-white border-0"
-          )}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Lápis
-        </Button>
-        <Button
-          size="sm"
-          variant={tool === "erase" ? "default" : "outline"}
-          onClick={() => { setTool("erase"); setCurrentRect(null); }}
-          className={cn(
-            "gap-1.5 text-xs",
-            tool === "erase" && "gradient-orange text-white border-0"
-          )}
-        >
-          <Eraser className="h-3.5 w-3.5" />
-          Borracha
-        </Button>
-        <div className="flex-1" />
-        {editedPhotos[selectedIndex] && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={resetPhoto}
-            className="gap-1.5 border-border text-xs"
-          >
-            <Undo2 className="h-3.5 w-3.5" />
-            Original
-          </Button>
-        )}
-        <button
-          onClick={() => setFullscreen((v) => !v)}
-          className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          title={fullscreen ? "Sair de tela cheia" : "Expandir para pintar"}
-        >
-          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-        </button>
-      </div>
-
-      {/* Brush controls — for pencil and erase */}
-      {(tool === "erase" || tool === "pencil") && (
-        <div className="space-y-2">
-          {/* Color swatches — pencil only */}
-          {tool === "pencil" && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Cor:</span>
-              <div className="flex gap-1.5">
-                {PENCIL_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    title={c.label}
-                    onClick={() => setPencilColor(c.value)}
-                    className={cn(
-                      "w-6 h-6 rounded-full border-2 transition-all",
-                      pencilColor === c.value
-                        ? "border-cugini-orange scale-110"
-                        : "border-white/20 hover:border-white/50"
-                    )}
-                    style={{ backgroundColor: c.value }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          {/* Brush size */}
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-muted-foreground whitespace-nowrap">Tamanho:</span>
-            <input
-              type="range"
-              min={8}
-              max={80}
-              value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-              className="flex-1 h-1 accent-cugini-orange"
-            />
-            <span className="text-[11px] text-muted-foreground w-6 text-right">{brushSize}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Canvas */}
-      <div className={cn(
-        "relative bg-black/40 rounded-lg overflow-hidden flex items-center justify-center",
-        fullscreen ? "min-h-[calc(100vh-280px)]" : "min-h-[260px]"
-      )}>
-        {imageError ? (
-          <p className="text-sm text-muted-foreground">
-            Erro ao carregar imagem (CORS)
-          </p>
-        ) : !imageLoaded ? (
-          <div className="animate-pulse text-sm text-muted-foreground">
-            Carregando...
-          </div>
-        ) : null}
-        <canvas
-          ref={canvasRef}
-          className={cn(
-            "max-w-full max-h-[340px]",
-            (!imageLoaded || imageError) && "hidden"
-          )}
-          style={{ cursor: cursorStyle }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
-      </div>
-
-      {/* Apply button or instruction */}
-      {tool !== "erase" && tool !== "pencil" && currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
-        <Button
-          size="sm"
-          onClick={applyTool}
-          className="w-full gradient-orange text-white border-0"
-        >
-          {tool === "crop" ? "Aplicar recorte" : "Aplicar blur"}
-        </Button>
-      ) : (
-        <p className="text-[11px] text-center text-muted-foreground">
-          {tool === "crop"
-            ? "Arraste na foto para selecionar a area de recorte"
-            : tool === "blur"
-            ? "Arraste na foto para borrar a area selecionada"
-            : tool === "pencil"
-            ? "Pinte sobre a area que deseja cobrir"
-            : "Pinte sobre o fundo para apaga-lo (branco)"}
-        </p>
-      )}
-    </div>
-  );
-
-  if (fullscreen) {
-    return (
-      <div className="fixed inset-0 z-[9999] bg-[#0D0D0F] flex flex-col overflow-y-auto">
-        <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-white/[0.06]">
-          <span className="text-sm font-medium">Editor de foto</span>
+  // Single return — outer wrapper toggles CSS classes so canvas is NEVER remounted
+  return (
+    <div className={cn(
+      fullscreen
+        ? "fixed inset-0 z-[9999] bg-[#0D0D0F] flex flex-col"
+        : ""
+    )}>
+      {/* Fullscreen top bar */}
+      {fullscreen && (
+        <div className="flex items-center justify-between px-4 pt-safe pt-4 pb-2 border-b border-white/[0.06] flex-shrink-0">
+          <span className="text-sm font-medium text-foreground">Editor de foto</span>
           <button
             onClick={() => setFullscreen(false)}
-            className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-foreground"
+            className="rounded-lg border border-border p-2 text-muted-foreground hover:text-foreground"
           >
             <Minimize2 className="h-4 w-4" />
           </button>
         </div>
-        {editorContent}
-      </div>
-    );
-  }
+      )}
 
-  return editorContent;
+      <div className={cn("space-y-3 p-4", fullscreen && "overflow-y-auto flex-1")}>
+        {/* Photo thumbnails */}
+        {photos.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {photos.map((photo, i) => (
+              <button
+                key={i}
+                onClick={() => setSelectedIndex(i)}
+                className={cn(
+                  "flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all",
+                  selectedIndex === i
+                    ? "border-cugini-orange ring-1 ring-cugini-orange/30"
+                    : editedPhotos[i]
+                    ? "border-blue-500/50"
+                    : "border-white/10 hover:border-white/30"
+                )}
+              >
+                <img src={editedPhotos[i] || photo} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Tool selector */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" variant={tool === "blur" ? "default" : "outline"}
+            onClick={() => { setTool("blur"); setCurrentRect(null); }}
+            className={cn("gap-1.5 text-xs", tool === "blur" && "gradient-orange text-white border-0")}>
+            <Droplets className="h-3.5 w-3.5" />Blur
+          </Button>
+          <Button size="sm" variant={tool === "crop" ? "default" : "outline"}
+            onClick={() => { setTool("crop"); setCurrentRect(null); }}
+            className={cn("gap-1.5 text-xs", tool === "crop" && "gradient-orange text-white border-0")}>
+            <Crop className="h-3.5 w-3.5" />Recortar
+          </Button>
+          <Button size="sm" variant={tool === "pencil" ? "default" : "outline"}
+            onClick={() => { setTool("pencil"); setCurrentRect(null); }}
+            className={cn("gap-1.5 text-xs", tool === "pencil" && "gradient-orange text-white border-0")}>
+            <Pencil className="h-3.5 w-3.5" />Lápis
+          </Button>
+          <Button size="sm" variant={tool === "erase" ? "default" : "outline"}
+            onClick={() => { setTool("erase"); setCurrentRect(null); }}
+            className={cn("gap-1.5 text-xs", tool === "erase" && "gradient-orange text-white border-0")}>
+            <Eraser className="h-3.5 w-3.5" />Borracha
+          </Button>
+          <div className="flex-1" />
+          {editedPhotos[selectedIndex] && (
+            <Button size="sm" variant="outline" onClick={resetPhoto}
+              className="gap-1.5 border-border text-xs">
+              <Undo2 className="h-3.5 w-3.5" />Original
+            </Button>
+          )}
+          <button
+            onClick={() => setFullscreen((v) => !v)}
+            className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={fullscreen ? "Sair de tela cheia" : "Expandir para pintar"}
+          >
+            {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+
+        {/* Brush controls */}
+        {(tool === "erase" || tool === "pencil") && (
+          <div className="space-y-2">
+            {tool === "pencil" && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground whitespace-nowrap">Cor:</span>
+                <div className="flex gap-1.5">
+                  {PENCIL_COLORS.map((c) => (
+                    <button key={c.value} title={c.label} onClick={() => setPencilColor(c.value)}
+                      className={cn("w-7 h-7 rounded-full border-2 transition-all",
+                        pencilColor === c.value ? "border-cugini-orange scale-110" : "border-white/20 hover:border-white/50"
+                      )}
+                      style={{ backgroundColor: c.value }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Tamanho:</span>
+              <input type="range" min={8} max={80} value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                className="flex-1 h-2 accent-cugini-orange" />
+              <span className="text-[11px] text-muted-foreground w-6 text-right">{brushSize}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas container */}
+        <div className={cn(
+          "relative bg-black/40 rounded-lg overflow-hidden flex items-center justify-center",
+          fullscreen ? "min-h-[50vh]" : "min-h-[220px]"
+        )}>
+          {imageError ? (
+            <p className="text-sm text-muted-foreground">Erro ao carregar imagem (CORS)</p>
+          ) : !imageLoaded ? (
+            <div className="animate-pulse text-sm text-muted-foreground">Carregando...</div>
+          ) : null}
+          <canvas
+            ref={canvasRef}
+            className={cn(
+              "max-w-full",
+              fullscreen ? "max-h-[60vh]" : "max-h-[300px]",
+              (!imageLoaded || imageError) && "hidden"
+            )}
+            style={{ cursor: cursorStyle, touchAction: "none" }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+        </div>
+
+        {/* Apply / hint */}
+        {tool !== "erase" && tool !== "pencil" && currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
+          <Button size="sm" onClick={applyTool} className="w-full gradient-orange text-white border-0">
+            {tool === "crop" ? "Aplicar recorte" : "Aplicar blur"}
+          </Button>
+        ) : (
+          <p className="text-[11px] text-center text-muted-foreground">
+            {tool === "crop" ? "Arraste para selecionar a area de recorte"
+              : tool === "blur" ? "Arraste para borrar a area selecionada"
+              : tool === "pencil" ? "Pinte sobre a area que deseja cobrir"
+              : "Pinte sobre o fundo para apaga-lo (branco)"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
