@@ -37,12 +37,10 @@ const bottomNavigation = [
 ];
 
 interface SidebarProps {
-  mobileOpen?: boolean;
-  onMobileClose?: () => void;
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ mobileOpen, onMobileClose, onCollapsedChange }: SidebarProps) {
+export function Sidebar({ onCollapsedChange }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
@@ -50,11 +48,6 @@ export function Sidebar({ mobileOpen, onMobileClose, onCollapsedChange }: Sideba
     onCollapsedChange?.(collapsed);
   }, [collapsed, onCollapsedChange]);
 
-  // Close mobile sidebar on navigation
-  useEffect(() => {
-    if (mobileOpen) onMobileClose?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -121,27 +114,10 @@ export function Sidebar({ mobileOpen, onMobileClose, onCollapsedChange }: Sideba
 
   return (
     <>
-      {/* Mobile backdrop */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onMobileClose}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
-          />
-        )}
-      </AnimatePresence>
-
       <motion.aside
         animate={{ width: collapsed ? 72 : 260 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
-        className={cn(
-          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-white/[0.04] bg-sidebar transition-transform duration-300",
-          mobileOpen ? "translate-x-0" : "-translate-x-full",
-          "md:translate-x-0"
-        )}
+        className="fixed left-0 top-0 z-50 hidden md:flex h-screen flex-col border-r border-white/[0.04] bg-sidebar"
       >
         {/* Logo */}
         <div className="flex h-14 items-center justify-center border-b border-white/[0.04] px-4">
