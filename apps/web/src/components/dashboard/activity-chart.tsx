@@ -115,7 +115,7 @@ export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityCh
         </div>
       </div>
 
-      <div className="h-72">
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={data}

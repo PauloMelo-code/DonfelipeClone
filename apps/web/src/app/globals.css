@@ -8,7 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -112,42 +112,24 @@
 /* Premium glassmorphism */
 @layer utilities {
   .glass {
-    background: linear-gradient(
-      145deg,
-      rgba(19, 19, 22, 0.8) 0%,
-      rgba(19, 19, 22, 0.6) 100%
-    );
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.3),
-      0 2px 8px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.4);
   }
   .glass-strong {
-    background: linear-gradient(
-      145deg,
-      rgba(19, 19, 22, 0.9) 0%,
-      rgba(19, 19, 22, 0.75) 100%
-    );
+    background: linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.4),
-      0 4px 16px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 1px 0 0 rgba(255,255,255,0.08) inset, 0 8px 32px rgba(0,0,0,0.5);
   }
   .glow-orange {
-    box-shadow:
-      0 0 20px rgba(232, 115, 26, 0.12),
-      0 0 0 1px rgba(232, 115, 26, 0.08);
+    box-shadow: 0 0 20px rgba(232,115,26,0.4), 0 0 0 1px rgba(232,115,26,0.2);
   }
   .glow-orange-sm {
-    box-shadow:
-      0 0 12px rgba(232, 115, 26, 0.08),
-      0 0 0 1px rgba(232, 115, 26, 0.06);
+    box-shadow: 0 0 10px rgba(232,115,26,0.25), 0 0 0 1px rgba(232,115,26,0.1);
   }
   .gradient-orange {
     background: linear-gradient(135deg, #E8731A 0%, #FF8C2E 100%);
@@ -194,12 +176,14 @@
 body::before {
   content: "";
   position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(232, 115, 26, 0.04), transparent),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(232, 115, 26, 0.02), transparent);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 400px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(232,115,26,0.06) 0%, transparent 70%);
   pointer-events: none;
+  z-index: 0;
 }
 
 /* Tremor chart refinements */
