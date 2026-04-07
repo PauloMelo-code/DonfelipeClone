@@ -409,9 +409,12 @@ export default function VeiculosPage() {
             actionLoading={actionLoading}
           />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Car className="mb-3 h-12 w-12 opacity-30" />
-            <p className="text-sm">Nenhum veiculo encontrado</p>
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-cugini-orange/[0.06] border border-cugini-orange/10">
+              <Car className="h-10 w-10 text-cugini-orange/40" />
+            </div>
+            <p className="text-base font-medium text-foreground/70">Fila vazia</p>
+            <p className="mt-1 text-sm text-muted-foreground/50">Nenhum veiculo nesta categoria no momento</p>
           </div>
         ) : (
           /* Grid for APPROVED / PUBLISHED / REJECTED */

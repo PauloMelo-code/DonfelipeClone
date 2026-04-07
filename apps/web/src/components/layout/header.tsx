@@ -14,9 +14,10 @@ import { LogOut, User } from "lucide-react";
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  live?: boolean;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, live }: HeaderProps) {
   const { data: session } = useSession();
 
   const initials = session?.user?.name
@@ -31,7 +32,18 @@ export function Header({ title, subtitle }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-white/[0.04] bg-background/60 backdrop-blur-2xl pl-14 pr-4 md:px-6">
       <div>
-        <h1 className="text-base md:text-xl font-semibold tracking-[-0.02em] text-foreground">{title}</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-base md:text-xl font-semibold tracking-[-0.02em] text-foreground">{title}</h1>
+          {live && (
+            <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+              </span>
+              Ao vivo
+            </span>
+          )}
+        </div>
         {subtitle && (
           <p className="hidden sm:block text-[13px] text-muted-foreground/70">{subtitle}</p>
         )}
