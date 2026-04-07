@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import bcrypt from "bcryptjs";
 
 export async function PUT(
   request: NextRequest,
@@ -12,32 +13,42 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, role, active } = body;
+    const { name, password, role, active } = body;
 
-    const existing = await prisma.user.findUnique({ where: { id } });
-    if (!existing) {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) {
       return NextResponse.json(
         { error: "Usuario nao encontrado" },
         { status: 404 }
       );
     }
 
-    const data: Record<string, unknown> = {};
-    if (name !== undefined) data.name = name;
+    const updateData: Record<string, unknown> = {};
+    if (name !== undefined) updateData.name = name;
     if (role !== undefined) {
       if (!["ADMIN", "OPERATOR"].includes(role)) {
         return NextResponse.json(
-          { error: "Role deve ser ADMIN ou OPERATOR" },
+          { error: "Role invalido. Use ADMIN ou OPERATOR" },
           { status: 400 }
         );
       }
-      data.role = role;
+      updateData.role = role;
     }
-    if (active !== undefined) data.active = active;
+    if (active !== undefined) updateData.active = active;
+    if (password && password.trim()) {
+      updateData.password = await bcrypt.hash(password.trim(), 10);
+    }
 
-    const user = await prisma.user.update({
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json(
+        { error: "Nenhum campo para atualizar" },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.user.update({
       where: { id },
-      data,
+      data: updateData,
       select: {
         id: true,
         name: true,
@@ -54,11 +65,13 @@ export async function PUT(
         entityType: "User",
         entityId: id,
         userId: auth.user.id,
-        details: JSON.stringify(data),
+        details: JSON.stringify({
+          updatedFields: Object.keys(updateData).filter((k) => k !== "password"),
+        }),
       },
     });
 
-    return NextResponse.json(user);
+    return NextResponse.json(updated);
   } catch (error) {
     console.error("[Users] Error updating user:", error);
     return NextResponse.json(

@@ -38,7 +38,7 @@ export async function POST(
     }
 
     const marginSetting = await prisma.setting.findUnique({
-      where: { key: "profit_margin" },
+      where: { key: "profit_margin_percent" },
     });
     const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
 

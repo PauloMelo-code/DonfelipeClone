@@ -33,11 +33,7 @@ export default function ConfiguracoesPage() {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        const map: Record<string, string> = {};
-        data.forEach((s: { key: string; value: string }) => {
-          map[s.key] = s.value;
-        });
-        setSettings((prev) => ({ ...prev, ...map }));
+        setSettings((prev) => ({ ...prev, ...data }));
       }
     } catch {
       // ignore

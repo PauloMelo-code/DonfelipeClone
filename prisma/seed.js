@@ -173,7 +173,7 @@ async function main() {
     { key: "profit_margin_percent", value: "10" },
     { key: "delay_min_seconds", value: "30" },
     { key: "delay_max_seconds", value: "120" },
-    { key: "filter_min_year", value: "2010" },
+    { key: "filter_min_year", value: "2018" },
     { key: "filter_max_price", value: "300000" },
     { key: "auction_emoji", value: "\u{1F697}" }
   ];

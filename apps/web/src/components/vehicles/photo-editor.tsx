@@ -172,11 +172,15 @@ export function PhotoEditor({
       ctx.restore();
     }
 
-    // Save result
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    setCurrentRect(null);
-    onPhotoEdited(selectedIndex, dataUrl);
+    // Save result — canvas may be tainted if image came from external origin
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      setCurrentRect(null);
+      onPhotoEdited(selectedIndex, dataUrl);
+    } catch {
+      setImageError(true);
+    }
   };
 
   const resetPhoto = () => {

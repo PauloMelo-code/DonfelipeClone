@@ -107,7 +107,7 @@ export default function AuditoriaPage() {
 
   const actions = [
     "", "VEHICLE_CAPTURED", "VEHICLE_APPROVED", "VEHICLE_REJECTED",
-    "VEHICLE_PUBLISHED", "SETTINGS_UPDATED", "USER_CREATED", "USER_UPDATED",
+    "VEHICLE_PUBLISH", "SETTINGS_UPDATED", "USER_CREATED", "USER_UPDATED",
   ];
 
   return (

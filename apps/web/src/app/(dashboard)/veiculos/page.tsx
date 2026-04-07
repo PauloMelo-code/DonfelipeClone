@@ -260,7 +260,7 @@ export default function VeiculosPage() {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        const m = data.profit_margin ? parseFloat(data.profit_margin) : 10;
+        const m = data.profit_margin_percent ? parseFloat(data.profit_margin_percent) : 10;
         setMargin(m);
         setEditedAd(getAdText(vehicle, m));
       } else {
