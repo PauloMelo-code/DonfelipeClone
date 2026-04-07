@@ -185,11 +185,22 @@ export async function publishVehicle(
       let messageId: string | undefined;
 
       if (photos.length > 0) {
+        // Resolve photo: /api/media/[id] → base64 data URI for UAZAPI (external service)
+        let photoFile = photos[0];
+        if (photoFile.startsWith("/api/media/")) {
+          const mediaId = photoFile.replace("/api/media/", "");
+          const media = await prisma.mediaFile.findUnique({ where: { id: mediaId } });
+          if (media) {
+            const mimeType = media.mimeType === "application/octet-stream" ? "image/jpeg" : media.mimeType;
+            photoFile = `data:${mimeType};base64,${media.data}`;
+          }
+        }
+
         // Send first photo with the ad text as caption
         const sendResult = await uazapi.sendMedia({
           number: group.groupId,
           type: "image",
-          file: photos[0],
+          file: photoFile,
           text: adText,
         });
         messageId = sendResult.key?.id;
