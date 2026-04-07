@@ -164,7 +164,60 @@ export default function AuditoriaPage() {
           </div>
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-white/[0.04]">
+              {logs.map((log, i) => {
+                const config = actionConfig[log.action];
+                const Icon = config?.icon || Shield;
+                const details = parseDetails(log.details);
+                const isExpanded = expandedId === log.id;
+                return (
+                  <motion.div
+                    key={log.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.02 }}
+                  >
+                    <div
+                      className={cn("flex items-center gap-3 px-4 py-3 cursor-pointer", isExpanded && "bg-white/[0.02]")}
+                      onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                    >
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className={cn("gap-1 border text-[10px]", config?.color || "bg-card text-foreground border-border")}>
+                            <Icon className="h-2.5 w-2.5" />{config?.label || log.action}
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-medium text-foreground">
+                          {log.user ? log.user.name : <span className="text-muted-foreground text-xs">Sistema</span>}
+                        </p>
+                        {(log.vehicle || log.entityType) && (
+                          <p className="text-xs text-muted-foreground truncate">
+                            {log.vehicle ? `${log.vehicle.brand ? log.vehicle.brand + " " : ""}${log.vehicle.model}` : log.entityType}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-[10px] text-muted-foreground">{formatDate(log.createdAt)}</span>
+                        {details && (
+                          <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
+                        )}
+                      </div>
+                    </div>
+                    {isExpanded && details && (
+                      <div className="px-4 pb-3 bg-card/50">
+                        <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-background/50 rounded-lg p-3 max-h-40 overflow-auto">
+                          {JSON.stringify(details, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
@@ -181,23 +234,18 @@ export default function AuditoriaPage() {
                     const Icon = config?.icon || Shield;
                     const details = parseDetails(log.details);
                     const isExpanded = expandedId === log.id;
-
                     return (
                       <motion.tr
                         key={log.id}
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.02 }}
-                        className={cn(
-                          "border-b border-white/[0.03] transition-colors duration-200 cursor-pointer",
-                          isExpanded ? "bg-white/[0.02]" : "hover:bg-white/[0.02]"
-                        )}
+                        className={cn("border-b border-white/[0.03] transition-colors duration-200 cursor-pointer", isExpanded ? "bg-white/[0.02]" : "hover:bg-white/[0.02]")}
                         onClick={() => setExpandedId(isExpanded ? null : log.id)}
                       >
                         <td className="px-5 py-3.5">
                           <Badge className={cn("gap-1 border", config?.color || "bg-card text-foreground border-border")}>
-                            <Icon className="h-3 w-3" />
-                            {config?.label || log.action}
+                            <Icon className="h-3 w-3" />{config?.label || log.action}
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5">
@@ -206,33 +254,18 @@ export default function AuditoriaPage() {
                               <p className="font-medium text-foreground">{log.user.name}</p>
                               <p className="text-[11px] text-muted-foreground">{log.user.email}</p>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Sistema</span>
-                          )}
+                          ) : <span className="text-muted-foreground text-xs">Sistema</span>}
                         </td>
                         <td className="px-5 py-3.5">
                           {log.vehicle ? (
-                            <span className="text-foreground">
-                              {log.vehicle.brand && `${log.vehicle.brand} `}{log.vehicle.model}
-                            </span>
+                            <span className="text-foreground">{log.vehicle.brand && `${log.vehicle.brand} `}{log.vehicle.model}</span>
                           ) : log.entityType ? (
                             <span className="text-muted-foreground">{log.entityType}</span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                          ) : <span className="text-muted-foreground">—</span>}
                         </td>
-                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">
-                          {formatDate(log.createdAt)}
-                        </td>
+                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
                         <td className="px-5 py-3.5">
-                          {details && (
-                            <ChevronRight
-                              className={cn(
-                                "h-4 w-4 text-muted-foreground transition-transform",
-                                isExpanded && "rotate-90"
-                              )}
-                            />
-                          )}
+                          {details && <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />}
                         </td>
                       </motion.tr>
                     );
@@ -241,13 +274,13 @@ export default function AuditoriaPage() {
               </table>
             </div>
 
-            {/* Expanded details */}
+            {/* Expanded details - desktop */}
             {expandedId && (() => {
               const log = logs.find((l) => l.id === expandedId);
               const details = log ? parseDetails(log.details) : null;
               if (!details) return null;
               return (
-                <div className="px-4 py-3 bg-card/50 border-t border-white/[0.03]">
+                <div className="hidden md:block px-4 py-3 bg-card/50 border-t border-white/[0.03]">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50 mb-2">Detalhes</p>
                   <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-background/50 rounded-lg p-3 max-h-40 overflow-auto">
                     {JSON.stringify(details, null, 2)}
@@ -259,9 +292,7 @@ export default function AuditoriaPage() {
             {/* Pagination */}
             {pagination.totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3.5">
-                <span className="text-xs text-muted-foreground">
-                  Pagina {pagination.page} de {pagination.totalPages}
-                </span>
+                <span className="text-xs text-muted-foreground">Pagina {pagination.page} de {pagination.totalPages}</span>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" disabled={pagination.page <= 1}
                     onClick={() => fetchLogs(pagination.page - 1)} className="h-8 w-8 p-0 border-border">

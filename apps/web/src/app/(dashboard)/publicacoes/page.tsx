@@ -148,7 +148,7 @@ export default function PublicacoesPage() {
           <span>{pagination.total} publicacao(oes) encontrada(s)</span>
         </div>
 
-        {/* Table */}
+        {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
@@ -160,7 +160,59 @@ export default function PublicacoesPage() {
           </div>
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-white/[0.04]">
+              {posts.map((post, i) => {
+                const photos = JSON.parse(post.vehicle.photos || "[]");
+                return (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="flex items-center gap-3 px-4 py-3"
+                  >
+                    <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-card">
+                      {photos.length > 0 ? (
+                        <img src={photos[0]} alt={post.vehicle.model} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Car className="h-4 w-4 text-muted-foreground/30" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {post.vehicle.brand && `${post.vehicle.brand} `}{post.vehicle.model}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{post.vehicle.year} · {post.vehicle.km.toLocaleString("pt-BR")} km</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                        <span className="text-xs text-muted-foreground truncate">{post.targetGroup.name}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-sm font-semibold text-cugini-orange">
+                        {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
+                      </span>
+                      {post.success ? (
+                        <Badge className="gap-1 border bg-success/10 text-success border-success/20 text-[10px]">
+                          <CheckCircle2 className="h-2.5 w-2.5" />Enviado
+                        </Badge>
+                      ) : (
+                        <Badge className="gap-1 border bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
+                          <XCircle className="h-2.5 w-2.5" />Falha
+                        </Badge>
+                      )}
+                      <span className="text-[10px] text-muted-foreground/50">{formatDate(post.postedAt)}</span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
@@ -182,16 +234,11 @@ export default function PublicacoesPage() {
                         transition={{ delay: i * 0.03 }}
                         className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors duration-200"
                       >
-                        {/* Vehicle */}
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-14 shrink-0 overflow-hidden rounded-lg bg-card">
                               {photos.length > 0 ? (
-                                <img
-                                  src={photos[0]}
-                                  alt={post.vehicle.model}
-                                  className="h-full w-full object-cover"
-                                />
+                                <img src={photos[0]} alt={post.vehicle.model} className="h-full w-full object-cover" />
                               ) : (
                                 <div className="flex h-full items-center justify-center">
                                   <Car className="h-4 w-4 text-muted-foreground/30" />
@@ -200,8 +247,7 @@ export default function PublicacoesPage() {
                             </div>
                             <div>
                               <p className="font-medium text-foreground">
-                                {post.vehicle.brand && `${post.vehicle.brand} `}
-                                {post.vehicle.model}
+                                {post.vehicle.brand && `${post.vehicle.brand} `}{post.vehicle.model}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {post.vehicle.year} &middot; {post.vehicle.km.toLocaleString("pt-BR")} km
@@ -209,50 +255,30 @@ export default function PublicacoesPage() {
                             </div>
                           </div>
                         </td>
-
-                        {/* Target Group */}
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-1.5">
                             <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-foreground truncate max-w-[180px]">
-                              {post.targetGroup.name}
-                            </span>
+                            <span className="text-foreground truncate max-w-[180px]">{post.targetGroup.name}</span>
                           </div>
                         </td>
-
-                        {/* Date */}
-                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">
-                          {formatDate(post.postedAt)}
-                        </td>
-
-                        {/* Price */}
+                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(post.postedAt)}</td>
                         <td className="px-5 py-3.5">
                           <span className="font-medium text-cugini-orange">
                             {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
                           </span>
                         </td>
-
-                        {/* Status */}
                         <td className="px-5 py-3.5 text-center">
                           {post.success ? (
-                            <Badge className={cn(
-                              "gap-1 border bg-success/10 text-success border-success/20"
-                            )}>
-                              <CheckCircle2 className="h-3 w-3" />
-                              Enviado
+                            <Badge className="gap-1 border bg-success/10 text-success border-success/20">
+                              <CheckCircle2 className="h-3 w-3" />Enviado
                             </Badge>
                           ) : (
                             <div className="flex flex-col items-center gap-1">
-                              <Badge className={cn(
-                                "gap-1 border bg-destructive/10 text-destructive border-destructive/20"
-                              )}>
-                                <XCircle className="h-3 w-3" />
-                                Falha
+                              <Badge className="gap-1 border bg-destructive/10 text-destructive border-destructive/20">
+                                <XCircle className="h-3 w-3" />Falha
                               </Badge>
                               {post.errorMessage && (
-                                <span className="text-[10px] text-destructive/70 max-w-[120px] truncate">
-                                  {post.errorMessage}
-                                </span>
+                                <span className="text-[10px] text-destructive/70 max-w-[120px] truncate">{post.errorMessage}</span>
                               )}
                             </div>
                           )}
@@ -271,22 +297,12 @@ export default function PublicacoesPage() {
                   Pagina {pagination.page} de {pagination.totalPages}
                 </span>
                 <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={pagination.page <= 1}
-                    onClick={() => fetchPosts(pagination.page - 1)}
-                    className="h-8 w-8 p-0 border-border"
-                  >
+                  <Button variant="outline" size="sm" disabled={pagination.page <= 1}
+                    onClick={() => fetchPosts(pagination.page - 1)} className="h-8 w-8 p-0 border-border">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={pagination.page >= pagination.totalPages}
-                    onClick={() => fetchPosts(pagination.page + 1)}
-                    className="h-8 w-8 p-0 border-border"
-                  >
+                  <Button variant="outline" size="sm" disabled={pagination.page >= pagination.totalPages}
+                    onClick={() => fetchPosts(pagination.page + 1)} className="h-8 w-8 p-0 border-border">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>

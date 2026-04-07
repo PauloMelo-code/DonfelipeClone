@@ -197,7 +197,62 @@ export default function UsuariosPage() {
           </div>
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-white/[0.04]">
+              <AnimatePresence>
+                {users.map((user, i) => (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="flex items-center gap-3 px-4 py-3"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cugini-orange/[0.08] text-[13px] font-semibold text-cugini-orange">
+                      {user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <Badge className={cn("border text-[10px]",
+                          user.role === "ADMIN"
+                            ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20"
+                            : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                        )}>
+                          <Shield className="h-2.5 w-2.5 mr-1" />
+                          {user.role === "ADMIN" ? "Admin" : "Operador"}
+                        </Badge>
+                        <Badge className={cn("border text-[10px]",
+                          user.active
+                            ? "bg-success/10 text-success border-success/20"
+                            : "bg-destructive/10 text-destructive border-destructive/20"
+                        )}>
+                          {user.active ? "Ativo" : "Inativo"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => openEdit(user)}
+                        className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => toggleActive(user)}
+                        className={cn("rounded-lg p-2 transition-colors",
+                          user.active
+                            ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            : "text-muted-foreground hover:text-success hover:bg-success/10"
+                        )}>
+                        <Power className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
@@ -226,55 +281,38 @@ export default function UsuariosPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5">
-                          <Badge
-                            className={cn(
-                              "border",
-                              user.role === "ADMIN"
-                                ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20"
-                                : "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                            )}
-                          >
+                          <Badge className={cn("border",
+                            user.role === "ADMIN"
+                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20"
+                              : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          )}>
                             <Shield className="h-3 w-3 mr-1" />
                             {user.role === "ADMIN" ? "Admin" : "Operador"}
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5">
-                          <Badge
-                            className={cn(
-                              "border",
-                              user.active
-                                ? "bg-success/10 text-success border-success/20"
-                                : "bg-destructive/10 text-destructive border-destructive/20"
-                            )}
-                          >
+                          <Badge className={cn("border",
+                            user.active
+                              ? "bg-success/10 text-success border-success/20"
+                              : "bg-destructive/10 text-destructive border-destructive/20"
+                          )}>
                             {user.active ? "Ativo" : "Inativo"}
                           </Badge>
                         </td>
-                        <td className="px-5 py-3.5 text-muted-foreground">
-                          {user._count.auditLogs} acoes
-                        </td>
-                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">
-                          {formatDate(user.createdAt)}
-                        </td>
+                        <td className="px-5 py-3.5 text-muted-foreground">{user._count.auditLogs} acoes</td>
+                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(user.createdAt)}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex gap-1">
-                            <button
-                              onClick={() => openEdit(user)}
-                              className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                              title="Editar"
-                            >
+                            <button onClick={() => openEdit(user)}
+                              className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" title="Editar">
                               <Pencil className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => toggleActive(user)}
-                              className={cn(
-                                "rounded-lg p-1.5 transition-colors",
+                            <button onClick={() => toggleActive(user)}
+                              className={cn("rounded-lg p-1.5 transition-colors",
                                 user.active
                                   ? "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                   : "text-muted-foreground hover:text-success hover:bg-success/10"
-                              )}
-                              title={user.active ? "Desativar" : "Ativar"}
-                            >
+                              )} title={user.active ? "Desativar" : "Ativar"}>
                               <Power className="h-4 w-4" />
                             </button>
                           </div>
