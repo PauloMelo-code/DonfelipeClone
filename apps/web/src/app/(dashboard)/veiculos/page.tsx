@@ -130,6 +130,7 @@ export default function VeiculosPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewVehicle, setPreviewVehicle] = useState<Vehicle | null>(null);
   const [publishVehicle, setPublishVehicle] = useState<Vehicle | null>(null);
+  const [republishMode, setRepublishMode] = useState(false);
   const [editedAd, setEditedAd] = useState("");
   const [publishTab, setPublishTab] = useState<"photo" | "edit" | "preview">("edit");
   const [editedPhotos, setEditedPhotos] = useState<Record<number, string>>({});
@@ -240,7 +241,30 @@ export default function VeiculosPage() {
   const getPreviewAdText = (v: Vehicle) =>
     v.formattedAd || getAdText(v);
 
+  const openRepublishModal = async (vehicle: Vehicle) => {
+    setRepublishMode(true);
+    setPublishVehicle(vehicle);
+    setEditedPhotos({});
+    setPublishTab("edit");
+    setEditedAd(vehicle.formattedAd || "");
+    const existingMargin = vehicle.sellingPrice && vehicle.price
+      ? Math.round(((vehicle.sellingPrice / vehicle.price) - 1) * 100)
+      : 10;
+    setMargin(existingMargin);
+    try {
+      const res = await fetch("/api/groups?role=TARGET&active=true");
+      if (res.ok) {
+        const groups: WhatsAppGroup[] = await res.json();
+        setTargetGroups(groups);
+        setSelectedGroupIds(groups.map((g) => g.groupId));
+      }
+    } catch {
+      setTargetGroups([]);
+    }
+  };
+
   const openPublishModal = async (vehicle: Vehicle) => {
+    setRepublishMode(false);
     setPublishVehicle(vehicle);
     setEditedPhotos({});
     setPublishTab("photo");
@@ -309,8 +333,12 @@ export default function VeiculosPage() {
         body: JSON.stringify(updateData),
       });
 
-      // Then publish with target group selection
-      const res = await fetch(`/api/vehicles/${publishVehicle.id}/publish`, {
+      // Publish or republish
+      const endpoint = republishMode
+        ? `/api/vehicles/${publishVehicle.id}/republish`
+        : `/api/vehicles/${publishVehicle.id}/publish`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -320,8 +348,10 @@ export default function VeiculosPage() {
         }),
       });
       if (res.ok) {
-        toast.success("Publicacao iniciada!");
-        setVehicles((prev) => prev.filter((v) => v.id !== publishVehicle.id));
+        toast.success(republishMode ? "Reenvio iniciado!" : "Publicacao iniciada!");
+        if (!republishMode) {
+          setVehicles((prev) => prev.filter((v) => v.id !== publishVehicle.id));
+        }
         setPublishVehicle(null);
       } else {
         const err = await res.json();
@@ -542,6 +572,22 @@ export default function VeiculosPage() {
                             </Button>
                           </>
                         )}
+                        {vehicle.status === "PUBLISHED" && (
+                          <Button
+                            size="sm"
+                            onClick={() => openRepublishModal(vehicle)}
+                            disabled={actionLoading === vehicle.id}
+                            className="flex-1 gap-1.5 border-cugini-orange/30 text-cugini-orange hover:bg-cugini-orange/10"
+                            variant="outline"
+                          >
+                            {actionLoading === vehicle.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Send className="h-3.5 w-3.5" />
+                            )}
+                            Reenviar
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -607,7 +653,7 @@ export default function VeiculosPage() {
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold text-foreground">Publicar veiculo</h3>
+                <h3 className="text-base font-semibold text-foreground">{republishMode ? "Reenviar veiculo" : "Publicar veiculo"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {publishVehicle?.brand && `${publishVehicle.brand} `}{publishVehicle?.model}
                   {publishVehicle && ` \u00B7 ${formatPrice(publishVehicle.price)} (custo)`}
@@ -879,7 +925,7 @@ export default function VeiculosPage() {
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                Confirmar e publicar
+                {republishMode ? "Confirmar e reenviar" : "Confirmar e publicar"}
                 {selectedGroupIds.length > 0 && (
                   <span className="ml-1 text-[10px] opacity-80">
                     ({selectedGroupIds.length} grupo{selectedGroupIds.length !== 1 ? "s" : ""})
