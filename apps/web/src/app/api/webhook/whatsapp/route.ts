@@ -293,6 +293,10 @@ export async function POST(request: NextRequest) {
     const features = (vehicleData.features as string[]) || [];
     const photos = imageUrl ? [imageUrl] : [];
 
+    if (photos.length === 0) {
+      return NextResponse.json({ status: "ignored", reason: "no_photo" });
+    }
+
     if (!model || !year || km === undefined || !price) {
       return NextResponse.json({
         status: "ignored",
