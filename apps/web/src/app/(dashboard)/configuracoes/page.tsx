@@ -144,7 +144,7 @@ export default function ConfiguracoesPage() {
               {waStatusLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (() => {
-                const cfg = waStatusConfig[waState];
+                const cfg = waStatusConfig[waState] ?? waStatusConfig.unknown;
                 const Icon = cfg.icon;
                 return (
                   <span className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium", cfg.color)}>

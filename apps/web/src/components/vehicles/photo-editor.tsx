@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Crop, Droplets, Undo2, ImageIcon, Eraser, Pencil } from "lucide-react";
+import { Crop, Droplets, Undo2, ImageIcon, Eraser, Pencil, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PhotoEditorProps {
@@ -43,6 +43,7 @@ export function PhotoEditor({
   const [imageError, setImageError] = useState(false);
   const [brushSize, setBrushSize] = useState(24);
   const [pencilColor, setPencilColor] = useState("#000000");
+  const [fullscreen, setFullscreen] = useState(false);
   const cleanImageRef = useRef<ImageData | null>(null);
 
   // Load image onto canvas
@@ -298,8 +299,8 @@ export function PhotoEditor({
       ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${brushSize}' height='${brushSize}' viewBox='0 0 ${brushSize} ${brushSize}'%3E%3Ccircle cx='${brushSize / 2}' cy='${brushSize / 2}' r='${brushSize / 2 - 1}' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") ${brushSize / 2} ${brushSize / 2}, crosshair`
       : "crosshair";
 
-  return (
-    <div className="p-4 space-y-3">
+  const editorContent = (
+    <div className={cn("space-y-3", fullscreen ? "p-4" : "p-4")}>
       {/* Photo thumbnails */}
       {photos.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -388,6 +389,13 @@ export function PhotoEditor({
             Original
           </Button>
         )}
+        <button
+          onClick={() => setFullscreen((v) => !v)}
+          className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          title={fullscreen ? "Sair de tela cheia" : "Expandir para pintar"}
+        >
+          {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       {/* Brush controls — for pencil and erase */}
@@ -432,7 +440,10 @@ export function PhotoEditor({
       )}
 
       {/* Canvas */}
-      <div className="relative bg-black/40 rounded-lg overflow-hidden flex items-center justify-center min-h-[260px]">
+      <div className={cn(
+        "relative bg-black/40 rounded-lg overflow-hidden flex items-center justify-center",
+        fullscreen ? "min-h-[calc(100vh-280px)]" : "min-h-[260px]"
+      )}>
         {imageError ? (
           <p className="text-sm text-muted-foreground">
             Erro ao carregar imagem (CORS)
@@ -478,4 +489,23 @@ export function PhotoEditor({
       )}
     </div>
   );
+
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-[#0D0D0F] flex flex-col overflow-y-auto">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-white/[0.06]">
+          <span className="text-sm font-medium">Editor de foto</span>
+          <button
+            onClick={() => setFullscreen(false)}
+            className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </button>
+        </div>
+        {editorContent}
+      </div>
+    );
+  }
+
+  return editorContent;
 }
