@@ -12,40 +12,16 @@ export interface FormatSettings {
 }
 
 /**
- * Format a short price string in the Brazilian "99.9k" notation.
- *
+ * Format a price in Brazilian notation with decimals.
  * Examples:
- *   127000  -> "127k"
- *    99900  -> "99.9k"
- *   185500  -> "185.5k"
- *  1200000  -> "1.200k"
- */
-function priceShort(value: number): string {
-  const thousands = value / 1000;
-
-  // If it's a whole number of thousands, drop the decimal
-  if (Number.isInteger(thousands)) {
-    return `${thousands.toLocaleString("pt-BR")}k`;
-  }
-
-  // One decimal place, remove trailing zero after decimal if present
-  const formatted = thousands.toLocaleString("pt-BR", {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
-
-  return `${formatted}k`;
-}
-
-/**
- * Format a full price string in Brazilian Real notation.
- *
- * Examples:
- *   127000  -> "R$ 127.000"
- *    99900  -> "R$ 99.900"
+ *   177530  -> "177.530,00"
+ *    99900  -> "99.900,00"
  */
 function priceFormatted(value: number): string {
-  return `R$ ${Math.round(value).toLocaleString("pt-BR")}`;
+  return Math.round(value).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 /**
@@ -53,13 +29,6 @@ function priceFormatted(value: number): string {
  */
 function kmFormatted(km: number): string {
   return km.toLocaleString("pt-BR");
-}
-
-/**
- * Get the last two digits of a year: 2024 -> "24"
- */
-function yearShort(year: number): string {
-  return String(year).slice(-2);
 }
 
 /**
@@ -75,29 +44,19 @@ function getTransmissionLabel(
 ): string {
   // HYBRID RULE takes precedence
   if (fuel === "HIBRIDO") {
-    return "HIBRIDO";
+    return "Híbrido";
   }
 
   switch (transmission) {
     case "AUTOMATICO":
-      return "AUT";
+      return "Automático";
     case "MANUAL":
-      return "MEC";
+      return "Manual";
     case "CVT":
       return "CVT";
     default:
-      return "AUT"; // sensible default for Brazilian market
+      return "";
   }
-}
-
-/**
- * Build the short model name from the full model.
- * Takes the first two words, uppercased.
- * e.g. "Civic EXL 2.0 16V" -> "CIVIC EXL"
- */
-function modelShort(model: string): string {
-  const parts = model.trim().split(/\s+/);
-  return parts.slice(0, 2).join(" ").toUpperCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +81,7 @@ export function formatVehicleAd(
     transmission?: string | null;
     fuel?: string | null;
     features?: string | string[] | null;
+    rawDescription?: string | null;
     location?: string | null;
     state?: string | null;
   },
@@ -133,11 +93,7 @@ export function formatVehicleAd(
     vehicle.fuel ?? undefined,
     vehicle.transmission ?? undefined
   );
-  const shortModel = modelShort(vehicle.model);
-  const fullModel = vehicle.model.toUpperCase();
-  const yShort = yearShort(vehicle.year);
   const kmFmt = kmFormatted(vehicle.km);
-  const pShort = priceShort(sellingPrice);
   const sellingPriceFmt = priceFormatted(sellingPrice);
 
   // --- Features ---
@@ -154,47 +110,39 @@ export function formatVehicleAd(
     }
   }
 
-  const featuresBlock = featuresList
-    .map((f) => `\u2022 ${f}`)
-    .join("\n");
-
   // --- Year display ---
-  const yearDisplay = vehicle.yearModel
+  const yearDisplay = vehicle.yearModel && vehicle.yearModel !== vehicle.year
     ? `${vehicle.year}/${vehicle.yearModel}`
     : `${vehicle.year}`;
 
-  // --- FIPE line ---
-  const fipeLine =
-    vehicle.fipePrice != null
-      ? `FIPE: ${priceFormatted(vehicle.fipePrice)}`
-      : null;
+  // --- First line: model + transmission ---
+  const modelLine = transmissionLabel
+    ? `${vehicle.model} ${transmissionLabel}`
+    : vehicle.model;
 
   // --- Build ad ---
   const lines: string[] = [
-    `\uD83D\uDE97 ${shortModel} '${yShort} | ${kmFmt} KM | ${pShort}`,
-    "",
-    `${fullModel} ${transmissionLabel}`,
-    `Ano: ${yearDisplay}`,
-    `Km: ${kmFmt}`,
+    modelLine,
+    `${yearDisplay} | ${kmFmt}km`,
   ];
 
-  if (featuresBlock) {
-    lines.push("", featuresBlock);
+  if (featuresList.length > 0) {
+    lines.push("");
+    featuresList.forEach((f) => lines.push(f));
+  }
+
+  if (vehicle.rawDescription?.trim()) {
+    lines.push("");
+    lines.push(vehicle.rawDescription.trim());
   }
 
   lines.push("");
 
-  if (fipeLine) {
-    lines.push(fipeLine);
+  if (vehicle.fipePrice != null) {
+    lines.push(`Fipe: ${priceFormatted(vehicle.fipePrice)}`);
   }
 
-  lines.push(`POR: ${sellingPriceFmt}`);
-
-  // Location line
-  const loc = vehicle.location || vehicle.state;
-  if (loc) {
-    lines.push(`\uD83D\uDCCD ${vehicle.location ? vehicle.location : ""}${vehicle.location && vehicle.state ? "/" : ""}${vehicle.state || ""}`);
-  }
+  lines.push(`Por: ${sellingPriceFmt}`);
 
   return lines.join("\n");
 }

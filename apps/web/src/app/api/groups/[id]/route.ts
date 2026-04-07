@@ -45,13 +45,14 @@ export async function PUT(
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
 
-    const { name, role, active, filters, photoUrl } = validation.data;
+    const { name, role, active, filters, photoUrl, region } = validation.data;
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (role !== undefined) data.role = role;
     if (active !== undefined) data.active = active;
     if (filters !== undefined) data.filters = filters;
     if (photoUrl !== undefined) data.photoUrl = photoUrl;
+    if (region !== undefined) data.region = region;
 
     const updated = await prisma.whatsAppGroup.update({
       where: { id },

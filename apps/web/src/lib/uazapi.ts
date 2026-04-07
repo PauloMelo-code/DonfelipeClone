@@ -131,6 +131,34 @@ class UazapiClient {
   }
 
   /**
+   * Get the current connection status of the WhatsApp instance.
+   */
+  async getStatus(): Promise<{ state: string; phone?: string }> {
+    const { data } = await this.client.get("/instance/status");
+    return {
+      state: data?.state ?? data?.status ?? "unknown",
+      phone: data?.phone ?? data?.number ?? undefined,
+    };
+  }
+
+  /**
+   * Get the QR code for connecting a WhatsApp number.
+   * Returns base64 QR code string or null if already connected.
+   */
+  async getQR(): Promise<{ qrcode: string } | null> {
+    const { data } = await this.client.get("/instance/qr");
+    const qr = data?.qrcode ?? data?.qr ?? data?.base64 ?? null;
+    return qr ? { qrcode: qr } : null;
+  }
+
+  /**
+   * Disconnect the current WhatsApp session.
+   */
+  async logout(): Promise<void> {
+    await this.client.delete("/instance/logout");
+  }
+
+  /**
    * Download media from a WhatsApp message using UAZAPI /message/download.
    * Returns { base64Data, fileURL, mimetype } or null.
    */

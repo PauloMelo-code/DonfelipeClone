@@ -55,6 +55,7 @@ export const createGroupSchema = z.object({
   active: z.boolean().optional().default(true),
   filters: z.string().nullable().optional(),
   photoUrl: z.string().nullable().optional(),
+  region: z.string().max(50).nullable().optional(),
 });
 
 export const updateGroupSchema = z.object({
@@ -63,6 +64,7 @@ export const updateGroupSchema = z.object({
   active: z.boolean().optional(),
   filters: z.string().nullable().optional(),
   photoUrl: z.string().nullable().optional(),
+  region: z.string().max(50).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------

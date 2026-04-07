@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const validation = validateBody(createGroupSchema, body);
     if (!validation.success) return validation.response;
 
-    const { groupId, name, role, active, filters, photoUrl } = validation.data;
+    const { groupId, name, role, active, filters, photoUrl, region } = validation.data;
 
     const existing = await prisma.whatsAppGroup.findUnique({
       where: { groupId },
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
         active: active ?? true,
         filters: filters || null,
         photoUrl,
+        region: region || null,
       },
     });
 

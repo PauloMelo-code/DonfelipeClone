@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Crop, Droplets, Undo2, ImageIcon } from "lucide-react";
+import { Crop, Droplets, Undo2, ImageIcon, Eraser, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PhotoEditorProps {
@@ -12,7 +12,13 @@ interface PhotoEditorProps {
   onPhotoReset: (index: number) => void;
 }
 
-type Tool = "crop" | "blur";
+type Tool = "crop" | "blur" | "erase" | "pencil";
+
+const PENCIL_COLORS = [
+  { label: "Preto",  value: "#000000" },
+  { label: "Cinza",  value: "#6b7280" },
+  { label: "Branco", value: "#ffffff" },
+] as const;
 
 interface Rect {
   x: number;
@@ -35,6 +41,8 @@ export function PhotoEditor({
   const [currentRect, setCurrentRect] = useState<Rect | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [brushSize, setBrushSize] = useState(24);
+  const [pencilColor, setPencilColor] = useState("#000000");
   const cleanImageRef = useRef<ImageData | null>(null);
 
   // Load image onto canvas
@@ -67,33 +75,29 @@ export function PhotoEditor({
     img.src = src;
   }, [selectedIndex, photos, editedPhotos]);
 
-  // Draw selection rectangle overlay
+  // Draw rect selection overlay (crop/blur only)
   useEffect(() => {
-    if (!currentRect || !imageLoaded) return;
+    if (!currentRect || !imageLoaded || tool === "erase") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx || !cleanImageRef.current) return;
 
-    // Restore clean state
     ctx.putImageData(cleanImageRef.current, 0, 0);
 
     const { x, y, w, h } = currentRect;
 
     if (tool === "crop") {
-      // Darken outside crop area
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.beginPath();
       ctx.rect(0, 0, canvas.width, canvas.height);
       ctx.rect(x, y, w, h);
       ctx.fill("evenodd");
     } else {
-      // Highlight blur area
       ctx.fillStyle = "rgba(59,130,246,0.15)";
       ctx.fillRect(x, y, w, h);
     }
 
-    // Draw selection border
     ctx.strokeStyle = tool === "crop" ? "#E8731A" : "#3B82F6";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
@@ -101,40 +105,136 @@ export function PhotoEditor({
     ctx.setLineDash([]);
   }, [currentRect, tool, imageLoaded]);
 
-  const getMousePos = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const getPosFromClient = useCallback(
+    (clientX: number, clientY: number) => {
       const canvas = canvasRef.current;
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY,
       };
     },
     []
   );
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const pos = getMousePos(e);
-    setStartPos(pos);
-    setDrawing(true);
-    setCurrentRect(null);
+  const getMousePos = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) =>
+      getPosFromClient(e.clientX, e.clientY),
+    [getPosFromClient]
+  );
+
+  const getTouchPos = useCallback(
+    (e: React.TouchEvent<HTMLCanvasElement>) => {
+      const touch = e.touches[0] || e.changedTouches[0];
+      return getPosFromClient(touch.clientX, touch.clientY);
+    },
+    [getPosFromClient]
+  );
+
+  // Paint at a point with given color
+  const paintAt = useCallback(
+    (pos: { x: number; y: number }, color: string) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, brushSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+    [brushSize]
+  );
+
+  // Save erased state continuously to cleanImageRef and notify parent
+  const saveErase = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    try {
+      cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      onPhotoEdited(selectedIndex, dataUrl);
+    } catch {
+      // CORS tainted canvas
+    }
+  }, [selectedIndex, onPhotoEdited]);
+
+  const startDraw = (pos: { x: number; y: number }) => {
+    if (tool === "erase" || tool === "pencil") {
+      setDrawing(true);
+      paintAt(pos, tool === "erase" ? "#ffffff" : pencilColor);
+    } else {
+      setStartPos(pos);
+      setDrawing(true);
+      setCurrentRect(null);
+    }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const moveDraw = (pos: { x: number; y: number }) => {
     if (!drawing) return;
-    const pos = getMousePos(e);
-    setCurrentRect({
-      x: Math.min(startPos.x, pos.x),
-      y: Math.min(startPos.y, pos.y),
-      w: Math.abs(pos.x - startPos.x),
-      h: Math.abs(pos.y - startPos.y),
-    });
+    if (tool === "erase" || tool === "pencil") {
+      paintAt(pos, tool === "erase" ? "#ffffff" : pencilColor);
+    } else {
+      setCurrentRect({
+        x: Math.min(startPos.x, pos.x),
+        y: Math.min(startPos.y, pos.y),
+        w: Math.abs(pos.x - startPos.x),
+        h: Math.abs(pos.y - startPos.y),
+      });
+    }
   };
 
-  const handleMouseUp = () => setDrawing(false);
+  const endDraw = () => {
+    if (drawing && (tool === "erase" || tool === "pencil")) {
+      saveErase();
+    }
+    setDrawing(false);
+  };
+
+  // Mouse
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => startDraw(getMousePos(e));
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => moveDraw(getMousePos(e));
+  const handleMouseUp = () => endDraw();
+
+  // Attach touch events natively with { passive: false } so e.preventDefault() works
+  // (prevents page scroll while drawing on mobile)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      startDraw(getPosFromClient(touch.clientX, touch.clientY));
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      moveDraw(getPosFromClient(touch.clientX, touch.clientY));
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      endDraw();
+    };
+
+    canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+    canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+    return () => {
+      canvas.removeEventListener("touchstart", onTouchStart);
+      canvas.removeEventListener("touchmove", onTouchMove);
+      canvas.removeEventListener("touchend", onTouchEnd);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageLoaded, tool, drawing, startPos, brushSize, pencilColor]);
 
   const applyTool = () => {
     if (!currentRect || !canvasRef.current) return;
@@ -142,7 +242,6 @@ export function PhotoEditor({
     const ctx = canvas.getContext("2d");
     if (!ctx || !cleanImageRef.current) return;
 
-    // Restore clean image
     ctx.putImageData(cleanImageRef.current, 0, 0);
 
     const { x, y, w, h } = currentRect;
@@ -153,7 +252,6 @@ export function PhotoEditor({
       canvas.height = h;
       ctx.putImageData(imageData, 0, 0);
     } else {
-      // Create offscreen canvas with clean image for blur source
       const offscreen = document.createElement("canvas");
       offscreen.width = canvas.width;
       offscreen.height = canvas.height;
@@ -161,7 +259,6 @@ export function PhotoEditor({
       if (!offCtx) return;
       offCtx.putImageData(cleanImageRef.current, 0, 0);
 
-      // Draw blurred version clipped to selection
       ctx.save();
       ctx.beginPath();
       ctx.rect(x, y, w, h);
@@ -172,7 +269,6 @@ export function PhotoEditor({
       ctx.restore();
     }
 
-    // Save result — canvas may be tainted if image came from external origin
     try {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -196,6 +292,11 @@ export function PhotoEditor({
       </div>
     );
   }
+
+  const cursorStyle =
+    tool === "erase"
+      ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${brushSize}' height='${brushSize}' viewBox='0 0 ${brushSize} ${brushSize}'%3E%3Ccircle cx='${brushSize / 2}' cy='${brushSize / 2}' r='${brushSize / 2 - 1}' fill='none' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E") ${brushSize / 2} ${brushSize / 2}, crosshair`
+      : "crosshair";
 
   return (
     <div className="p-4 space-y-3">
@@ -226,11 +327,11 @@ export function PhotoEditor({
       )}
 
       {/* Tool selector */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button
           size="sm"
           variant={tool === "blur" ? "default" : "outline"}
-          onClick={() => setTool("blur")}
+          onClick={() => { setTool("blur"); setCurrentRect(null); }}
           className={cn(
             "gap-1.5 text-xs",
             tool === "blur" && "gradient-orange text-white border-0"
@@ -242,7 +343,7 @@ export function PhotoEditor({
         <Button
           size="sm"
           variant={tool === "crop" ? "default" : "outline"}
-          onClick={() => setTool("crop")}
+          onClick={() => { setTool("crop"); setCurrentRect(null); }}
           className={cn(
             "gap-1.5 text-xs",
             tool === "crop" && "gradient-orange text-white border-0"
@@ -250,6 +351,30 @@ export function PhotoEditor({
         >
           <Crop className="h-3.5 w-3.5" />
           Recortar
+        </Button>
+        <Button
+          size="sm"
+          variant={tool === "pencil" ? "default" : "outline"}
+          onClick={() => { setTool("pencil"); setCurrentRect(null); }}
+          className={cn(
+            "gap-1.5 text-xs",
+            tool === "pencil" && "gradient-orange text-white border-0"
+          )}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          Lápis
+        </Button>
+        <Button
+          size="sm"
+          variant={tool === "erase" ? "default" : "outline"}
+          onClick={() => { setTool("erase"); setCurrentRect(null); }}
+          className={cn(
+            "gap-1.5 text-xs",
+            tool === "erase" && "gradient-orange text-white border-0"
+          )}
+        >
+          <Eraser className="h-3.5 w-3.5" />
+          Borracha
         </Button>
         <div className="flex-1" />
         {editedPhotos[selectedIndex] && (
@@ -265,6 +390,47 @@ export function PhotoEditor({
         )}
       </div>
 
+      {/* Brush controls — for pencil and erase */}
+      {(tool === "erase" || tool === "pencil") && (
+        <div className="space-y-2">
+          {/* Color swatches — pencil only */}
+          {tool === "pencil" && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Cor:</span>
+              <div className="flex gap-1.5">
+                {PENCIL_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    title={c.label}
+                    onClick={() => setPencilColor(c.value)}
+                    className={cn(
+                      "w-6 h-6 rounded-full border-2 transition-all",
+                      pencilColor === c.value
+                        ? "border-cugini-orange scale-110"
+                        : "border-white/20 hover:border-white/50"
+                    )}
+                    style={{ backgroundColor: c.value }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Brush size */}
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-muted-foreground whitespace-nowrap">Tamanho:</span>
+            <input
+              type="range"
+              min={8}
+              max={80}
+              value={brushSize}
+              onChange={(e) => setBrushSize(Number(e.target.value))}
+              className="flex-1 h-1 accent-cugini-orange"
+            />
+            <span className="text-[11px] text-muted-foreground w-6 text-right">{brushSize}</span>
+          </div>
+        </div>
+      )}
+
       {/* Canvas */}
       <div className="relative bg-black/40 rounded-lg overflow-hidden flex items-center justify-center min-h-[260px]">
         {imageError ? (
@@ -279,9 +445,10 @@ export function PhotoEditor({
         <canvas
           ref={canvasRef}
           className={cn(
-            "max-w-full max-h-[340px] cursor-crosshair",
+            "max-w-full max-h-[340px]",
             (!imageLoaded || imageError) && "hidden"
           )}
+          style={{ cursor: cursorStyle }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -290,7 +457,7 @@ export function PhotoEditor({
       </div>
 
       {/* Apply button or instruction */}
-      {currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
+      {tool !== "erase" && tool !== "pencil" && currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
         <Button
           size="sm"
           onClick={applyTool}
@@ -302,7 +469,11 @@ export function PhotoEditor({
         <p className="text-[11px] text-center text-muted-foreground">
           {tool === "crop"
             ? "Arraste na foto para selecionar a area de recorte"
-            : "Arraste na foto para borrar a marca do concorrente"}
+            : tool === "blur"
+            ? "Arraste na foto para borrar a area selecionada"
+            : tool === "pencil"
+            ? "Pinte sobre a area que deseja cobrir"
+            : "Pinte sobre o fundo para apaga-lo (branco)"}
         </p>
       )}
     </div>

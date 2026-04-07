@@ -90,6 +90,7 @@ model WhatsAppGroup {
   active    Boolean  @default(true)
   filters   String?
   photoUrl  String?
+  region    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

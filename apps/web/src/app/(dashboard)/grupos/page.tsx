@@ -17,7 +17,10 @@ interface Group {
   role: string;
   active: boolean;
   filters: string | null;
+  region: string | null;
 }
+
+const REGIONS = ["SC", "RS", "PR", "SP", "Nacional"] as const;
 
 export default function GruposPage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -74,6 +77,20 @@ export default function GruposPage() {
       fetchGroups();
     } catch {
       toast.error("Erro ao atualizar grupos");
+    }
+  };
+
+  const handleRegion = async (group: Group, region: string) => {
+    const newRegion = group.region === region ? null : region;
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ region: newRegion }),
+      });
+      if (res.ok) fetchGroups();
+    } catch {
+      toast.error("Erro ao atualizar região");
     }
   };
 
@@ -175,26 +192,44 @@ export default function GruposPage() {
                   <div
                     key={group.id}
                     className={cn(
-                      "glass rounded-xl p-4 flex items-center justify-between transition-all",
+                      "glass rounded-xl p-4 transition-all",
                       !group.active && "opacity-50"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{group.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{group.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+                      </div>
+                      <div className="flex items-center gap-3 ml-3">
+                        <Badge
+                          variant="outline"
+                          className="cursor-pointer border-border hover:border-cugini-orange/30"
+                          onClick={() => handleToggle(group, "role")}
+                        >
+                          Fonte
+                        </Badge>
+                        <Switch
+                          checked={group.active}
+                          onCheckedChange={() => handleToggle(group, "active")}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 ml-3">
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer border-border hover:border-cugini-orange/30"
-                        onClick={() => handleToggle(group, "role")}
-                      >
-                        Fonte
-                      </Badge>
-                      <Switch
-                        checked={group.active}
-                        onCheckedChange={() => handleToggle(group, "active")}
-                      />
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {REGIONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => handleRegion(group, r)}
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
+                            group.region === r
+                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -239,26 +274,44 @@ export default function GruposPage() {
                   <div
                     key={group.id}
                     className={cn(
-                      "glass rounded-xl p-4 flex items-center justify-between transition-all",
+                      "glass rounded-xl p-4 transition-all",
                       !group.active && "opacity-50"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{group.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{group.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+                      </div>
+                      <div className="flex items-center gap-3 ml-3">
+                        <Badge
+                          variant="outline"
+                          className="cursor-pointer border-border hover:border-cugini-orange/30"
+                          onClick={() => handleToggle(group, "role")}
+                        >
+                          Destino
+                        </Badge>
+                        <Switch
+                          checked={group.active}
+                          onCheckedChange={() => handleToggle(group, "active")}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 ml-3">
-                      <Badge
-                        variant="outline"
-                        className="cursor-pointer border-border hover:border-cugini-orange/30"
-                        onClick={() => handleToggle(group, "role")}
-                      >
-                        Destino
-                      </Badge>
-                      <Switch
-                        checked={group.active}
-                        onCheckedChange={() => handleToggle(group, "active")}
-                      />
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {REGIONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => handleRegion(group, r)}
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
+                            group.region === r
+                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
