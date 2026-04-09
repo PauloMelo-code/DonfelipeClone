@@ -370,6 +370,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const fipePrice = (vehicleData.fipePrice as number) || null;
+
     const vehicleHash = generateVehicleHash({
       model,
       year,
@@ -396,6 +398,7 @@ export async function POST(request: NextRequest) {
         yearModel,
         km,
         price,
+        fipePrice,
         transmission,
         fuel,
         color,

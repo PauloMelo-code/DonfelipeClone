@@ -45,7 +45,7 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 - yearModel: ano do modelo (numero inteiro, pode ser diferente do ano de fabricacao)
 - km: quilometragem (numero inteiro)
 - price: preco de venda em reais (numero decimal)
-- fipePrice: preco FIPE em reais se mencionado (numero decimal ou null)
+- fipePrice: preco FIPE em reais se mencionado (numero decimal ou null). Exemplos: "Fipe 85.000", "tabela fipe 120mil", "fipe R$95.000", "FIPE: 177.530" → extraia o numero
 - transmission: tipo de cambio - "AUTOMATICO", "MANUAL" ou "CVT"
 - fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO"
 - color: cor do veiculo
