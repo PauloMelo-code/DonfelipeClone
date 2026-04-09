@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, ImageIcon, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, Car, ZoomIn, ImageIcon, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SwipeVehicle {
@@ -57,7 +57,6 @@ function SwipeCard({
   actionLoading: string | null;
   exitDir: "left" | "right" | null;
 }) {
-  const [showDesc, setShowDesc] = useState(false);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
   const approveOpacity = useTransform(x, [0, 80, 200], [0, 0.6, 1]);
@@ -225,45 +224,16 @@ function SwipeCard({
             </div>
           </div>
 
-          {vehicle.features.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {vehicle.features.slice(0, 5).map((f, i) => (
-                <span
-                  key={i}
-                  className="rounded-full bg-accent px-2.5 py-1 text-[11px] text-muted-foreground"
-                >
-                  {f}
-                </span>
-              ))}
-              {vehicle.features.length > 5 && (
-                <span className="rounded-full bg-accent px-2.5 py-1 text-[11px] text-muted-foreground">
-                  +{vehicle.features.length - 5}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Raw description */}
+          {/* Raw description — WhatsApp style, always visible */}
           {vehicle.rawDescription && (
-            <div className="mt-1">
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => { e.stopPropagation(); setShowDesc((v) => !v); }}
-                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showDesc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                Mensagem original
-              </button>
-              {showDesc && (
-                <div
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="mt-1.5 max-h-28 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] px-3 py-2"
-                >
-                  <p className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                    {vehicle.rawDescription}
-                  </p>
-                </div>
-              )}
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="max-h-32 overflow-y-auto rounded-xl px-3 py-2.5"
+              style={{ background: "#005C4B" }}
+            >
+              <p className="text-[12px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
+                {vehicle.rawDescription}
+              </p>
             </div>
           )}
 
