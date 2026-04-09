@@ -227,7 +227,9 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Validate ──
-    if (!groupJid || !groupJid.endsWith("@g.us")) {
+    const isGroup = groupJid?.endsWith("@g.us");
+    const isBroadcast = groupJid?.endsWith("@broadcast") || groupJid?.endsWith("@newsletter");
+    if (!groupJid || (!isGroup && !isBroadcast)) {
       return NextResponse.json({ status: "ignored", reason: "not_group" });
     }
 
