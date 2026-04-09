@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, ImageIcon, MapPin } from "lucide-react";
+import { Check, X, Car, ZoomIn, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SwipeVehicle {
@@ -122,7 +122,7 @@ function SwipeCard({
           </>
         )}
 
-        {/* Photo */}
+        {/* Photo — always shows first photo only */}
         <div className="relative h-60 bg-card shrink-0 group/photo">
           {vehicle.photos.length > 0 ? (
             <img
@@ -138,13 +138,6 @@ function SwipeCard({
           )}
           {/* Gradient overlay */}
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
-          {/* Photo count badge */}
-          {vehicle.photos.length > 1 && (
-            <div className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white z-30">
-              <ImageIcon className="h-3 w-3" />
-              {vehicle.photos.length}
-            </div>
-          )}
           {/* Click to preview */}
           {isTop && onPhotoClick && (
             <button
