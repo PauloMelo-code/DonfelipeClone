@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,22 @@ export default function GruposPage() {
       fetchGroups();
     } catch {
       toast.error("Erro ao atualizar grupos");
+    }
+  };
+
+  const handleDelete = async (group: Group) => {
+    if (!confirm(`Remover "${group.name}"?`)) return;
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Grupo removido");
+        fetchGroups();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Erro ao remover");
+      }
+    } catch {
+      toast.error("Erro de conexão");
     }
   };
 
@@ -304,7 +320,7 @@ export default function GruposPage() {
                         <p className="font-medium truncate">{group.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
                       </div>
-                      <div className="flex items-center gap-3 ml-3">
+                      <div className="flex items-center gap-2 ml-3">
                         <Badge
                           variant="outline"
                           className="cursor-pointer border-border hover:border-cugini-orange/30"
@@ -316,6 +332,13 @@ export default function GruposPage() {
                           checked={group.active}
                           onCheckedChange={() => handleToggle(group, "active")}
                         />
+                        <button
+                          onClick={() => handleDelete(group)}
+                          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remover grupo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
@@ -386,7 +409,7 @@ export default function GruposPage() {
                         <p className="font-medium truncate">{group.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
                       </div>
-                      <div className="flex items-center gap-3 ml-3">
+                      <div className="flex items-center gap-2 ml-3">
                         <Badge
                           variant="outline"
                           className="cursor-pointer border-border hover:border-cugini-orange/30"
@@ -398,6 +421,13 @@ export default function GruposPage() {
                           checked={group.active}
                           onCheckedChange={() => handleToggle(group, "active")}
                         />
+                        <button
+                          onClick={() => handleDelete(group)}
+                          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Remover grupo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
