@@ -215,6 +215,22 @@ export default function GruposPage() {
                         />
                       </div>
                     </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {REGIONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => handleRegion(group, r)}
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
+                            group.region === r
+                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ))}
                 {sourceGroups.length === 0 && (
@@ -280,6 +296,22 @@ export default function GruposPage() {
                           onCheckedChange={() => handleToggle(group, "active")}
                         />
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {REGIONS.map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => handleRegion(group, r)}
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
+                            group.region === r
+                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
