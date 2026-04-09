@@ -5,8 +5,9 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -27,6 +28,9 @@ export default function GruposPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({ phone: "", name: "", role: "SOURCE" as "SOURCE" | "TARGET" });
+  const [adding, setAdding] = useState(false);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -112,6 +116,39 @@ export default function GruposPage() {
     }
   };
 
+  const handleAddManual = async () => {
+    const phone = addForm.phone.replace(/\D/g, "");
+    if (!phone || !addForm.name.trim()) {
+      toast.error("Preencha número e nome");
+      return;
+    }
+    // Build JID: broadcast list or individual
+    const groupId = phone.endsWith("@broadcast") || phone.endsWith("@g.us")
+      ? phone
+      : `${phone}@broadcast`;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupId, name: addForm.name.trim(), role: addForm.role, active: true }),
+      });
+      if (res.ok) {
+        toast.success("Grupo adicionado!");
+        setShowAddModal(false);
+        setAddForm({ phone: "", name: "", role: "SOURCE" });
+        fetchGroups();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Erro ao adicionar");
+      }
+    } catch {
+      toast.error("Erro de conexão");
+    } finally {
+      setAdding(false);
+    }
+  };
+
   const searchLower = search.toLowerCase();
   const sourceGroups = groups.filter((g) => g.role === "SOURCE" && (!search || g.name.toLowerCase().includes(searchLower)));
   const targetGroups = groups.filter((g) => g.role === "TARGET" && (!search || g.name.toLowerCase().includes(searchLower)));
@@ -121,7 +158,15 @@ export default function GruposPage() {
       <Header title="Grupos" subtitle="Gerencie grupos de monitoramento e publicacao" />
 
       <div className="p-6 space-y-6">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowAddModal(true)}
+            className="gap-2 border-border"
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar manual
+          </Button>
           <Button
             onClick={handleSync}
             disabled={syncing}
@@ -135,6 +180,64 @@ export default function GruposPage() {
             Sincronizar UAZAPI
           </Button>
         </div>
+
+        {/* Modal adicionar número manual */}
+        <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+          <DialogContent className="bg-card border-border max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Adicionar número manualmente</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Número (somente dígitos)</label>
+                <Input
+                  placeholder="5511999999999"
+                  value={addForm.phone}
+                  onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="bg-background border-border"
+                />
+                <p className="text-[11px] text-muted-foreground/60 mt-1">
+                  Ex: 5511999999999 → será salvo como ...@broadcast
+                </p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Nome do grupo/lista</label>
+                <Input
+                  placeholder="Lista Teste SP"
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  className="bg-background border-border"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Tipo</label>
+                <div className="flex gap-2">
+                  {(["SOURCE", "TARGET"] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setAddForm((f) => ({ ...f, role: r }))}
+                      className={cn(
+                        "flex-1 rounded-lg py-2 text-sm font-medium border transition-all",
+                        addForm.role === r
+                          ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                          : "bg-card text-muted-foreground border-border hover:border-white/20"
+                      )}
+                    >
+                      {r === "SOURCE" ? "Fonte (captura)" : "Destino (publica)"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Button
+                onClick={handleAddManual}
+                disabled={adding}
+                className="w-full gradient-orange text-white border-0"
+              >
+                {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
