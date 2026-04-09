@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, ImageIcon, MapPin } from "lucide-react";
+import { Check, X, Car, ZoomIn, ImageIcon, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SwipeVehicle {
@@ -57,6 +57,7 @@ function SwipeCard({
   actionLoading: string | null;
   exitDir: "left" | "right" | null;
 }) {
+  const [showDesc, setShowDesc] = useState(false);
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
   const approveOpacity = useTransform(x, [0, 80, 200], [0, 0.6, 1]);
@@ -210,11 +211,18 @@ function SwipeCard({
                 {formatPrice(vehicle.price)}
               </p>
             </div>
-            {vehicle.fuel === "HIBRIDO" && (
-              <span className="rounded-full border border-success/30 px-2 py-0.5 text-xs text-success">
-                Hibrido
-              </span>
-            )}
+            <div className="flex flex-col items-end gap-1">
+              {vehicle.fipePrice && vehicle.fipePrice > vehicle.price && (
+                <span className="rounded-full bg-success/10 border border-success/30 px-2 py-0.5 text-xs text-success font-medium">
+                  -{Math.round((1 - vehicle.price / vehicle.fipePrice) * 100)}% FIPE
+                </span>
+              )}
+              {vehicle.fuel === "HIBRIDO" && (
+                <span className="rounded-full border border-success/30 px-2 py-0.5 text-xs text-success">
+                  Hibrido
+                </span>
+              )}
+            </div>
           </div>
 
           {vehicle.features.length > 0 && (
@@ -231,6 +239,30 @@ function SwipeCard({
                 <span className="rounded-full bg-accent px-2.5 py-1 text-[11px] text-muted-foreground">
                   +{vehicle.features.length - 5}
                 </span>
+              )}
+            </div>
+          )}
+
+          {/* Raw description */}
+          {vehicle.rawDescription && (
+            <div className="mt-1">
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setShowDesc((v) => !v); }}
+                className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showDesc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                Mensagem original
+              </button>
+              {showDesc && (
+                <div
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="mt-1.5 max-h-28 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] px-3 py-2"
+                >
+                  <p className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {vehicle.rawDescription}
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -321,7 +353,7 @@ export function SwipeStack({
       </div>
 
       {/* Card stack */}
-      <div className="relative w-full max-w-sm" style={{ height: 560 }}>
+      <div className="relative w-full max-w-sm" style={{ height: 600 }}>
         <AnimatePresence
           mode="popLayout"
           custom={exitDirection}
