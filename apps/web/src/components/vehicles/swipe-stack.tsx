@@ -86,7 +86,7 @@ function SwipeCard({
           ? "relative z-10 cursor-grab active:cursor-grabbing"
           : "absolute inset-x-2 top-3 z-0 pointer-events-none"
       )}
-      style={isTop ? { x, rotate } : undefined}
+      style={isTop ? { x, rotate, touchAction: "pan-y" } : undefined}
       drag={isTop ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
@@ -217,12 +217,11 @@ function SwipeCard({
             </div>
           </div>
 
-          {/* Raw description — WhatsApp style, full height */}
+          {/* Raw description — WhatsApp style, capped height with scroll */}
           {vehicle.rawDescription && (
             <div
-              onPointerDown={(e) => e.stopPropagation()}
-              className="rounded-xl px-3 py-2.5"
-              style={{ background: "#005C4B" }}
+              className="rounded-xl px-3 py-2.5 max-h-40 overflow-y-auto"
+              style={{ background: "#005C4B", touchAction: "pan-y" }}
             >
               <p className="text-[12px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
                 {vehicle.rawDescription}

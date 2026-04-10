@@ -264,13 +264,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
+    // Require image — text-only messages are not captured (skip AI call to save cost)
+    if (!imageUrl) {
+      return NextResponse.json({ status: "ignored", reason: "no_photo" });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let vehicleData: any = null;
 
-    if (imageUrl) {
+    try {
       vehicleData = await extractVehicleFromImage(imageUrl, textContent ?? undefined);
-    } else if (textContent) {
-      vehicleData = await extractVehicleFromText(textContent);
+    } catch (err) {
+      console.error("[Webhook] AI extraction failed:", err);
+      return NextResponse.json({ status: "error", reason: "ai_extraction_failed" }, { status: 502 });
     }
 
     if (!vehicleData) {
@@ -283,7 +289,7 @@ export async function POST(request: NextRequest) {
     const model = vehicleData.model as string;
     const brand = (vehicleData.brand as string) || null;
     const year = vehicleData.year as number;
-    const yearModel = (vehicleData.yearModel as number) || year;
+    const yearModel = (vehicleData.yearModel as number) ?? year;
     const km = vehicleData.km as number;
     const price = vehicleData.price as number;
     const transmission = (vehicleData.transmission as string) || null;
@@ -293,11 +299,7 @@ export async function POST(request: NextRequest) {
     const location = (vehicleData.location as string) || null;
     const state = (vehicleData.state as string) || null;
     const features = (vehicleData.features as string[]) || [];
-    const photos = imageUrl ? [imageUrl] : [];
-
-    if (photos.length === 0) {
-      return NextResponse.json({ status: "ignored", reason: "no_photo" });
-    }
+    const photos = [imageUrl];
 
     if (!model || !year || km === undefined || !price) {
       return NextResponse.json({
@@ -344,7 +346,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const groupFilters = group.filters ? JSON.parse(group.filters) : null;
+    let groupFilters = null;
+    try {
+      groupFilters = group.filters ? JSON.parse(group.filters) : null;
+    } catch {
+      console.warn("[Webhook] Invalid JSON in group.filters for", group.name);
+    }
     if (groupFilters) {
       // State filter: if group has allowedStates, only accept vehicles from those states
       if (groupFilters.allowedStates && groupFilters.allowedStates.length > 0 && state) {
@@ -372,7 +379,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const fipePrice = (vehicleData.fipePrice as number) || null;
+    const fipePrice = (vehicleData.fipePrice as number) ?? null;
 
     const vehicleHash = generateVehicleHash({
       model,
@@ -412,7 +419,7 @@ export async function POST(request: NextRequest) {
         rawDescription: textContent,
         sourceGroupId: groupJid,
         sourceMessageId: messageId,
-        sellerPhone: pushName || null,
+        sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
         vehicleHash,
         status: "PENDING",
       },

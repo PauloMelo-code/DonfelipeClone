@@ -133,15 +133,15 @@ export default function GruposPage() {
   };
 
   const handleAddManual = async () => {
-    const phone = addForm.phone.replace(/\D/g, "");
-    if (!phone || !addForm.name.trim()) {
-      toast.error("Preencha número e nome");
+    const raw = addForm.phone.trim();
+    // If user pasted a full JID, use it as-is
+    const isJid = raw.endsWith("@broadcast") || raw.endsWith("@g.us") || raw.endsWith("@newsletter");
+    const phone = isJid ? raw : raw.replace(/\D/g, "");
+    if (!phone || phone.length < 5 || !addForm.name.trim()) {
+      toast.error("Preencha um número válido e nome");
       return;
     }
-    // Build JID: broadcast list or individual
-    const groupId = phone.endsWith("@broadcast") || phone.endsWith("@g.us")
-      ? phone
-      : `${phone}@broadcast`;
+    const groupId = isJid ? phone : `${phone}@broadcast`;
     setAdding(true);
     try {
       const res = await fetch("/api/groups", {
@@ -198,7 +198,7 @@ export default function GruposPage() {
         </div>
 
         {/* Modal adicionar número manual */}
-        <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <Dialog open={showAddModal} onOpenChange={(open) => { setShowAddModal(open); if (!open) setAddForm({ phone: "", name: "", role: "SOURCE" }); }}>
           <DialogContent className="bg-card border-border max-w-sm">
             <DialogHeader>
               <DialogTitle>Adicionar número manualmente</DialogTitle>

@@ -132,8 +132,10 @@ export function formatVehicleAd(
   }
 
   if (vehicle.rawDescription?.trim()) {
+    // Sanitize stray * that would break WhatsApp bold markers
+    const sanitized = vehicle.rawDescription.trim().replace(/\*/g, "");
     lines.push("");
-    lines.push(vehicle.rawDescription.trim());
+    lines.push(sanitized);
   }
 
   lines.push("");
