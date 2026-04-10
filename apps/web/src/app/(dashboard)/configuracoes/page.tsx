@@ -321,8 +321,8 @@ export default function ConfiguracoesPage() {
           </div>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Atualizar FIPE</p>
-              <p className="text-xs text-muted-foreground">Extrai preço FIPE da descrição original para veículos sem FIPE</p>
+              <p className="text-sm font-medium">Atualizar FIPE + Anúncios</p>
+              <p className="text-xs text-muted-foreground">Extrai FIPE e regenera anúncios aprovados no formato Cugini</p>
             </div>
             <Button
               variant="outline"
