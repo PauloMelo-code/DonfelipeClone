@@ -82,24 +82,24 @@ function SwipeCard({
   return (
     <motion.div
       className={cn(
-        "absolute inset-0",
-        isTop ? "z-10 cursor-grab active:cursor-grabbing" : "z-0"
+        isTop
+          ? "relative z-10 cursor-grab active:cursor-grabbing"
+          : "absolute inset-x-2 top-3 z-0 pointer-events-none"
       )}
       style={isTop ? { x, rotate } : undefined}
       drag={isTop ? "x" : false}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.7}
       onDragEnd={isTop ? handleDragEnd : undefined}
-      initial={{ scale: isTop ? 1 : 0.95, opacity: isTop ? 1 : 0.7 }}
+      initial={{ scale: isTop ? 1 : 0.95, opacity: isTop ? 1 : 0.6 }}
       animate={{
         scale: isTop ? 1 : 0.95,
-        opacity: isTop ? 1 : 0.7,
-        y: isTop ? 0 : 12,
+        opacity: isTop ? 1 : 0.6,
       }}
       exit={{ x: exitDir === "left" ? -300 : 300, opacity: 0, transition: { duration: 0.3 } }}
       transition={{ type: "spring", stiffness: 300, damping: 25 }}
     >
-      <div className="rounded-2xl overflow-hidden h-full flex flex-col bg-[#141414] border border-white/[0.06]">
+      <div className="rounded-2xl overflow-hidden flex flex-col bg-[#141414] border border-white/[0.06]">
         {/* Swipe Overlays */}
         {isTop && (
           <>
@@ -161,7 +161,7 @@ function SwipeCard({
         </div>
 
         {/* Info */}
-        <div className="p-4 flex-1 flex flex-col gap-3">
+        <div className="p-4 flex flex-col gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{vehicle.year}</span>
             <span className="text-border">&bull;</span>
@@ -217,11 +217,11 @@ function SwipeCard({
             </div>
           </div>
 
-          {/* Raw description — WhatsApp style, always visible */}
+          {/* Raw description — WhatsApp style, full height */}
           {vehicle.rawDescription && (
             <div
               onPointerDown={(e) => e.stopPropagation()}
-              className="max-h-32 overflow-y-auto rounded-xl px-3 py-2.5"
+              className="rounded-xl px-3 py-2.5"
               style={{ background: "#005C4B" }}
             >
               <p className="text-[12px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
@@ -232,7 +232,7 @@ function SwipeCard({
 
           {/* Buttons */}
           {isTop && (
-            <div className="flex gap-3 mt-auto pt-3">
+            <div className="flex gap-3 pt-1">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -316,7 +316,7 @@ export function SwipeStack({
       </div>
 
       {/* Card stack */}
-      <div className="relative w-full max-w-sm" style={{ height: 600 }}>
+      <div className="relative w-full max-w-sm">
         <AnimatePresence
           mode="popLayout"
           custom={exitDirection}
