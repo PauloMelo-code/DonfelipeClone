@@ -131,33 +131,58 @@ export function formatVehicleAd(
   ];
 
   if (vehicle.rawDescription?.trim()) {
-    // Use the original seller description as the ad body.
-    // Remove the first few lines that overlap with our structured header
-    // (model, year, km are already shown above).
-    // Sanitize stray * that would break WhatsApp bold markers.
-    const sanitized = vehicle.rawDescription.trim().replace(/\*/g, "");
+    // Clean the raw description into Cugini format:
+    // - Remove ALL emojis
+    // - Remove lines that are: model name, year, km, price, fipe, "pedida", location pin
+    // - Remove * bold markers
+    // - Keep only the "features / description" lines
 
-    // Try to strip redundant header lines (model/year/km/price that we already show)
-    const descLines = sanitized.split("\n");
+    const cleaned = vehicle.rawDescription.trim()
+      .replace(/\*/g, "")
+      // Remove all emojis and special unicode symbols
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
+
+    const modelFirstWord = vehicle.model.toLowerCase().split(" ")[0];
+    const descLines = cleaned.split("\n");
     const bodyLines: string[] = [];
+
     for (const line of descLines) {
-      const l = line.trim().toLowerCase();
-      // Skip empty lines at the start
+      const l = line.trim();
+      const lower = l.toLowerCase();
+
+      // Skip empty lines at the very start
       if (bodyLines.length === 0 && !l) continue;
-      // Skip lines that are just the model name, year, km, or price we already display
-      if (bodyLines.length === 0) {
-        const isRedundant =
-          l.includes(vehicle.model.toLowerCase().split(" ")[0]) ||
-          /^\d{4}\s*[\/\|]\s*\d{2,4}$/.test(l) ||
-          /^r?\$?\s*[\d.,]+\s*(mil|reais)?$/.test(l);
-        if (isRedundant) continue;
+
+      // Skip lines that match data we already show in the header/footer
+      if (
+        // Model name line
+        lower.includes(modelFirstWord) && lower.length < 60 && bodyLines.length < 3 ||
+        // Year line: "Ano 2025" or "2025" or "2024/2025"
+        /^(ano\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
+        // KM line: "KM 35.000" or "35.000 km" or "35mil km"
+        /^(km\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
+        // Price lines: "R$ 360.900" "Pedida R$ 360.900" "Fipe R$ 381.000" "Faço R$ 65.900"
+        /^(fipe|pedida|faço|valor|preco|preço|por)\s*:?\s*r?\$?\s*[\d.,]+/i.test(l) ||
+        // Bare price: "R$ 360.900" or just "360.900"
+        /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
+        // Location pin: "SP" or "📍 SP" (emoji already stripped, so just "SP")
+        /^[A-Z]{2}$/i.test(l) && l.length === 2 ||
+        // Transmission/fuel already in title
+        /^(automático|automatico|manual|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l)
+      ) {
+        continue;
       }
-      bodyLines.push(line);
+
+      bodyLines.push(l);
     }
 
-    // Remove trailing empty lines
-    while (bodyLines.length > 0 && !bodyLines[bodyLines.length - 1].trim()) {
+    // Trim trailing empty lines
+    while (bodyLines.length > 0 && !bodyLines[bodyLines.length - 1]) {
       bodyLines.pop();
+    }
+    // Trim leading empty lines
+    while (bodyLines.length > 0 && !bodyLines[0]) {
+      bodyLines.shift();
     }
 
     if (bodyLines.length > 0) {
