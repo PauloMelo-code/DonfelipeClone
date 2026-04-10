@@ -33,6 +33,47 @@ function getOpenAI(): OpenAI {
 }
 
 // ---------------------------------------------------------------------------
+// Extraction Cache — avoids duplicate AI calls for the same message text
+// LRU with 500 entries, TTL 30 minutes
+// ---------------------------------------------------------------------------
+
+const CACHE_MAX = 500;
+const CACHE_TTL = 30 * 60 * 1000; // 30 min
+const _cache = new Map<string, { data: VehicleData | null; ts: number }>();
+
+function cacheKey(text: string): string {
+  // Simple hash — normalize whitespace for near-duplicates
+  const normalized = text.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 500);
+  let h = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    h = ((h << 5) - h + normalized.charCodeAt(i)) | 0;
+  }
+  return String(h);
+}
+
+function getCached(text: string): VehicleData | null | undefined {
+  const key = cacheKey(text);
+  const entry = _cache.get(key);
+  if (!entry) return undefined; // miss
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    _cache.delete(key);
+    return undefined; // expired
+  }
+  console.log("[ai] Cache hit, skipping API call");
+  return entry.data; // hit (may be null = "not a vehicle")
+}
+
+function setCache(text: string, data: VehicleData | null): void {
+  const key = cacheKey(text);
+  _cache.set(key, { data, ts: Date.now() });
+  // Evict oldest if over limit
+  if (_cache.size > CACHE_MAX) {
+    const firstKey = _cache.keys().next().value;
+    if (firstKey !== undefined) _cache.delete(firstKey);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // System Prompt
 // ---------------------------------------------------------------------------
 
@@ -177,9 +218,13 @@ function parseResponse(raw: string): VehicleData | null {
 export async function extractVehicleFromText(
   text: string
 ): Promise<VehicleData | null> {
+  // Check cache first
+  const cached = getCached(text);
+  if (cached !== undefined) return cached;
+
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       temperature: 0.1,
       response_format: {
         type: "json_schema",
@@ -192,12 +237,13 @@ export async function extractVehicleFromText(
     });
 
     const content = completion.choices[0]?.message?.content;
-    if (!content) return null;
+    if (!content) { setCache(text, null); return null; }
 
     const vehicle = parseResponse(content);
     if (vehicle) {
       vehicle.rawDescription = text;
     }
+    setCache(text, vehicle);
     return vehicle;
   } catch (error) {
     console.error("[ai] Failed to extract vehicle from text:", error);
@@ -225,10 +271,20 @@ export async function extractVehicleFromImage(
       }
     }
 
+    // If we have a caption, prefer text-only extraction (much cheaper, no vision tokens)
+    // Only use vision when there's no caption to extract data from
+    if (caption && caption.length > 30) {
+      const vehicle = await extractVehicleFromText(caption);
+      if (vehicle) {
+        vehicle.photos = [imageUrl];
+        return vehicle;
+      }
+    }
+
     const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
       {
         type: "image_url",
-        image_url: { url: visionUrl, detail: "high" },
+        image_url: { url: visionUrl, detail: "low" },
       },
     ];
 
@@ -240,7 +296,7 @@ export async function extractVehicleFromImage(
     }
 
     const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       temperature: 0.1,
       response_format: {
         type: "json_schema",

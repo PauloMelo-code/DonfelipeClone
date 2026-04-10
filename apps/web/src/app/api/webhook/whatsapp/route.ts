@@ -269,6 +269,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
 
+    // Pre-filter: skip messages too short to be vehicle ads (saves AI cost)
+    if (textContent && textContent.length < 20) {
+      return NextResponse.json({ status: "ignored", reason: "text_too_short" });
+    }
+
+    // Pre-filter: must contain at least one vehicle-related keyword
+    if (textContent) {
+      const lower = textContent.toLowerCase();
+      const hasVehicleKeyword = /\b(km|mil|ano|preco|valor|fipe|cambio|automatico|manual|flex|diesel|hibrido|\d{4}\/\d{2,4}|\d{2,3}\s*mil)\b/i.test(lower);
+      if (!hasVehicleKeyword) {
+        return NextResponse.json({ status: "ignored", reason: "no_vehicle_keywords" });
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let vehicleData: any = null;
 
