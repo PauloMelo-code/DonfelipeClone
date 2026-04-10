@@ -286,6 +286,7 @@ export default function VeiculosPage() {
         transmission: v.transmission,
         fuel: v.fuel,
         features: v.features,
+        rawDescription: v.rawDescription,
       },
       { profitMarginPercent: marginOverride ?? 0 }
     );

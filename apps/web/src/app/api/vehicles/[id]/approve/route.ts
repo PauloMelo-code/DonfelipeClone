@@ -54,6 +54,7 @@ export async function POST(
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features: JSON.parse(vehicle.features) as string[],
+      rawDescription: vehicle.rawDescription,
     };
 
     const formattedAd = formatVehicleAd(vehicleData, { profitMarginPercent: margin });
