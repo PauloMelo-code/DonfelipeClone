@@ -121,21 +121,53 @@ export function formatVehicleAd(
     : `*${vehicle.model}*`;
 
   // --- Build ad ---
+  // Format: bold title, year|km, then rawDescription body (original seller text),
+  // then Fipe + selling price. Features from AI are NOT used — the rawDescription
+  // already contains the human-written description which reads better.
+
   const lines: string[] = [
     modelLine,
     `${yearDisplay} | ${kmFmt}km`,
   ];
 
-  if (featuresList.length > 0) {
+  if (vehicle.rawDescription?.trim()) {
+    // Use the original seller description as the ad body.
+    // Remove the first few lines that overlap with our structured header
+    // (model, year, km are already shown above).
+    // Sanitize stray * that would break WhatsApp bold markers.
+    const sanitized = vehicle.rawDescription.trim().replace(/\*/g, "");
+
+    // Try to strip redundant header lines (model/year/km/price that we already show)
+    const descLines = sanitized.split("\n");
+    const bodyLines: string[] = [];
+    for (const line of descLines) {
+      const l = line.trim().toLowerCase();
+      // Skip empty lines at the start
+      if (bodyLines.length === 0 && !l) continue;
+      // Skip lines that are just the model name, year, km, or price we already display
+      if (bodyLines.length === 0) {
+        const isRedundant =
+          l.includes(vehicle.model.toLowerCase().split(" ")[0]) ||
+          /^\d{4}\s*[\/\|]\s*\d{2,4}$/.test(l) ||
+          /^r?\$?\s*[\d.,]+\s*(mil|reais)?$/.test(l);
+        if (isRedundant) continue;
+      }
+      bodyLines.push(line);
+    }
+
+    // Remove trailing empty lines
+    while (bodyLines.length > 0 && !bodyLines[bodyLines.length - 1].trim()) {
+      bodyLines.pop();
+    }
+
+    if (bodyLines.length > 0) {
+      lines.push("");
+      lines.push(...bodyLines);
+    }
+  } else if (featuresList.length > 0) {
+    // Fallback: if no rawDescription, use AI-extracted features
     lines.push("");
     featuresList.forEach((f) => lines.push(f));
-  }
-
-  if (vehicle.rawDescription?.trim()) {
-    // Sanitize stray * that would break WhatsApp bold markers
-    const sanitized = vehicle.rawDescription.trim().replace(/\*/g, "");
-    lines.push("");
-    lines.push(sanitized);
   }
 
   lines.push("");
