@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi } from "lucide-react";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -116,6 +116,24 @@ export default function ConfiguracoesPage() {
 
   const update = (key: keyof Settings, value: string) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
+
+  const [backfilling, setBackfilling] = useState(false);
+  const handleBackfillFipe = async () => {
+    setBackfilling(true);
+    try {
+      const res = await fetch("/api/vehicles/backfill-fipe", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || `${data.updated} veículos atualizados`);
+      } else {
+        toast.error("Erro ao atualizar FIPE");
+      }
+    } catch {
+      toast.error("Erro de conexão");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   const waStatusConfig: Record<WaState, { label: string; color: string; icon: React.ElementType }> = {
     open:       { label: "Conectado",    color: "text-success border-success/20 bg-success/10",         icon: Wifi },
@@ -290,6 +308,32 @@ export default function ConfiguracoesPage() {
                 className="bg-card border-border"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Ferramentas */}
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-cugini-orange" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Ferramentas
+            </h3>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Atualizar FIPE</p>
+              <p className="text-xs text-muted-foreground">Extrai preço FIPE da descrição original para veículos sem FIPE</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackfillFipe}
+              disabled={backfilling}
+              className="gap-1.5 border-border"
+            >
+              {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {backfilling ? "Atualizando..." : "Executar"}
+            </Button>
           </div>
         </div>
 
