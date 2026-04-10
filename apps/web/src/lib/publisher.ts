@@ -106,6 +106,25 @@ export async function publishVehicle(
     }
   })();
 
+  // Auto-extract FIPE if missing
+  let fipePrice = vehicle.fipePrice;
+  if (fipePrice == null && vehicle.rawDescription) {
+    const m = vehicle.rawDescription.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil)?/i);
+    if (m) {
+      let raw = m[1];
+      if (m[2]?.toLowerCase() === "mil") {
+        fipePrice = parseFloat(raw.replace(",", ".")) * 1000;
+      } else {
+        raw = raw.replace(/\./g, "").replace(",", ".");
+        const n = parseFloat(raw);
+        if (!isNaN(n) && n >= 1000) fipePrice = n;
+      }
+      if (fipePrice != null) {
+        await prisma.vehicle.update({ where: { id: vehicle.id }, data: { fipePrice } });
+      }
+    }
+  }
+
   const adText = options?.formattedAd || formatVehicleAd(
     {
       model: vehicle.model,
@@ -113,7 +132,7 @@ export async function publishVehicle(
       yearModel: vehicle.yearModel,
       km: vehicle.km,
       price: vehicle.price,
-      fipePrice: vehicle.fipePrice,
+      fipePrice,
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features,

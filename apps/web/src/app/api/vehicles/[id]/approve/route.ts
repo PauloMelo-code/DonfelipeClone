@@ -37,6 +37,27 @@ export async function POST(
       );
     }
 
+    // Auto-extract FIPE from rawDescription if missing
+    let fipePrice = vehicle.fipePrice;
+    if (fipePrice == null && vehicle.rawDescription) {
+      const fipeMatch = vehicle.rawDescription.match(
+        /fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil)?/i
+      );
+      if (fipeMatch) {
+        let raw = fipeMatch[1];
+        if (fipeMatch[2]?.toLowerCase() === "mil") {
+          fipePrice = parseFloat(raw.replace(",", ".")) * 1000;
+        } else {
+          raw = raw.replace(/\./g, "").replace(",", ".");
+          const n = parseFloat(raw);
+          if (!isNaN(n) && n >= 1000) fipePrice = n;
+        }
+        if (fipePrice != null) {
+          await prisma.vehicle.update({ where: { id }, data: { fipePrice } });
+        }
+      }
+    }
+
     const marginSetting = await prisma.setting.findUnique({
       where: { key: "profit_margin_percent" },
     });
@@ -50,7 +71,7 @@ export async function POST(
       yearModel: vehicle.yearModel,
       km: vehicle.km,
       price: vehicle.price,
-      fipePrice: vehicle.fipePrice,
+      fipePrice,
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features: JSON.parse(vehicle.features) as string[],
@@ -65,6 +86,7 @@ export async function POST(
         status: "APPROVED",
         sellingPrice,
         formattedAd,
+        fipePrice,
         approvedAt: new Date(),
       },
     });
