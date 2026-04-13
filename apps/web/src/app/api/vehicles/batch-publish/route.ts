@@ -16,8 +16,13 @@ export async function POST(request: NextRequest) {
     }
 
     const results: Array<{ vehicleId: string; model: string; success: boolean; groupsPublished: number; error?: string }> = [];
+    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-    for (const vehicleId of vehicleIds) {
+    for (let i = 0; i < vehicleIds.length; i++) {
+      if (i > 0) {
+        await delay(3000 + Math.random() * 5000); // 3-8s between vehicles
+      }
+      const vehicleId = vehicleIds[i];
       const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
       if (!vehicle || vehicle.status !== "APPROVED") {
         results.push({ vehicleId, model: vehicle?.model ?? vehicleId, success: false, groupsPublished: 0, error: "Veiculo nao aprovado" });

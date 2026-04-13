@@ -459,6 +459,7 @@ export default function VeiculosPage() {
           setVehicles((prev) => prev.filter((v) => v.id !== publishVehicle.id));
         }
         setPublishVehicle(null);
+        fetchVehicles();
       } else {
         const err = await res.json();
         toast.error(err.error || "Erro ao publicar");

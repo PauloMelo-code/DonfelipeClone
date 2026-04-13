@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3 } from "lucide-react";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -118,6 +118,7 @@ export default function ConfiguracoesPage() {
     setSettings((prev) => ({ ...prev, [key]: value }));
 
   const [backfilling, setBackfilling] = useState(false);
+  const [tagging, setTagging] = useState(false);
   const handleBackfillFipe = async () => {
     setBackfilling(true);
     try {
@@ -132,6 +133,23 @@ export default function ConfiguracoesPage() {
       toast.error("Erro de conexão");
     } finally {
       setBackfilling(false);
+    }
+  };
+
+  const handleAutoRegion = async () => {
+    setTagging(true);
+    try {
+      const res = await fetch("/api/groups/auto-region", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || `${data.tagged} grupos taggeados`);
+      } else {
+        toast.error("Erro ao taguear");
+      }
+    } catch {
+      toast.error("Erro de conexão");
+    } finally {
+      setTagging(false);
     }
   };
 
@@ -333,6 +351,22 @@ export default function ConfiguracoesPage() {
             >
               {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {backfilling ? "Atualizando..." : "Executar"}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Auto-tagger de Região</p>
+              <p className="text-xs text-muted-foreground">Detecta RS/SC/PR/SP pelo nome do grupo</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoRegion}
+              disabled={tagging}
+              className="gap-1.5 border-border"
+            >
+              {tagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
+              {tagging ? "Tagueando..." : "Executar"}
             </Button>
           </div>
         </div>

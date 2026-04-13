@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
   try {
     // Webhook secret verification
     const webhookSecret = process.env.WEBHOOK_SECRET;
+    if (!webhookSecret && process.env.NODE_ENV === "production") {
+      console.error("[Webhook] WEBHOOK_SECRET is not set! Rejecting all requests in production.");
+      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+    }
     if (webhookSecret) {
       const headerSecret =
         request.headers.get("x-webhook-secret") ||

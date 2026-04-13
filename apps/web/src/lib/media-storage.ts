@@ -64,14 +64,22 @@ interface ImageData {
   mimeType: string;
 }
 
-function downloadImage(url: string, timeout = 15000): Promise<ImageData | null> {
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_REDIRECTS = 5;
+
+function downloadImage(url: string, timeout = 15000, redirectCount = 0): Promise<ImageData | null> {
+  if (redirectCount >= MAX_REDIRECTS) {
+    console.warn(`[MediaStorage] Too many redirects (${MAX_REDIRECTS}) for ${url.substring(0, 80)}`);
+    return Promise.resolve(null);
+  }
+
   return new Promise((resolve) => {
     const client = url.startsWith("https") ? https : http;
 
     const req = client.get(url, { timeout }, (res) => {
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        // Follow redirect
-        downloadImage(res.headers.location, timeout).then(resolve);
+        // Follow redirect with counter
+        downloadImage(res.headers.location, timeout, redirectCount + 1).then(resolve);
         return;
       }
 
@@ -81,9 +89,29 @@ function downloadImage(url: string, timeout = 15000): Promise<ImageData | null> 
         return;
       }
 
+      // Check Content-Length header upfront
+      const contentLength = parseInt(res.headers["content-length"] || "0", 10);
+      if (contentLength > MAX_IMAGE_SIZE) {
+        console.warn(`[MediaStorage] Content-Length ${contentLength} exceeds ${MAX_IMAGE_SIZE} for ${url.substring(0, 80)}`);
+        res.destroy();
+        resolve(null);
+        return;
+      }
+
       const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      let totalSize = 0;
+      res.on("data", (chunk: Buffer) => {
+        totalSize += chunk.length;
+        if (totalSize > MAX_IMAGE_SIZE) {
+          console.warn(`[MediaStorage] Download exceeded ${MAX_IMAGE_SIZE} bytes, aborting ${url.substring(0, 80)}`);
+          res.destroy();
+          resolve(null);
+          return;
+        }
+        chunks.push(chunk);
+      });
       res.on("end", () => {
+        if (totalSize > MAX_IMAGE_SIZE) return; // already resolved null
         const buffer = Buffer.concat(chunks);
         let mimeType = res.headers["content-type"] || "image/jpeg";
         // WhatsApp CDN often returns application/octet-stream for images
