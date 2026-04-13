@@ -875,7 +875,7 @@ export default function VeiculosPage() {
 
       {/* Publish Modal (enhanced) */}
       <Dialog open={!!publishVehicle} onOpenChange={(open) => !open && setPublishVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
+        <DialogContent showCloseButton={false} className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-3xl sm:rounded-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 h-full sm:h-auto">
           <div className="flex flex-col h-full sm:max-h-[90vh]">
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
@@ -1253,7 +1253,7 @@ export default function VeiculosPage() {
 
       {/* Photo Gallery + WhatsApp Preview Dialog */}
       <Dialog open={!!galleryVehicle} onOpenChange={(open) => !open && setGalleryVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden bg-[#0A0A0C] ring-1 ring-white/10">
+        <DialogContent showCloseButton={false} className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-2xl sm:rounded-xl p-0 overflow-hidden bg-[#0A0A0C] ring-1 ring-white/10 h-full sm:h-auto">
           {galleryVehicle && (() => {
             const gPhotos = parseArray(galleryVehicle.photos);
             return (
@@ -1434,7 +1434,7 @@ export default function VeiculosPage() {
 
       {/* Batch Publish Modal */}
       <Dialog open={showBatchModal} onOpenChange={(open) => !open && setShowBatchModal(false)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
+        <DialogContent showCloseButton={false} className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-2xl sm:rounded-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 h-full sm:h-auto">
           <div className="flex flex-col h-full sm:max-h-[95vh]">
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
