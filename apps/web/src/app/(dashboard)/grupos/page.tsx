@@ -365,11 +365,11 @@ export default function GruposPage() {
           </div>
 
           {/* Mobile: tab toggle for Fonte/Destino */}
-          <div className="flex gap-2 md:hidden">
+          <div className="grid grid-cols-2 gap-2 md:hidden">
             <button
               onClick={() => setMobileGroupTab("TARGET")}
               className={cn(
-                "flex-1 rounded-xl py-2.5 text-sm font-medium border transition-all",
+                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center",
                 mobileGroupTab === "TARGET"
                   ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                   : "bg-card/50 border-border text-muted-foreground"
@@ -380,7 +380,7 @@ export default function GruposPage() {
             <button
               onClick={() => setMobileGroupTab("SOURCE")}
               className={cn(
-                "flex-1 rounded-xl py-2.5 text-sm font-medium border transition-all",
+                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center",
                 mobileGroupTab === "SOURCE"
                   ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                   : "bg-card/50 border-border text-muted-foreground"
