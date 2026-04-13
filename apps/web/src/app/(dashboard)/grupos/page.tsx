@@ -28,6 +28,7 @@ export default function GruposPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
+  const [regionFilter, setRegionFilter] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ phone: "", name: "", role: "SOURCE" as "SOURCE" | "TARGET" });
   const [adding, setAdding] = useState(false);
@@ -166,8 +167,13 @@ export default function GruposPage() {
   };
 
   const searchLower = search.toLowerCase();
-  const sourceGroups = groups.filter((g) => g.role === "SOURCE" && (!search || g.name.toLowerCase().includes(searchLower)));
-  const targetGroups = groups.filter((g) => g.role === "TARGET" && (!search || g.name.toLowerCase().includes(searchLower)));
+  const matchesFilters = (g: Group) => {
+    if (search && !g.name.toLowerCase().includes(searchLower)) return false;
+    if (regionFilter.length > 0 && !regionFilter.includes(g.region || "")) return false;
+    return true;
+  };
+  const sourceGroups = groups.filter((g) => g.role === "SOURCE" && matchesFilters(g));
+  const targetGroups = groups.filter((g) => g.role === "TARGET" && matchesFilters(g));
 
   return (
     <>
@@ -275,6 +281,34 @@ export default function GruposPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-card border-border"
             />
+          </div>
+
+          {/* Region filter */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {REGIONS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRegionFilter((prev) =>
+                  prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]
+                )}
+                className={cn(
+                  "shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
+                  regionFilter.includes(r)
+                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                )}
+              >
+                {r}
+              </button>
+            ))}
+            {regionFilter.length > 0 && (
+              <button
+                onClick={() => setRegionFilter([])}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
+              >
+                Limpar
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

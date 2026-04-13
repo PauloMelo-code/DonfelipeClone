@@ -512,7 +512,8 @@ export default function VeiculosPage() {
           </Tabs>
 
           {/* Filter chips */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-6 px-6">
+          <div>
+          <div className="flex flex-wrap gap-1.5">
             {["RS", "SC", "PR", "SP"].map(s => (
               <button
                 key={s}
@@ -521,7 +522,7 @@ export default function VeiculosPage() {
                   states: f.states.includes(s) ? f.states.filter(x => x !== s) : [...f.states, s]
                 }))}
                 className={cn(
-                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.states.includes(s)
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -540,7 +541,7 @@ export default function VeiculosPage() {
                 key={p.value}
                 onClick={() => setFilters(f => ({ ...f, priceRange: f.priceRange === p.value ? "" : p.value }))}
                 className={cn(
-                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.priceRange === p.value
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -554,7 +555,7 @@ export default function VeiculosPage() {
                 key={t}
                 onClick={() => setFilters(f => ({ ...f, transmission: f.transmission === t ? "" : t }))}
                 className={cn(
-                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.transmission === t
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -563,6 +564,7 @@ export default function VeiculosPage() {
                 {t === "AUTOMATICO" ? "Aut." : t === "MANUAL" ? "Manual" : "CVT"}
               </button>
             ))}
+          </div>
           </div>
 
           {!isPending && (
