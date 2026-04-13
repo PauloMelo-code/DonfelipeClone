@@ -217,11 +217,11 @@ function SwipeCard({
             </div>
           </div>
 
-          {/* Raw description — WhatsApp style, capped height with scroll */}
+          {/* Raw description — WhatsApp style */}
           {vehicle.rawDescription && (
             <div
-              className="rounded-xl px-3 py-2.5"
-              style={{ background: "#005C4B" }}
+              className="rounded-xl px-3 py-2.5 max-h-[30vh] overflow-y-auto"
+              style={{ background: "#005C4B", WebkitOverflowScrolling: "touch" }}
             >
               <p className="text-[12px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
                 {vehicle.rawDescription}
