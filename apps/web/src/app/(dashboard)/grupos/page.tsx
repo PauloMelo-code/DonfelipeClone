@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2 } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -477,8 +477,14 @@ export default function GruposPage() {
                       </h3>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button variant="outline" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleActivateAll(role, true)}>Ativar</Button>
-                      <Button variant="outline" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleActivateAll(role, false)}>Desativar</Button>
+                      <button onClick={() => handleActivateAll(role, true)} className="flex items-center gap-1 rounded-md border border-border px-1.5 h-6 text-[10px] text-muted-foreground hover:text-success hover:border-success/30 transition-colors" title="Ativar todos">
+                        <ToggleRight className="h-3 w-3" />
+                        <span className="hidden sm:inline">Ativar</span>
+                      </button>
+                      <button onClick={() => handleActivateAll(role, false)} className="flex items-center gap-1 rounded-md border border-border px-1.5 h-6 text-[10px] text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors" title="Desativar todos">
+                        <ToggleLeft className="h-3 w-3" />
+                        <span className="hidden sm:inline">Desativar</span>
+                      </button>
                     </div>
                   </div>
                   <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto rounded-xl">
