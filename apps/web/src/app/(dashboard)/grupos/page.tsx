@@ -180,23 +180,23 @@ export default function GruposPage() {
     <div
       key={group.id}
       className={cn(
-        "glass rounded-xl p-3 sm:p-4 transition-all overflow-hidden",
+        "glass rounded-xl p-3 sm:p-4 transition-all w-full",
         !group.active && "opacity-50"
       )}
+      style={{ maxWidth: "100%", overflow: "hidden" }}
     >
-      <div className="flex items-center gap-2 overflow-hidden">
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <p className="font-medium text-[13px] sm:text-base overflow-hidden text-ellipsis whitespace-nowrap">{group.name}</p>
-          <p className="text-[10px] sm:text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{group.groupId}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "8px", alignItems: "center" }}>
+        <div style={{ overflow: "hidden", minWidth: 0 }}>
+          <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }}>{group.name}</p>
+          <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", opacity: 0.5 }}>{group.groupId}</p>
         </div>
         <Switch
           checked={group.active}
           onCheckedChange={() => handleToggle(group, "active")}
-          className="shrink-0"
         />
         <button
           onClick={() => handleDelete(group)}
-          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
           title="Remover grupo"
         >
           <Trash2 className="h-3.5 w-3.5" />
