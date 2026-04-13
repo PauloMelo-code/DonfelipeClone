@@ -871,8 +871,8 @@ export default function VeiculosPage() {
 
       {/* Publish Modal (enhanced) */}
       <Dialog open={!!publishVehicle} onOpenChange={(open) => !open && setPublishVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[90vh] h-full sm:h-auto rounded-none sm:rounded-lg">
-          <div className="flex flex-col h-full sm:max-h-[90vh]">
+        <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[95vh] h-full sm:h-auto rounded-none sm:rounded-lg w-full">
+          <div className="flex flex-col h-full sm:max-h-[95vh]">
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
               <div>
@@ -1080,7 +1080,7 @@ export default function VeiculosPage() {
               </div>
 
               {/* Group selection */}
-              <div className="px-5 py-3">
+              <div className="px-5 py-3 flex-1 overflow-y-auto min-h-0">
                 <div className="flex items-center gap-2 mb-2">
                   <Users className="h-4 w-4 text-cugini-orange flex-shrink-0" />
                   <span className="text-xs text-muted-foreground">Enviar para:</span>
@@ -1371,8 +1371,8 @@ export default function VeiculosPage() {
 
       {/* Batch Publish Modal */}
       <Dialog open={showBatchModal} onOpenChange={(open) => !open && setShowBatchModal(false)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[85vh] h-full sm:h-auto rounded-none sm:rounded-lg">
-          <div className="flex flex-col h-full sm:max-h-[85vh]">
+        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[95vh] h-full sm:h-auto rounded-none sm:rounded-lg w-full">
+          <div className="flex flex-col h-full sm:max-h-[95vh]">
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold">Publicar em lote</h3>
