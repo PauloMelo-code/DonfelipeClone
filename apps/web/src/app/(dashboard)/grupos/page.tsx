@@ -174,7 +174,7 @@ export default function GruposPage() {
       <Header title="Grupos" subtitle="Gerencie grupos de monitoramento e publicacao" />
 
       <div className="p-6 space-y-6">
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
           <Button
             variant="outline"
             onClick={() => setShowAddModal(true)}
@@ -199,7 +199,7 @@ export default function GruposPage() {
 
         {/* Modal adicionar número manual */}
         <Dialog open={showAddModal} onOpenChange={(open) => { setShowAddModal(open); if (!open) setAddForm({ phone: "", name: "", role: "SOURCE" }); }}>
-          <DialogContent className="bg-card border-border max-w-sm">
+          <DialogContent className="sm:max-w-sm bg-card border-border">
             <DialogHeader>
               <DialogTitle>Adicionar número manualmente</DialogTitle>
             </DialogHeader>
@@ -317,10 +317,10 @@ export default function GruposPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{group.name}</p>
+                        <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
                       </div>
-                      <div className="flex items-center gap-2 ml-3">
+                      <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
                         <Badge
                           variant="outline"
                           className="cursor-pointer border-border hover:border-cugini-orange/30"
@@ -406,10 +406,10 @@ export default function GruposPage() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{group.name}</p>
+                        <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
                         <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
                       </div>
-                      <div className="flex items-center gap-2 ml-3">
+                      <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
                         <Badge
                           variant="outline"
                           className="cursor-pointer border-border hover:border-cugini-orange/30"

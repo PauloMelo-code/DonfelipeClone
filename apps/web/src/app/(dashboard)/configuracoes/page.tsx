@@ -157,7 +157,7 @@ export default function ConfiguracoesPage() {
             </h3>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {waStatusLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -205,13 +205,13 @@ export default function ConfiguracoesPage() {
                   <div className="rounded-xl bg-white p-3 shadow-lg">
                     {qrCode.startsWith("data:image") ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={qrCode} alt="QR Code WhatsApp" className="w-48 h-48" />
+                      <img src={qrCode} alt="QR Code WhatsApp" className="w-36 sm:w-48 h-36 sm:h-48" />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={`data:image/png;base64,${qrCode}`}
                         alt="QR Code WhatsApp"
-                        className="w-48 h-48"
+                        className="w-36 sm:w-48 h-36 sm:h-48"
                       />
                     )}
                   </div>
@@ -319,7 +319,7 @@ export default function ConfiguracoesPage() {
               Ferramentas
             </h3>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <p className="text-sm font-medium">Atualizar FIPE + Anúncios</p>
               <p className="text-xs text-muted-foreground">Extrai FIPE e regenera anúncios aprovados no formato Cugini</p>

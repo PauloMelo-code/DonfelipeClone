@@ -91,7 +91,7 @@ function parseArray(val: string | string[]): string[] {
 function WhatsAppBubble({ text, photo, photoCount }: { text: string; photo?: string; photoCount: number }) {
   return (
     <div
-      className="p-4 min-h-[200px]"
+      className="p-4 min-h-[140px] sm:min-h-[200px]"
       style={{
         backgroundColor: "#0B141A",
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
@@ -101,7 +101,7 @@ function WhatsAppBubble({ text, photo, photoCount }: { text: string; photo?: str
         <div className="bg-[#005C4B] rounded-lg overflow-hidden shadow-lg">
           {photo && (
             <div className="relative">
-              <img src={photo} alt="" className="w-full h-44 object-cover" />
+              <img src={photo} alt="" className="w-full h-36 sm:h-44 object-cover" />
               {photoCount > 1 && (
                 <div className="absolute bottom-2 right-2 bg-black/60 rounded-full px-2 py-0.5 text-[10px] text-white">
                   1/{photoCount}
@@ -495,7 +495,7 @@ export default function VeiculosPage() {
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="glass">
+            <TabsList className="glass overflow-x-auto flex-nowrap whitespace-nowrap">
               <TabsTrigger value="PENDING" className="data-[state=active]:bg-warning/10 data-[state=active]:text-warning">
                 Pendentes
               </TabsTrigger>
@@ -512,7 +512,7 @@ export default function VeiculosPage() {
           </Tabs>
 
           {/* Filter chips */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-6 px-6">
             {["RS", "SC", "PR", "SP"].map(s => (
               <button
                 key={s}
@@ -521,7 +521,7 @@ export default function VeiculosPage() {
                   states: f.states.includes(s) ? f.states.filter(x => x !== s) : [...f.states, s]
                 }))}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.states.includes(s)
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -540,7 +540,7 @@ export default function VeiculosPage() {
                 key={p.value}
                 onClick={() => setFilters(f => ({ ...f, priceRange: f.priceRange === p.value ? "" : p.value }))}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.priceRange === p.value
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -554,7 +554,7 @@ export default function VeiculosPage() {
                 key={t}
                 onClick={() => setFilters(f => ({ ...f, transmission: f.transmission === t ? "" : t }))}
                 className={cn(
-                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  "shrink-0 rounded-lg px-2.5 py-1 text-xs border transition-all",
                   filters.transmission === t
                     ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                     : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
@@ -644,7 +644,7 @@ export default function VeiculosPage() {
                     className="glass rounded-2xl overflow-hidden hover:glow-orange-sm transition-all duration-300"
                   >
                     {/* Image */}
-                    <div className="relative h-52 bg-card">
+                    <div className="relative h-40 sm:h-52 bg-card">
                       {activeTab === "APPROVED" && (
                         <button
                           className="absolute top-2 left-2 z-10"
@@ -796,7 +796,7 @@ export default function VeiculosPage() {
 
       {/* Sticky batch action bar */}
       {activeTab === "APPROVED" && batchSelected.size > 0 && (
-        <div className="fixed bottom-16 md:bottom-4 left-0 right-0 md:left-64 z-30 px-4">
+        <div className="fixed bottom-16 md:bottom-4 left-0 right-0 md:left-64 z-30 px-4 pb-[env(safe-area-inset-bottom)]">
           <div className="max-w-2xl mx-auto glass border border-cugini-orange/20 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
             <Layers className="h-5 w-5 text-cugini-orange shrink-0" />
             <span className="text-sm font-medium flex-1">
@@ -871,8 +871,8 @@ export default function VeiculosPage() {
 
       {/* Publish Modal (enhanced) */}
       <Dialog open={!!publishVehicle} onOpenChange={(open) => !open && setPublishVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[95vh] h-full sm:h-auto rounded-none sm:rounded-lg w-full">
-          <div className="flex flex-col h-full sm:max-h-[95vh]">
+        <DialogContent showCloseButton={false} className="sm:max-w-3xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
+          <div className="flex flex-col h-full sm:max-h-[90vh]">
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
               <div>
@@ -934,7 +934,7 @@ export default function VeiculosPage() {
                   <textarea
                     value={editedAd}
                     onChange={(e) => setEditedAd(e.target.value)}
-                    className="w-full h-64 rounded-lg bg-card border border-border p-3 text-sm text-foreground font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-cugini-orange/50 focus:border-cugini-orange/50"
+                    className="w-full h-32 sm:h-64 rounded-lg bg-card border border-border p-3 text-sm text-foreground font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-cugini-orange/50 focus:border-cugini-orange/50"
                     placeholder="Texto do anuncio..."
                   />
                   <p className="text-[11px] text-muted-foreground mt-2">
@@ -992,7 +992,7 @@ export default function VeiculosPage() {
                         </Badge>
                       </div>
                       <div
-                        className="p-4 min-h-[200px]"
+                        className="p-4 min-h-[140px] sm:min-h-[200px]"
                         style={{
                           backgroundColor: "#0B141A",
                           backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
@@ -1217,7 +1217,7 @@ export default function VeiculosPage() {
                     <img
                       src={gPhotos[galleryIndex]}
                       alt={`Foto ${galleryIndex + 1}`}
-                      className="w-full h-80 object-contain"
+                      className="w-full h-52 sm:h-80 object-contain"
                     />
                     {/* Nav arrows */}
                     {gPhotos.length > 1 && (
@@ -1371,7 +1371,7 @@ export default function VeiculosPage() {
 
       {/* Batch Publish Modal */}
       <Dialog open={showBatchModal} onOpenChange={(open) => !open && setShowBatchModal(false)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[95vh] h-full sm:h-auto rounded-none sm:rounded-lg w-full">
+        <DialogContent showCloseButton={false} className="sm:max-w-2xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
           <div className="flex flex-col h-full sm:max-h-[95vh]">
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div>

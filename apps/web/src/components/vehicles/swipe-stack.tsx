@@ -123,7 +123,7 @@ function SwipeCard({
         )}
 
         {/* Photo — always shows first photo only */}
-        <div className="relative h-60 bg-card shrink-0 group/photo">
+        <div className="relative h-48 sm:h-60 bg-card shrink-0 group/photo">
           {vehicle.photos.length > 0 ? (
             <img
               src={vehicle.photos[0]}
@@ -220,7 +220,7 @@ function SwipeCard({
           {/* Raw description — WhatsApp style, capped height with scroll */}
           {vehicle.rawDescription && (
             <div
-              className="rounded-xl px-3 py-2.5 max-h-40 overflow-y-auto"
+              className="rounded-xl px-3 py-2.5 max-h-32 sm:max-h-40 overflow-y-auto"
               style={{ background: "#005C4B", touchAction: "pan-y" }}
             >
               <p className="text-[12px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
@@ -238,7 +238,7 @@ function SwipeCard({
                   onReject(vehicle.id);
                 }}
                 disabled={actionLoading === vehicle.id}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 border-2 border-destructive/30 text-destructive font-medium transition-all hover:bg-destructive/10 hover:border-destructive/50 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 min-h-[44px] border-2 border-destructive/30 text-destructive font-medium transition-all hover:bg-destructive/10 hover:border-destructive/50 active:scale-95"
               >
                 <X className="h-5 w-5" />
                 Rejeitar
@@ -249,7 +249,7 @@ function SwipeCard({
                   onApprove(vehicle.id);
                 }}
                 disabled={actionLoading === vehicle.id}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 border-2 border-success/30 text-success font-medium transition-all hover:bg-success/10 hover:border-success/50 active:scale-95"
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 min-h-[44px] border-2 border-success/30 text-success font-medium transition-all hover:bg-success/10 hover:border-success/50 active:scale-95"
               >
                 <Check className="h-5 w-5" />
                 Aprovar
@@ -315,7 +315,7 @@ export function SwipeStack({
       </div>
 
       {/* Card stack */}
-      <div className="relative w-full max-w-sm">
+      <div className="relative w-full max-w-sm mx-auto">
         <AnimatePresence
           mode="popLayout"
           custom={exitDirection}
