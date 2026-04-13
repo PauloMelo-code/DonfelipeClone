@@ -172,39 +172,39 @@ export default function PublicacoesPage() {
                     transition={{ delay: i * 0.03 }}
                     className="flex items-center gap-3 px-4 py-3"
                   >
-                    <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-card">
+                    <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-card">
                       {photos.length > 0 ? (
                         <img src={photos[0]} alt={post.vehicle.model} className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full items-center justify-center">
-                          <Car className="h-4 w-4 text-muted-foreground/30" />
+                          <Car className="h-5 w-5 text-muted-foreground/30" />
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                      <p className="text-sm font-medium text-foreground line-clamp-2">
                         {post.vehicle.brand && `${post.vehicle.brand} `}{post.vehicle.model}
                       </p>
                       <p className="text-xs text-muted-foreground">{post.vehicle.year} · {post.vehicle.km.toLocaleString("pt-BR")} km</p>
+                      <p className="text-sm font-semibold text-cugini-orange mt-0.5">
+                        {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
+                      </p>
                       <div className="mt-1 flex items-center gap-2">
                         <ExternalLink className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                        <span className="text-xs text-muted-foreground truncate">{post.targetGroup.name}</span>
+                        <span className="text-xs text-muted-foreground line-clamp-1">{post.targetGroup.name}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="text-sm font-semibold text-cugini-orange">
-                        {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
-                      </span>
                       {post.success ? (
                         <Badge className="gap-1 border bg-success/10 text-success border-success/20 text-[10px]">
-                          <CheckCircle2 className="h-2.5 w-2.5" />Enviado
+                          <CheckCircle2 className="h-3 w-3" />Enviado
                         </Badge>
                       ) : (
                         <Badge className="gap-1 border bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
-                          <XCircle className="h-2.5 w-2.5" />Falha
+                          <XCircle className="h-3 w-3" />Falha
                         </Badge>
                       )}
-                      <span className="text-[10px] text-muted-foreground/50">{formatDate(post.postedAt)}</span>
+                      <span className="text-[11px] text-muted-foreground/50">{formatDate(post.postedAt)}</span>
                     </div>
                   </motion.div>
                 );

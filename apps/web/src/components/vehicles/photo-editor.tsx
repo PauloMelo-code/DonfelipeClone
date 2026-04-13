@@ -10,6 +10,8 @@ interface PhotoEditorProps {
   editedPhotos: Record<number, string>;
   onPhotoEdited: (index: number, dataUrl: string) => void;
   onPhotoReset: (index: number) => void;
+  defaultFullscreen?: boolean;
+  onFullscreenChange?: (fullscreen: boolean) => void;
 }
 
 type Tool = "crop" | "blur" | "erase" | "pencil";
@@ -32,6 +34,8 @@ export function PhotoEditor({
   editedPhotos,
   onPhotoEdited,
   onPhotoReset,
+  defaultFullscreen = false,
+  onFullscreenChange,
 }: PhotoEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -43,8 +47,13 @@ export function PhotoEditor({
   const [imageError, setImageError] = useState(false);
   const [brushSize, setBrushSize] = useState(24);
   const [pencilColor, setPencilColor] = useState("#000000");
-  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const cleanImageRef = useRef<ImageData | null>(null);
+
+  // Notify parent when fullscreen changes
+  useEffect(() => {
+    onFullscreenChange?.(fullscreen);
+  }, [fullscreen, onFullscreenChange]);
 
   // Load image onto canvas
   useEffect(() => {

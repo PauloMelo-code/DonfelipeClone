@@ -29,6 +29,7 @@ export default function GruposPage() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [regionFilter, setRegionFilter] = useState<string[]>([]);
+  const [mobileGroupTab, setMobileGroupTab] = useState<"SOURCE" | "TARGET">("TARGET");
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ phone: "", name: "", role: "SOURCE" as "SOURCE" | "TARGET" });
   const [adding, setAdding] = useState(false);
@@ -175,6 +176,59 @@ export default function GruposPage() {
   const sourceGroups = groups.filter((g) => g.role === "SOURCE" && matchesFilters(g));
   const targetGroups = groups.filter((g) => g.role === "TARGET" && matchesFilters(g));
 
+  const renderGroupCard = (group: Group) => (
+    <div
+      key={group.id}
+      className={cn(
+        "glass rounded-xl p-4 transition-all",
+        !group.active && "opacity-50"
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
+          <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
+          <Badge
+            variant="outline"
+            className="cursor-pointer border-border hover:border-cugini-orange/30"
+            onClick={() => handleToggle(group, "role")}
+          >
+            {group.role === "SOURCE" ? "Fonte" : "Destino"}
+          </Badge>
+          <Switch
+            checked={group.active}
+            onCheckedChange={() => handleToggle(group, "active")}
+          />
+          <button
+            onClick={() => handleDelete(group)}
+            className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
+            title="Remover grupo"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1 mt-2">
+        {REGIONS.map((r) => (
+          <button
+            key={r}
+            onClick={() => handleRegion(group, r)}
+            className={cn(
+              "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
+              group.region === r
+                ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
+            )}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <>
       <Header title="Grupos" subtitle="Gerencie grupos de monitoramento e publicacao" />
@@ -311,7 +365,33 @@ export default function GruposPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Mobile: tab toggle for Fonte/Destino */}
+          <div className="flex gap-2 md:hidden">
+            <button
+              onClick={() => setMobileGroupTab("TARGET")}
+              className={cn(
+                "flex-1 rounded-xl py-2.5 text-sm font-medium border transition-all",
+                mobileGroupTab === "TARGET"
+                  ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                  : "bg-card/50 border-border text-muted-foreground"
+              )}
+            >
+              Destino ({targetGroups.length})
+            </button>
+            <button
+              onClick={() => setMobileGroupTab("SOURCE")}
+              className={cn(
+                "flex-1 rounded-xl py-2.5 text-sm font-medium border transition-all",
+                mobileGroupTab === "SOURCE"
+                  ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                  : "bg-card/50 border-border text-muted-foreground"
+              )}
+            >
+              Fonte ({sourceGroups.length})
+            </button>
+          </div>
+
+          <div className="hidden md:grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Source Groups */}
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -341,58 +421,7 @@ export default function GruposPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                {sourceGroups.map((group) => (
-                  <div
-                    key={group.id}
-                    className={cn(
-                      "glass rounded-xl p-4 transition-all",
-                      !group.active && "opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
-                        <Badge
-                          variant="outline"
-                          className="cursor-pointer border-border hover:border-cugini-orange/30"
-                          onClick={() => handleToggle(group, "role")}
-                        >
-                          Fonte
-                        </Badge>
-                        <Switch
-                          checked={group.active}
-                          onCheckedChange={() => handleToggle(group, "active")}
-                        />
-                        <button
-                          onClick={() => handleDelete(group)}
-                          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Remover grupo"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {REGIONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => handleRegion(group, r)}
-                          className={cn(
-                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
-                            group.region === r
-                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
-                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
-                          )}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                {sourceGroups.map((group) => renderGroupCard(group))}
                 {sourceGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
                     Nenhum grupo fonte configurado
@@ -430,58 +459,7 @@ export default function GruposPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                {targetGroups.map((group) => (
-                  <div
-                    key={group.id}
-                    className={cn(
-                      "glass rounded-xl p-4 transition-all",
-                      !group.active && "opacity-50"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
-                        <Badge
-                          variant="outline"
-                          className="cursor-pointer border-border hover:border-cugini-orange/30"
-                          onClick={() => handleToggle(group, "role")}
-                        >
-                          Destino
-                        </Badge>
-                        <Switch
-                          checked={group.active}
-                          onCheckedChange={() => handleToggle(group, "active")}
-                        />
-                        <button
-                          onClick={() => handleDelete(group)}
-                          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                          title="Remover grupo"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {REGIONS.map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => handleRegion(group, r)}
-                          className={cn(
-                            "rounded-md px-2 py-0.5 text-[11px] font-medium transition-all border",
-                            group.region === r
-                              ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
-                              : "bg-card/50 text-muted-foreground border-border hover:text-foreground hover:border-white/20"
-                          )}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                {targetGroups.map((group) => renderGroupCard(group))}
                 {targetGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
                     Nenhum grupo destino configurado
@@ -489,6 +467,53 @@ export default function GruposPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Mobile: show only selected tab */}
+          <div className="md:hidden space-y-2">
+            {mobileGroupTab === "SOURCE" ? (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Radio className="h-4 w-4 text-success" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      Grupos Fonte ({sourceGroups.length})
+                    </h3>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("SOURCE", true)}>Ativar todos</Button>
+                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("SOURCE", false)}>Desativar todos</Button>
+                  </div>
+                </div>
+                {sourceGroups.map((group) => renderGroupCard(group))}
+                {sourceGroups.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Nenhum grupo fonte configurado
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-cugini-orange" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                      Grupos Destino ({targetGroups.length})
+                    </h3>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("TARGET", true)}>Ativar todos</Button>
+                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("TARGET", false)}>Desativar todos</Button>
+                  </div>
+                </div>
+                {targetGroups.map((group) => renderGroupCard(group))}
+                {targetGroups.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Nenhum grupo destino configurado
+                  </p>
+                )}
+              </>
+            )}
           </div>
           </>
         )}

@@ -138,6 +138,7 @@ export default function VeiculosPage() {
   const [republishMode, setRepublishMode] = useState(false);
   const [editedAd, setEditedAd] = useState("");
   const [publishTab, setPublishTab] = useState<"photo" | "edit" | "preview">("edit");
+  const [mobileEditorFullscreen, setMobileEditorFullscreen] = useState(false);
   const [editedPhotos, setEditedPhotos] = useState<Record<number, string>>({});
   const [previewMode, setPreviewMode] = useState<"before" | "after">("after");
   const [rejectVehicleId, setRejectVehicleId] = useState<string | null>(null);
@@ -916,20 +917,66 @@ export default function VeiculosPage() {
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto min-h-0">
               {publishTab === "photo" && publishVehicle && (
-                <PhotoEditor
-                  photos={parseArray(publishVehicle.photos)}
-                  editedPhotos={editedPhotos}
-                  onPhotoEdited={(index, dataUrl) =>
-                    setEditedPhotos((prev) => ({ ...prev, [index]: dataUrl }))
-                  }
-                  onPhotoReset={(index) =>
-                    setEditedPhotos((prev) => {
-                      const next = { ...prev };
-                      delete next[index];
-                      return next;
-                    })
-                  }
-                />
+                <>
+                  {/* Mobile: show thumbnail + fullscreen edit button */}
+                  <div className="sm:hidden flex flex-col items-center gap-3 py-4 px-4">
+                    {(() => {
+                      const pPhotos = parseArray(publishVehicle.photos);
+                      const displayPhoto = editedPhotos[0] || pPhotos[0];
+                      return displayPhoto ? (
+                        <img src={displayPhoto} alt="" className="w-full max-h-48 object-contain rounded-xl" />
+                      ) : null;
+                    })()}
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-cugini-orange/30 text-cugini-orange"
+                      onClick={() => setMobileEditorFullscreen(true)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Editar foto em tela cheia
+                    </Button>
+                  </div>
+                  {/* Mobile fullscreen editor */}
+                  {mobileEditorFullscreen && (
+                    <div className="sm:hidden">
+                      <PhotoEditor
+                        photos={parseArray(publishVehicle.photos)}
+                        editedPhotos={editedPhotos}
+                        defaultFullscreen
+                        onFullscreenChange={(fs) => {
+                          if (!fs) setMobileEditorFullscreen(false);
+                        }}
+                        onPhotoEdited={(index, dataUrl) => {
+                          setEditedPhotos((prev) => ({ ...prev, [index]: dataUrl }));
+                        }}
+                        onPhotoReset={(index) => {
+                          setEditedPhotos((prev) => {
+                            const next = { ...prev };
+                            delete next[index];
+                            return next;
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
+                  {/* Desktop: normal inline editor */}
+                  <div className="hidden sm:block">
+                    <PhotoEditor
+                      photos={parseArray(publishVehicle.photos)}
+                      editedPhotos={editedPhotos}
+                      onPhotoEdited={(index, dataUrl) =>
+                        setEditedPhotos((prev) => ({ ...prev, [index]: dataUrl }))
+                      }
+                      onPhotoReset={(index) =>
+                        setEditedPhotos((prev) => {
+                          const next = { ...prev };
+                          delete next[index];
+                          return next;
+                        })
+                      }
+                    />
+                  </div>
+                </>
               )}
 
               {publishTab === "edit" && (
@@ -1082,12 +1129,24 @@ export default function VeiculosPage() {
                 </div>
               </div>
 
-              {/* Group selection */}
+              {/* Group selection — collapsible on mobile */}
               <div className="px-5 py-3 flex-1 overflow-y-auto min-h-0">
-                <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => setExpandedRegions((prev) => {
+                    const n = new Set(prev);
+                    if (n.has("__groups_section")) n.delete("__groups_section");
+                    else n.add("__groups_section");
+                    return n;
+                  })}
+                  className="w-full flex items-center gap-2 mb-2 sm:pointer-events-none"
+                >
                   <Users className="h-4 w-4 text-cugini-orange flex-shrink-0" />
                   <span className="text-xs text-muted-foreground">Enviar para:</span>
-                </div>
+                  <span className="text-xs font-medium text-cugini-orange">{selectedGroupIds.length} grupo{selectedGroupIds.length !== 1 ? "s" : ""}</span>
+                  <div className="flex-1" />
+                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform sm:hidden", expandedRegions.has("__groups_section") && "rotate-180")} />
+                </button>
+                <div className={cn("sm:block", expandedRegions.has("__groups_section") ? "block" : "hidden sm:block")}>
                 {targetGroups.length === 0 ? (
                   <p className="text-xs text-muted-foreground/60 pl-6">
                     Nenhum grupo destino configurado
@@ -1151,6 +1210,7 @@ export default function VeiculosPage() {
                     })}
                   </div>
                 )}
+                </div>
               </div>
             </div>
 
