@@ -365,11 +365,11 @@ export default function GruposPage() {
           </div>
 
           {/* Mobile: tab toggle for Fonte/Destino */}
-          <div className="grid grid-cols-2 gap-2 md:hidden">
+          <div className="grid grid-cols-2 gap-2 lg:hidden">
             <button
               onClick={() => setMobileGroupTab("TARGET")}
               className={cn(
-                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center",
+                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center truncate",
                 mobileGroupTab === "TARGET"
                   ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                   : "bg-card/50 border-border text-muted-foreground"
@@ -380,7 +380,7 @@ export default function GruposPage() {
             <button
               onClick={() => setMobileGroupTab("SOURCE")}
               className={cn(
-                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center",
+                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center truncate",
                 mobileGroupTab === "SOURCE"
                   ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
                   : "bg-card/50 border-border text-muted-foreground"
@@ -390,7 +390,7 @@ export default function GruposPage() {
             </button>
           </div>
 
-          <div className="hidden md:grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="hidden lg:grid grid-cols-2 gap-6">
             {/* Source Groups */}
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -468,8 +468,8 @@ export default function GruposPage() {
             </div>
           </div>
 
-          {/* Mobile: show only selected tab */}
-          <div className="md:hidden space-y-2">
+          {/* Mobile/Tablet: show only selected tab */}
+          <div className="lg:hidden space-y-2">
             {mobileGroupTab === "SOURCE" ? (
               <>
                 <div className="flex flex-wrap items-center gap-2 mb-3">
