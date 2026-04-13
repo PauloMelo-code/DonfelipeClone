@@ -189,13 +189,6 @@ export default function GruposPage() {
           <p className="font-medium truncate text-[13px] sm:text-base">{group.name}</p>
           <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{group.groupId}</p>
         </div>
-        <Badge
-          variant="outline"
-          className="cursor-pointer border-border hover:border-cugini-orange/30 shrink-0 text-[10px] sm:text-xs"
-          onClick={() => handleToggle(group, "role")}
-        >
-          {group.role === "SOURCE" ? "Fonte" : "Destino"}
-        </Badge>
         <Switch
           checked={group.active}
           onCheckedChange={() => handleToggle(group, "active")}
@@ -365,14 +358,14 @@ export default function GruposPage() {
           </div>
 
           {/* Mobile: tab toggle for Fonte/Destino */}
-          <div className="grid grid-cols-2 gap-2 lg:hidden">
+          <div className="flex gap-0 rounded-xl border border-border overflow-hidden lg:hidden">
             <button
               onClick={() => setMobileGroupTab("TARGET")}
               className={cn(
-                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center truncate",
+                "flex-1 py-2.5 text-xs font-medium transition-all text-center",
                 mobileGroupTab === "TARGET"
-                  ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
-                  : "bg-card/50 border-border text-muted-foreground"
+                  ? "bg-cugini-orange text-white"
+                  : "bg-card/50 text-muted-foreground"
               )}
             >
               Destino ({targetGroups.length})
@@ -380,10 +373,10 @@ export default function GruposPage() {
             <button
               onClick={() => setMobileGroupTab("SOURCE")}
               className={cn(
-                "rounded-xl py-2.5 text-sm font-medium border transition-all text-center truncate",
+                "flex-1 py-2.5 text-xs font-medium transition-all text-center",
                 mobileGroupTab === "SOURCE"
-                  ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
-                  : "bg-card/50 border-border text-muted-foreground"
+                  ? "bg-cugini-orange text-white"
+                  : "bg-card/50 text-muted-foreground"
               )}
             >
               Fonte ({sourceGroups.length})
