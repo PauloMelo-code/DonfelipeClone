@@ -180,35 +180,34 @@ export default function GruposPage() {
     <div
       key={group.id}
       className={cn(
-        "glass rounded-xl p-4 transition-all",
+        "glass rounded-xl p-3 sm:p-4 transition-all overflow-hidden",
         !group.active && "opacity-50"
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <p className="font-medium truncate text-sm sm:text-base">{group.name}</p>
-          <p className="text-xs text-muted-foreground truncate">{group.groupId}</p>
+          <p className="font-medium truncate text-[13px] sm:text-base">{group.name}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{group.groupId}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 ml-2 sm:ml-3 shrink-0">
-          <Badge
-            variant="outline"
-            className="cursor-pointer border-border hover:border-cugini-orange/30"
-            onClick={() => handleToggle(group, "role")}
-          >
-            {group.role === "SOURCE" ? "Fonte" : "Destino"}
-          </Badge>
-          <Switch
-            checked={group.active}
-            onCheckedChange={() => handleToggle(group, "active")}
-          />
-          <button
-            onClick={() => handleDelete(group)}
-            className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-            title="Remover grupo"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <Badge
+          variant="outline"
+          className="cursor-pointer border-border hover:border-cugini-orange/30 shrink-0 text-[10px] sm:text-xs"
+          onClick={() => handleToggle(group, "role")}
+        >
+          {group.role === "SOURCE" ? "Fonte" : "Destino"}
+        </Badge>
+        <Switch
+          checked={group.active}
+          onCheckedChange={() => handleToggle(group, "active")}
+          className="shrink-0"
+        />
+        <button
+          onClick={() => handleDelete(group)}
+          className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+          title="Remover grupo"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
       <div className="flex flex-wrap gap-1 mt-2">
         {REGIONS.map((r) => (
@@ -473,16 +472,16 @@ export default function GruposPage() {
           <div className="md:hidden space-y-2">
             {mobileGroupTab === "SOURCE" ? (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-1">
                     <Radio className="h-4 w-4 text-success" />
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Grupos Fonte ({sourceGroups.length})
+                      Fonte ({sourceGroups.length})
                     </h3>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("SOURCE", true)}>Ativar todos</Button>
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("SOURCE", false)}>Desativar todos</Button>
+                  <div className="flex gap-1.5">
+                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("SOURCE", true)}>Ativar</Button>
+                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("SOURCE", false)}>Desativar</Button>
                   </div>
                 </div>
                 {sourceGroups.map((group) => renderGroupCard(group))}
@@ -494,16 +493,16 @@ export default function GruposPage() {
               </>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-1">
                     <Target className="h-4 w-4 text-cugini-orange" />
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Grupos Destino ({targetGroups.length})
+                      Destino ({targetGroups.length})
                     </h3>
                   </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("TARGET", true)}>Ativar todos</Button>
-                    <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => handleActivateAll("TARGET", false)}>Desativar todos</Button>
+                  <div className="flex gap-1.5">
+                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("TARGET", true)}>Ativar</Button>
+                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("TARGET", false)}>Desativar</Button>
                   </div>
                 </div>
                 {targetGroups.map((group) => renderGroupCard(group))}
