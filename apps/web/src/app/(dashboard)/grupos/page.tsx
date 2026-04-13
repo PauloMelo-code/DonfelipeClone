@@ -462,50 +462,36 @@ export default function GruposPage() {
           </div>
 
           {/* Mobile/Tablet: show only selected tab */}
-          <div className="lg:hidden space-y-2">
-            {mobileGroupTab === "SOURCE" ? (
-              <>
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <div className="flex items-center gap-2 flex-1">
-                    <Radio className="h-4 w-4 text-success" />
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Fonte ({sourceGroups.length})
-                    </h3>
+          <div className="lg:hidden">
+            {(() => {
+              const isSource = mobileGroupTab === "SOURCE";
+              const groupList = isSource ? sourceGroups : targetGroups;
+              const role = isSource ? "SOURCE" : "TARGET";
+              return (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex items-center gap-2 flex-1">
+                      {isSource ? <Radio className="h-4 w-4 text-success" /> : <Target className="h-4 w-4 text-cugini-orange" />}
+                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        {isSource ? "Fonte" : "Destino"} ({groupList.length})
+                      </h3>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll(role, true)}>Ativar</Button>
+                      <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll(role, false)}>Desativar</Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1.5">
-                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("SOURCE", true)}>Ativar</Button>
-                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("SOURCE", false)}>Desativar</Button>
+                  <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto rounded-xl">
+                    {groupList.map((group) => renderGroupCard(group))}
+                    {groupList.length === 0 && (
+                      <p className="text-sm text-muted-foreground py-4 text-center">
+                        Nenhum grupo {isSource ? "fonte" : "destino"} configurado
+                      </p>
+                    )}
                   </div>
-                </div>
-                {sourceGroups.map((group) => renderGroupCard(group))}
-                {sourceGroups.length === 0 && (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo fonte configurado
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <div className="flex items-center gap-2 flex-1">
-                    <Target className="h-4 w-4 text-cugini-orange" />
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                      Destino ({targetGroups.length})
-                    </h3>
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("TARGET", true)}>Ativar</Button>
-                    <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll("TARGET", false)}>Desativar</Button>
-                  </div>
-                </div>
-                {targetGroups.map((group) => renderGroupCard(group))}
-                {targetGroups.length === 0 && (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo destino configurado
-                  </p>
-                )}
-              </>
-            )}
+                </>
+              );
+            })()}
           </div>
           </>
         )}
