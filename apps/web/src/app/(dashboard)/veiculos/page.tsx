@@ -37,6 +37,7 @@ import {
   CheckSquare,
   Square,
   Layers,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -48,6 +49,7 @@ interface WhatsAppGroup {
   name: string;
   role: string;
   active: boolean;
+  region: string | null;
 }
 
 interface Vehicle {
@@ -149,6 +151,44 @@ export default function VeiculosPage() {
   const [batchPublishing, setBatchPublishing] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; current: string } | null>(null);
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set());
+  const [filters, setFilters] = useState<{
+    states: string[];
+    priceRange: string;
+    transmission: string;
+  }>({ states: [], priceRange: "", transmission: "" });
+
+  const groupsByRegion = useMemo(() => {
+    const map = new Map<string, WhatsAppGroup[]>();
+    for (const g of targetGroups) {
+      const r = g.region || "Outros";
+      if (!map.has(r)) map.set(r, []);
+      map.get(r)!.push(g);
+    }
+    return map;
+  }, [targetGroups]);
+
+  const toggleRegion = (region: string) => {
+    const regionGroups = groupsByRegion.get(region) || [];
+    const regionIds = regionGroups.map(g => g.groupId);
+    const allSelected = regionIds.every(id => selectedGroupIds.includes(id));
+    if (allSelected) {
+      setSelectedGroupIds(prev => prev.filter(id => !regionIds.includes(id)));
+    } else {
+      setSelectedGroupIds(prev => [...new Set([...prev, ...regionIds])]);
+    }
+  };
+
+  const toggleRegionById = (region: string) => {
+    const regionGroups = groupsByRegion.get(region) || [];
+    const regionIds = regionGroups.map(g => g.id);
+    const allSelected = regionIds.every(id => selectedGroupIds.includes(id));
+    if (allSelected) {
+      setSelectedGroupIds(prev => prev.filter(id => !regionIds.includes(id)));
+    } else {
+      setSelectedGroupIds(prev => [...new Set([...prev, ...regionIds])]);
+    }
+  };
 
   const fetchVehicles = useCallback(async () => {
     try {
@@ -215,15 +255,28 @@ export default function VeiculosPage() {
   };
 
   const filtered = useMemo(() => {
-    if (!search) return vehicles;
-    const s = search.toLowerCase();
-    return vehicles.filter(
-      (v) =>
-        v.model.toLowerCase().includes(s) ||
-        v.brand?.toLowerCase().includes(s) ||
-        v.color?.toLowerCase().includes(s)
-    );
-  }, [vehicles, search]);
+    let result = vehicles;
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(
+        (v) =>
+          v.model.toLowerCase().includes(s) ||
+          v.brand?.toLowerCase().includes(s) ||
+          v.color?.toLowerCase().includes(s)
+      );
+    }
+    if (filters.states.length > 0) {
+      result = result.filter(v => v.sourceGroup?.name && filters.states.some(s => v.sourceGroup!.name.toLowerCase().includes(s.toLowerCase())));
+    }
+    if (filters.priceRange) {
+      const [min, max] = filters.priceRange.split("-").map(Number);
+      result = result.filter(v => v.price >= min && (max ? v.price <= max : true));
+    }
+    if (filters.transmission) {
+      result = result.filter(v => v.transmission === filters.transmission);
+    }
+    return result;
+  }, [vehicles, search, filters]);
 
   const handleAction = async (id: string, action: "approve" | "reject" | "publish") => {
     if (action === "reject") {
@@ -457,6 +510,60 @@ export default function VeiculosPage() {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+
+          {/* Filter chips */}
+          <div className="flex flex-wrap gap-1.5">
+            {["RS", "SC", "PR", "SP"].map(s => (
+              <button
+                key={s}
+                onClick={() => setFilters(f => ({
+                  ...f,
+                  states: f.states.includes(s) ? f.states.filter(x => x !== s) : [...f.states, s]
+                }))}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  filters.states.includes(s)
+                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                )}
+              >
+                {s}
+              </button>
+            ))}
+            {[
+              { label: "30-60k", value: "30000-60000" },
+              { label: "60-100k", value: "60000-100000" },
+              { label: "100-150k", value: "100000-150000" },
+              { label: "150k+", value: "150000-0" },
+            ].map(p => (
+              <button
+                key={p.value}
+                onClick={() => setFilters(f => ({ ...f, priceRange: f.priceRange === p.value ? "" : p.value }))}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  filters.priceRange === p.value
+                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+            {["AUTOMATICO", "MANUAL", "CVT"].map(t => (
+              <button
+                key={t}
+                onClick={() => setFilters(f => ({ ...f, transmission: f.transmission === t ? "" : t }))}
+                className={cn(
+                  "rounded-lg px-2.5 py-1 text-xs border transition-all",
+                  filters.transmission === t
+                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                )}
+              >
+                {t === "AUTOMATICO" ? "Aut." : t === "MANUAL" ? "Manual" : "CVT"}
+              </button>
+            ))}
+          </div>
 
           {!isPending && (
             <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -764,8 +871,8 @@ export default function VeiculosPage() {
 
       {/* Publish Modal (enhanced) */}
       <Dialog open={!!publishVehicle} onOpenChange={(open) => !open && setPublishVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
-          <div className="flex flex-col max-h-[90vh]">
+        <DialogContent showCloseButton={false} className="sm:max-w-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[90vh] h-full sm:h-auto rounded-none sm:rounded-lg">
+          <div className="flex flex-col h-full sm:max-h-[90vh]">
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
               <div>
@@ -983,32 +1090,60 @@ export default function VeiculosPage() {
                     Nenhum grupo destino configurado
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-2 pl-6">
-                    {targetGroups.map((group) => {
-                      const selected = selectedGroupIds.includes(group.groupId);
+                  <div className="space-y-2 pl-6">
+                    {Array.from(groupsByRegion.entries()).map(([region, groups]) => {
+                      const regionIds = groups.map(g => g.groupId);
+                      const selectedCount = regionIds.filter(id => selectedGroupIds.includes(id)).length;
+                      const allSelected = selectedCount === groups.length;
+                      const someSelected = selectedCount > 0 && !allSelected;
+                      const expanded = expandedRegions.has(region);
                       return (
-                        <button
-                          key={group.id}
-                          onClick={() => toggleGroupSelection(group.groupId)}
-                          className={cn(
-                            "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all border",
-                            selected
-                              ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
-                              : "bg-card border-border text-muted-foreground hover:border-white/20"
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "h-3.5 w-3.5 rounded border flex items-center justify-center transition-colors",
-                              selected
-                                ? "bg-cugini-orange border-cugini-orange"
-                                : "border-muted-foreground/40"
-                            )}
+                        <div key={region} className="border border-border rounded-xl overflow-hidden">
+                          <button
+                            onClick={() => toggleRegion(region)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
                           >
-                            {selected && <Check className="h-2.5 w-2.5 text-white" />}
-                          </div>
-                          {group.name}
-                        </button>
+                            <div className={cn(
+                              "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                              allSelected ? "bg-cugini-orange border-cugini-orange" : someSelected ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
+                            )}>
+                              {(allSelected || someSelected) && <Check className="h-2.5 w-2.5 text-white" />}
+                            </div>
+                            <span className="text-sm font-medium flex-1 text-left">{region}</span>
+                            <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedRegions(prev => { const n = new Set(prev); if (n.has(region)) n.delete(region); else n.add(region); return n; }); }}
+                              className="p-1 hover:bg-white/[0.05] rounded"
+                            >
+                              <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                            </button>
+                          </button>
+                          {expanded && (
+                            <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                              {groups.map(group => {
+                                const selected = selectedGroupIds.includes(group.groupId);
+                                return (
+                                  <button
+                                    key={group.id}
+                                    onClick={() => {
+                                      if (selected) setSelectedGroupIds(p => p.filter(id => id !== group.groupId));
+                                      else setSelectedGroupIds(p => [...p, group.groupId]);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                                      selected ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange" : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                                    )}
+                                  >
+                                    <div className={cn("h-3 w-3 rounded border flex items-center justify-center", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
+                                      {selected && <Check className="h-2 w-2 text-white" />}
+                                    </div>
+                                    {group.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -1236,8 +1371,8 @@ export default function VeiculosPage() {
 
       {/* Batch Publish Modal */}
       <Dialog open={showBatchModal} onOpenChange={(open) => !open && setShowBatchModal(false)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10">
-          <div className="flex flex-col max-h-[85vh]">
+        <DialogContent showCloseButton={false} className="sm:max-w-md p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 max-h-full sm:max-h-[85vh] h-full sm:h-auto rounded-none sm:rounded-lg">
+          <div className="flex flex-col h-full sm:max-h-[85vh]">
             <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold">Publicar em lote</h3>
@@ -1262,27 +1397,66 @@ export default function VeiculosPage() {
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Enviar para:</span>
                     </div>
-                    {targetGroups.map((group) => (
-                      <label key={group.id} className={cn(
-                        "flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-colors",
-                        selectedGroupIds.includes(group.id)
-                          ? "bg-cugini-orange/10 border border-cugini-orange/20"
-                          : "bg-card/50 border border-border hover:bg-accent"
-                      )}>
-                        <input
-                          type="checkbox"
-                          checked={selectedGroupIds.includes(group.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedGroupIds((p) => [...p, group.id]);
-                            else setSelectedGroupIds((p) => p.filter((id) => id !== group.id));
-                          }}
-                          className="accent-cugini-orange w-4 h-4"
-                        />
-                        <span className="text-sm">{group.name}</span>
-                      </label>
-                    ))}
-                    {targetGroups.length === 0 && (
+                    {targetGroups.length === 0 ? (
                       <p className="text-xs text-muted-foreground/60">Nenhum grupo destino configurado</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {Array.from(groupsByRegion.entries()).map(([region, groups]) => {
+                          const regionIds = groups.map(g => g.id);
+                          const selectedCount = regionIds.filter(id => selectedGroupIds.includes(id)).length;
+                          const allSelected = selectedCount === groups.length;
+                          const someSelected = selectedCount > 0 && !allSelected;
+                          const expanded = expandedRegions.has(region);
+                          return (
+                            <div key={region} className="border border-border rounded-xl overflow-hidden">
+                              <button
+                                onClick={() => toggleRegionById(region)}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+                              >
+                                <div className={cn(
+                                  "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                                  allSelected ? "bg-cugini-orange border-cugini-orange" : someSelected ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
+                                )}>
+                                  {(allSelected || someSelected) && <Check className="h-2.5 w-2.5 text-white" />}
+                                </div>
+                                <span className="text-sm font-medium flex-1 text-left">{region}</span>
+                                <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setExpandedRegions(prev => { const n = new Set(prev); if (n.has(region)) n.delete(region); else n.add(region); return n; }); }}
+                                  className="p-1 hover:bg-white/[0.05] rounded"
+                                >
+                                  <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                                </button>
+                              </button>
+                              {expanded && (
+                                <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                                  {groups.map(group => {
+                                    const selected = selectedGroupIds.includes(group.id);
+                                    return (
+                                      <button
+                                        key={group.id}
+                                        onClick={() => {
+                                          if (selected) setSelectedGroupIds(p => p.filter(id => id !== group.id));
+                                          else setSelectedGroupIds(p => [...p, group.id]);
+                                        }}
+                                        className={cn(
+                                          "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                                          selected ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange" : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                                        )}
+                                      >
+                                        <div className={cn("h-3 w-3 rounded border flex items-center justify-center", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
+                                          {selected && <Check className="h-2 w-2 text-white" />}
+                                        </div>
+                                        {group.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </>
