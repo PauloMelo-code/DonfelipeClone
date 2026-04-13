@@ -184,10 +184,10 @@ export default function GruposPage() {
         !group.active && "opacity-50"
       )}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-medium truncate text-[13px] sm:text-base">{group.name}</p>
-          <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{group.groupId}</p>
+      <div className="flex items-center gap-2 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <p className="font-medium text-[13px] sm:text-base overflow-hidden text-ellipsis whitespace-nowrap">{group.name}</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap">{group.groupId}</p>
         </div>
         <Switch
           checked={group.active}
@@ -469,16 +469,16 @@ export default function GruposPage() {
               const role = isSource ? "SOURCE" : "TARGET";
               return (
                 <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="flex items-center gap-2 flex-1">
-                      {isSource ? <Radio className="h-4 w-4 text-success" /> : <Target className="h-4 w-4 text-cugini-orange" />}
-                      <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  <div className="flex items-center gap-2 mb-3 overflow-hidden">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {isSource ? <Radio className="h-4 w-4 text-success shrink-0" /> : <Target className="h-4 w-4 text-cugini-orange shrink-0" />}
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                         {isSource ? "Fonte" : "Destino"} ({groupList.length})
                       </h3>
                     </div>
-                    <div className="flex gap-1.5">
-                      <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll(role, true)}>Ativar</Button>
-                      <Button variant="outline" size="sm" className="text-[11px] h-7 px-2" onClick={() => handleActivateAll(role, false)}>Desativar</Button>
+                    <div className="flex gap-1 shrink-0">
+                      <Button variant="outline" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleActivateAll(role, true)}>Ativar</Button>
+                      <Button variant="outline" size="sm" className="text-[10px] h-6 px-1.5" onClick={() => handleActivateAll(role, false)}>Desativar</Button>
                     </div>
                   </div>
                   <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto rounded-xl">
