@@ -83,15 +83,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
 
-    // Cannot delete groups with linked vehicles or posts
-    const vehicleCount = await prisma.vehicle.count({ where: { sourceGroupId: group.groupId } });
-    const postCount = await prisma.postHistory.count({ where: { targetGroupId: group.groupId } });
-    if (vehicleCount > 0 || postCount > 0) {
-      return NextResponse.json(
-        { error: "Grupo possui vinculos. Desative-o em vez de deletar." },
-        { status: 409 }
-      );
-    }
+    // Unlink vehicles and posts before deleting
+    await prisma.vehicle.updateMany({ where: { sourceGroupId: group.groupId }, data: { sourceGroupId: null } });
+    await prisma.postHistory.deleteMany({ where: { targetGroupId: group.groupId } });
 
     await prisma.whatsAppGroup.delete({ where: { id } });
     return NextResponse.json({ message: "Grupo removido com sucesso" });
