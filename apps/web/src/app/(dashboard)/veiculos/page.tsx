@@ -984,7 +984,7 @@ export default function VeiculosPage() {
                   <textarea
                     value={editedAd}
                     onChange={(e) => setEditedAd(e.target.value)}
-                    className="w-full h-32 sm:h-64 rounded-lg bg-card border border-border p-3 text-sm text-foreground font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-cugini-orange/50 focus:border-cugini-orange/50"
+                    className="w-full h-[50vh] sm:h-64 rounded-lg bg-card border border-border p-3 text-sm text-foreground font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-cugini-orange/50 focus:border-cugini-orange/50"
                     placeholder="Texto do anuncio..."
                   />
                   <p className="text-[11px] text-muted-foreground mt-2">
