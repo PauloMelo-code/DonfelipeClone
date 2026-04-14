@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { uazapi } from "@/lib/uazapi";
+import { getSendClient } from "@/lib/uazapi";
 import { canPostVehicle, recordPost } from "@/lib/deduplication";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 
@@ -190,7 +190,7 @@ export async function publishVehicle(
       }
 
       // 2. Send "composing" presence
-      await uazapi.sendPresence({
+      await getSendClient().sendPresence({
         number: group.groupId,
         presence: "composing",
       });
@@ -217,7 +217,7 @@ export async function publishVehicle(
         }
 
         // Send first photo with the ad text as caption
-        const sendResult = await uazapi.sendMedia({
+        const sendResult = await getSendClient().sendMedia({
           number: group.groupId,
           type: "image",
           file: photoFile,
@@ -226,7 +226,7 @@ export async function publishVehicle(
         messageId = sendResult.key?.id;
       } else {
         // No photos -- send text only
-        const sendResult = await uazapi.sendText({
+        const sendResult = await getSendClient().sendText({
           number: group.groupId,
           text: adText,
         });

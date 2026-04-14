@@ -79,7 +79,21 @@
       "Bash(git push:*)",
       "Bash(node -e ':*)",
       "Bash(npx tsx -e ':*)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "WebFetch(domain:cugini.bahflash.tech)",
+      "Bash(find \"C:\\\\Users\\\\Paulo\\\\AppData\\\\Local/Google/Chrome/User Data/Default/Extensions/fcoeoabgfenejglbffodgkkbkcdhcgfn/1.0.68_0\" -name \"*.js\" -exec grep -l \"blocked\\\\|allowedDomains\\\\|domainBlock\\\\|not allowed\" {} \\\\;)",
+      "Bash(curl -s -c - -X POST https://cugini.bahflash.tech/api/auth/callback/credentials -H 'Content-Type: application/x-www-form-urlencoded' -d 'email=admin@cugini.com.br&password=admin123')",
+      "Bash(curl -s -X POST https://cugini.bahflash.tech/api/groups/auto-region -H 'Cookie: __CMDSUB_OUTPUT__')",
+      "Bash(curl -s \"https://cugini.bahflash.tech/api/groups\")",
+      "Bash(npm list:*)",
+      "Bash(npm install:*)",
+      "Bash(npx -y docx@9 -e \"console.log\\('ok'\\)\")",
+      "Bash(mkdir -p /tmp/docgen)",
+      "Read(//tmp/**)",
+      "Bash(npm init:*)",
+      "Bash(node generate.js)",
+      "Bash(curl -s -X GET \"https://liaautomacoes.uazapi.com/instance/status\" -H \"Authorization: Bearer 35521eb9-392a-4b60-a1ca-e2069bf2746b\" -H \"Content-Type: application/json\")",
+      "Bash(curl -s -X GET \"https://liaautomacoes.uazapi.com/instance/status\" -H \"token: 35521eb9-392a-4b60-a1ca-e2069bf2746b\" -H \"Content-Type: application/json\")"
     ]
   }
 }

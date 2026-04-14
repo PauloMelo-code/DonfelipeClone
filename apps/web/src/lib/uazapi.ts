@@ -48,22 +48,36 @@ export interface SendPresencePayload {
 
 
 // ---------------------------------------------------------------------------
-// Client
+// Client — supports multiple UAZAPI instances
 // ---------------------------------------------------------------------------
 
 class UazapiClient {
   private _client: AxiosInstance | null = null;
+  private baseURLEnv: string;
+  private tokenEnv: string;
+  public label: string;
+
+  constructor(baseURLEnv: string, tokenEnv: string, label: string) {
+    this.baseURLEnv = baseURLEnv;
+    this.tokenEnv = tokenEnv;
+    this.label = label;
+  }
+
+  /** Check if this instance is configured (env vars set) */
+  get isConfigured(): boolean {
+    return !!(process.env[this.baseURLEnv] && process.env[this.tokenEnv]);
+  }
 
   private get client(): AxiosInstance {
     if (!this._client) {
-      const baseURL = process.env.UAZAPI_BASE_URL;
-      const token = process.env.UAZAPI_TOKEN;
+      const baseURL = process.env[this.baseURLEnv];
+      const token = process.env[this.tokenEnv];
 
       if (!baseURL) {
-        throw new Error("UAZAPI_BASE_URL environment variable is not set");
+        throw new Error(`${this.baseURLEnv} environment variable is not set`);
       }
       if (!token) {
-        throw new Error("UAZAPI_TOKEN environment variable is not set");
+        throw new Error(`${this.tokenEnv} environment variable is not set`);
       }
 
       this._client = axios.create({
@@ -78,19 +92,12 @@ class UazapiClient {
     return this._client;
   }
 
-  /**
-   * List all WhatsApp groups the connected number participates in.
-   * @param force - If true, forces a refresh from WhatsApp servers.
-   */
   async listGroups(force?: boolean): Promise<GroupInfo[]> {
     const { data } = await this.client.get("/group/list", {
       params: { force: force ?? false, noparticipants: true },
     });
-
-    // UAZAPI returns { groups: [...] } with JID/Name format
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = Array.isArray(data) ? data : data?.groups ?? [];
-
     return raw.map((g) => ({
       id: g.JID || g.id || "",
       subject: g.Name || g.subject || "",
@@ -101,41 +108,22 @@ class UazapiClient {
     }));
   }
 
-  /**
-   * Send a text message to a number or group.
-   */
   async sendText(payload: SendTextPayload): Promise<SendResult> {
-    const { data } = await this.client.post<SendResult>(
-      "/send/text",
-      payload
-    );
+    const { data } = await this.client.post<SendResult>("/send/text", payload);
     return data;
   }
 
-  /**
-   * Send a media message (image, video, or document) to a number or group.
-   */
   async sendMedia(payload: SendMediaPayload): Promise<SendResult> {
-    const { data } = await this.client.post<SendResult>(
-      "/send/media",
-      payload
-    );
+    const { data } = await this.client.post<SendResult>("/send/media", payload);
     return data;
   }
 
-  /**
-   * Send a presence indicator (composing, recording, paused) to a chat.
-   */
   async sendPresence(payload: SendPresencePayload): Promise<void> {
     await this.client.post("/message/presence", payload);
   }
 
-  /**
-   * Get the current connection status of the WhatsApp instance.
-   */
   async getStatus(): Promise<{ state: string; phone?: string }> {
     const { data } = await this.client.get("/instance/status");
-    // UAZAPI returns: { instance: { status: "connected", owner: "5551..." }, status: { connected: true, loggedIn: true } }
     const instanceStatus = data?.instance?.status;
     const isConnected = data?.status?.connected || data?.status?.loggedIn;
     const state = isConnected ? "open" : instanceStatus === "connected" ? "open" : instanceStatus ?? data?.state ?? "unknown";
@@ -143,27 +131,16 @@ class UazapiClient {
     return { state, phone };
   }
 
-  /**
-   * Get the QR code for connecting a WhatsApp number.
-   * Returns base64 QR code string or null if already connected.
-   */
   async getQR(): Promise<{ qrcode: string } | null> {
     const { data } = await this.client.get("/instance/qr");
     const qr = data?.qrcode ?? data?.qr ?? data?.base64 ?? null;
     return qr ? { qrcode: qr } : null;
   }
 
-  /**
-   * Disconnect the current WhatsApp session.
-   */
   async logout(): Promise<void> {
     await this.client.delete("/instance/logout");
   }
 
-  /**
-   * Download media from a WhatsApp message using UAZAPI /message/download.
-   * Returns { base64Data, fileURL, mimetype } or null.
-   */
   async downloadMedia(messageId: string): Promise<{ base64Data: string; fileURL: string; mimetype: string } | null> {
     try {
       const { data } = await this.client.post("/message/download", {
@@ -179,14 +156,23 @@ class UazapiClient {
       }
       return null;
     } catch (err) {
-      console.error("[UAZAPI] Failed to download media:", err);
+      console.error(`[UAZAPI:${this.label}] Failed to download media:`, err);
       return null;
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Singleton
+// Instances
 // ---------------------------------------------------------------------------
 
-export const uazapi = new UazapiClient();
+/** Capture instance — receives messages from source groups (webhook) */
+export const uazapi = new UazapiClient("UAZAPI_BASE_URL", "UAZAPI_TOKEN", "captura");
+
+/** Send instance — publishes to target groups. Falls back to capture if not configured. */
+export const uazapiSend = new UazapiClient("UAZAPI_SEND_BASE_URL", "UAZAPI_SEND_TOKEN", "envio");
+
+/** Get the sending client — uses dedicated send instance if configured, otherwise falls back to capture */
+export function getSendClient(): UazapiClient {
+  return uazapiSend.isConfigured ? uazapiSend : uazapi;
+}
