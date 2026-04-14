@@ -185,11 +185,18 @@ export default function GruposPage() {
       )}
       style={{ maxWidth: "100%", overflow: "hidden" }}
     >
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "8px", alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: "6px", alignItems: "center" }}>
         <div style={{ overflow: "hidden", minWidth: 0 }}>
           <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }}>{group.name}</p>
           <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", opacity: 0.5 }}>{group.groupId}</p>
         </div>
+        <Badge
+          variant="outline"
+          className="cursor-pointer border-border hover:border-cugini-orange/30 text-[10px] shrink-0"
+          onClick={() => handleToggle(group, "role")}
+        >
+          {group.role === "SOURCE" ? "Fonte" : "Destino"}
+        </Badge>
         <Switch
           checked={group.active}
           onCheckedChange={() => handleToggle(group, "active")}
