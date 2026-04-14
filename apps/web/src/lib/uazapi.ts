@@ -135,10 +135,12 @@ class UazapiClient {
    */
   async getStatus(): Promise<{ state: string; phone?: string }> {
     const { data } = await this.client.get("/instance/status");
-    return {
-      state: data?.state ?? data?.status ?? "unknown",
-      phone: data?.phone ?? data?.number ?? undefined,
-    };
+    // UAZAPI returns: { instance: { status: "connected", owner: "5551..." }, status: { connected: true, loggedIn: true } }
+    const instanceStatus = data?.instance?.status;
+    const isConnected = data?.status?.connected || data?.status?.loggedIn;
+    const state = isConnected ? "open" : instanceStatus === "connected" ? "open" : instanceStatus ?? data?.state ?? "unknown";
+    const phone = data?.instance?.owner ?? data?.phone ?? data?.number ?? undefined;
+    return { state, phone };
   }
 
   /**
