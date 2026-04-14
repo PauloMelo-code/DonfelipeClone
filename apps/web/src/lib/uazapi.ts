@@ -132,9 +132,22 @@ class UazapiClient {
   }
 
   async getQR(): Promise<{ qrcode: string } | null> {
-    const { data } = await this.client.get("/instance/qr");
-    const qr = data?.qrcode ?? data?.qr ?? data?.base64 ?? null;
-    return qr ? { qrcode: qr } : null;
+    // UAZAPI uses POST /instance/connect to generate QR code
+    // Returns { instance: { qrcode: "data:image/png;base64,..." } }
+    try {
+      const { data } = await this.client.post("/instance/connect", {});
+      const qr = data?.instance?.qrcode ?? data?.qrcode ?? data?.qr ?? null;
+      return qr ? { qrcode: qr } : null;
+    } catch {
+      // Fallback: try GET /instance/qr
+      try {
+        const { data } = await this.client.get("/instance/qr");
+        const qr = data?.qrcode ?? data?.qr ?? null;
+        return qr ? { qrcode: qr } : null;
+      } catch {
+        return null;
+      }
+    }
   }
 
   async logout(): Promise<void> {
