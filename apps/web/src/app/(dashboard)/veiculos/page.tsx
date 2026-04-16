@@ -158,6 +158,10 @@ export default function VeiculosPage() {
     priceRange: string;
     transmission: string;
   }>({ states: [], priceRange: "", transmission: "" });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 20;
 
   const groupsByRegion = useMemo(() => {
     const map = new Map<string, WhatsAppGroup[]>();
@@ -193,16 +197,22 @@ export default function VeiculosPage() {
 
   const fetchVehicles = useCallback(async () => {
     try {
-      const res = await fetch(`/api/vehicles?status=${activeTab}`);
+      const res = await fetch(`/api/vehicles?status=${activeTab}&page=${page}&limit=${PAGE_SIZE}`);
       if (res.ok) {
         const data = await res.json();
         setVehicles(data.vehicles || []);
+        setTotalPages(data.pagination?.totalPages || 1);
+        setTotalCount(data.pagination?.total || 0);
       }
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
+  }, [activeTab, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [activeTab]);
 
   useEffect(() => {
@@ -809,6 +819,31 @@ export default function VeiculosPage() {
               })}
             </AnimatePresence>
           </motion.div>
+        )}
+
+        {/* Pagination */}
+        {!isPending && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 pt-4">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Anterior
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {page} / {totalPages} ({totalCount} veiculos)
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+            >
+              Proximo
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
       </div>
 
