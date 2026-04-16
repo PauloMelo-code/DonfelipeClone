@@ -83,6 +83,7 @@ export async function POST() {
       const ad = formatVehicleAd(
         {
           model: v.model,
+          brand: v.brand,
           year: v.year,
           yearModel: v.yearModel,
           km: v.km,

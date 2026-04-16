@@ -67,6 +67,7 @@ export async function POST(
 
     const vehicleData = {
       model: vehicle.model,
+      brand: vehicle.brand,
       year: vehicle.year,
       yearModel: vehicle.yearModel,
       km: vehicle.km,

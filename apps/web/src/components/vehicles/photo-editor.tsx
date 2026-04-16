@@ -49,11 +49,46 @@ export function PhotoEditor({
   const [pencilColor, setPencilColor] = useState("#000000");
   const [fullscreen, setFullscreen] = useState(defaultFullscreen);
   const cleanImageRef = useRef<ImageData | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
 
   // Notify parent when fullscreen changes
   useEffect(() => {
     onFullscreenChange?.(fullscreen);
   }, [fullscreen, onFullscreenChange]);
+
+  const saveToHistory = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    try {
+      setHistory(prev => [...prev, canvas.toDataURL("image/png")]);
+    } catch {
+      // CORS tainted canvas
+    }
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (history.length === 0) return;
+    const prev = history[history.length - 1];
+    setHistory(h => h.slice(0, -1));
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      try {
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        onPhotoEdited(selectedIndex, dataUrl);
+      } catch {
+        // CORS tainted canvas
+      }
+    };
+    img.src = prev;
+  }, [history, selectedIndex, onPhotoEdited]);
 
   // Load image onto canvas
   useEffect(() => {
@@ -65,6 +100,7 @@ export function PhotoEditor({
     setImageLoaded(false);
     setImageError(false);
     setCurrentRect(null);
+    setHistory([]);
 
     const src = editedPhotos[selectedIndex] || photos[selectedIndex];
     if (!src) return;
@@ -179,6 +215,7 @@ export function PhotoEditor({
 
   const startDraw = (pos: { x: number; y: number }) => {
     if (tool === "erase" || tool === "pencil") {
+      saveToHistory();
       setDrawing(true);
       paintAt(pos, tool === "erase" ? "#ffffff" : pencilColor);
     } else {
@@ -252,6 +289,8 @@ export function PhotoEditor({
     const ctx = canvas.getContext("2d");
     if (!ctx || !cleanImageRef.current) return;
 
+    saveToHistory();
+
     ctx.putImageData(cleanImageRef.current, 0, 0);
 
     const { x, y, w, h } = currentRect;
@@ -262,21 +301,25 @@ export function PhotoEditor({
       canvas.height = h;
       ctx.putImageData(imageData, 0, 0);
     } else {
-      const offscreen = document.createElement("canvas");
-      offscreen.width = canvas.width;
-      offscreen.height = canvas.height;
-      const offCtx = offscreen.getContext("2d");
-      if (!offCtx) return;
-      offCtx.putImageData(cleanImageRef.current, 0, 0);
+      // Blur using pixel-downscale approach (cross-browser compatible)
+      const imageData = ctx.getImageData(x, y, w, h);
+      const tempCanvas = document.createElement("canvas");
+      tempCanvas.width = w;
+      tempCanvas.height = h;
+      const tempCtx = tempCanvas.getContext("2d");
+      if (!tempCtx) return;
+      tempCtx.putImageData(imageData, 0, 0);
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, y, w, h);
-      ctx.clip();
-      ctx.filter = "blur(14px)";
-      ctx.drawImage(offscreen, 0, 0);
-      ctx.filter = "none";
-      ctx.restore();
+      const scale = 0.1;
+      const blurCanvas = document.createElement("canvas");
+      blurCanvas.width = w;
+      blurCanvas.height = h;
+      const blurCtx = blurCanvas.getContext("2d");
+      if (!blurCtx) return;
+      blurCtx.imageSmoothingEnabled = true;
+      blurCtx.drawImage(tempCanvas, 0, 0, w * scale, h * scale);
+      blurCtx.drawImage(blurCanvas, 0, 0, w * scale, h * scale, 0, 0, w, h);
+      ctx.drawImage(blurCanvas, x, y);
     }
 
     try {
@@ -291,6 +334,7 @@ export function PhotoEditor({
 
   const resetPhoto = () => {
     setCurrentRect(null);
+    setHistory([]);
     onPhotoReset(selectedIndex);
   };
 
@@ -374,10 +418,23 @@ export function PhotoEditor({
             <Eraser className="h-3.5 w-3.5" />Borracha
           </Button>
           <div className="flex-1" />
+          <button
+            onClick={handleUndo}
+            disabled={history.length === 0}
+            className={cn(
+              "rounded-lg border border-border p-1.5 text-muted-foreground transition-colors",
+              history.length === 0
+                ? "opacity-40 cursor-not-allowed"
+                : "hover:text-foreground hover:bg-accent"
+            )}
+            title="Desfazer"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
           {editedPhotos[selectedIndex] && (
             <Button size="sm" variant="outline" onClick={resetPhoto}
               className="gap-1.5 border-border text-xs">
-              <Undo2 className="h-3.5 w-3.5" />Original
+              <ImageIcon className="h-3.5 w-3.5" />Original
             </Button>
           )}
           <button

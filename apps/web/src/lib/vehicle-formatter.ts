@@ -44,16 +44,16 @@ function getTransmissionLabel(
 ): string {
   // HYBRID RULE takes precedence
   if (fuel === "HIBRIDO") {
-    return "Híbrido";
+    return "(híbrido)";
   }
 
   switch (transmission) {
     case "AUTOMATICO":
-      return "Automático";
+      return "(aut.)";
     case "MANUAL":
-      return "Manual";
+      return "(manual)";
     case "CVT":
-      return "CVT";
+      return "(CVT)";
     default:
       return "";
   }
@@ -73,6 +73,7 @@ function getTransmissionLabel(
 export function formatVehicleAd(
   vehicle: {
     model: string;
+    brand?: string | null;
     year: number;
     yearModel?: number | null;
     km: number;
@@ -115,10 +116,20 @@ export function formatVehicleAd(
     ? `${vehicle.year}/${vehicle.yearModel}`
     : `${vehicle.year}`;
 
+  // --- Remove brand prefix from model if present ---
+  let displayModel = vehicle.model;
+  if (vehicle.brand) {
+    const brandUpper = vehicle.brand.toUpperCase();
+    const modelUpper = displayModel.toUpperCase();
+    if (modelUpper.startsWith(brandUpper + " ")) {
+      displayModel = displayModel.substring(vehicle.brand.length + 1);
+    }
+  }
+
   // --- First line: model + transmission (bold for WhatsApp) ---
   const modelLine = transmissionLabel
-    ? `*${vehicle.model} ${transmissionLabel}*`
-    : `*${vehicle.model}*`;
+    ? `*${displayModel} ${transmissionLabel}*`
+    : `*${displayModel}*`;
 
   // --- Build ad ---
   // Format: bold title, year|km, then rawDescription body (original seller text),
@@ -168,7 +179,16 @@ export function formatVehicleAd(
         // Location pin: "SP" or "📍 SP" (emoji already stripped, so just "SP")
         /^[A-Z]{2}$/i.test(l) && l.length === 2 ||
         // Transmission/fuel already in title
-        /^(automático|automatico|manual|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l)
+        /^(automático|automatico|manual|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l) ||
+        // Remove location lines
+        /\b(em\s+estoque|carro\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
+        /\b(florian[oó]polis|porto\s+alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|pelotas|navegantes|s[ãa]o\s+paulo|belo\s+horizonte|londrina)\b/i.test(l) ||
+        // Remove phone numbers
+        /\(?\d{2}\)?\s*9?\s*\d{4}[-.\s]?\d{4}/.test(l) ||
+        // Remove WhatsApp contact lines
+        (/\b(whats|contato|fone|tel|liga|chama)\b/i.test(l) && /\d{4}/.test(l)) ||
+        // Remove repasse/group lines
+        /\b(repasse|grupo\s+de|lista\s+de|entre\s+em\s+contato)\b/i.test(l)
       ) {
         continue;
       }

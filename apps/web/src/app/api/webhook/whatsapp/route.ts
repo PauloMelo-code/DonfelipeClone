@@ -103,7 +103,10 @@ export async function POST(request: NextRequest) {
 
       if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
         textContent = content || chat.wa_lastMessageTextVote || null;
-      } else if (msgType === "ImageMessage" || msgType === "VideoMessage") {
+      } else if (msgType === "VideoMessage") {
+        // Videos: extract caption/text only, do not download media
+        textContent = chat.wa_lastMessageTextVote || chat.caption || null;
+      } else if (msgType === "ImageMessage") {
         // Find the WhatsApp stanzaID for /message/download
         // It can be in: content.contextInfo.stanzaID, message.contextInfo.stanzaID, or chat.stanzaID
         let contentObj: Record<string, unknown> | null = null;
@@ -411,6 +414,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingVehicle) {
+      // If new price is lower (better margin), update the existing vehicle
+      if (price < existingVehicle.price && existingVehicle.status === "PENDING") {
+        await prisma.vehicle.update({
+          where: { id: existingVehicle.id },
+          data: {
+            price,
+            fipePrice: fipePrice ?? existingVehicle.fipePrice,
+            rawDescription: textContent ?? existingVehicle.rawDescription,
+            sellerPhone: (vehicleData.sellerPhone as string) || existingVehicle.sellerPhone,
+          },
+        });
+        console.log(`[Webhook] Updated duplicate with lower price: ${existingVehicle.id} (${existingVehicle.price} → ${price})`);
+        return NextResponse.json({ status: "updated", existingId: existingVehicle.id, oldPrice: existingVehicle.price, newPrice: price });
+      }
       return NextResponse.json({
         status: "duplicate",
         existingId: existingVehicle.id,

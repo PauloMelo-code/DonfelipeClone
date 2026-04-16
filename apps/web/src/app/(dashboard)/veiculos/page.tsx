@@ -332,6 +332,7 @@ export default function VeiculosPage() {
     formatVehicleAd(
       {
         model: v.model,
+        brand: v.brand,
         year: v.year,
         yearModel: v.yearModel,
         km: v.km,

@@ -128,6 +128,7 @@ export async function publishVehicle(
   const adText = options?.formattedAd || formatVehicleAd(
     {
       model: vehicle.model,
+      brand: vehicle.brand,
       year: vehicle.year,
       yearModel: vehicle.yearModel,
       km: vehicle.km,
