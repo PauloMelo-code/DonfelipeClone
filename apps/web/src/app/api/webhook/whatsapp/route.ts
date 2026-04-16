@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
     }
 
     const raw = await request.json();
-    console.log("[Webhook] Received:", JSON.stringify(raw).substring(0, 2000));
+    const msgType = raw.chat?.wa_lastMessageType || raw.event || "unknown";
+    console.log("[Webhook]", raw.chat?.wa_chatid || raw.data?.key?.remoteJid || "?", raw.chat?.stanzaID || raw.data?.key?.id || "?", msgType);
 
     // ── Normalize: UAZAPI flat format vs standard nested format ──
     // UAZAPI sends: { BaseUrl, EventType, chat: { wa_chatid, wa_lastMessageTextVote, ... }, message: {...} }
@@ -133,9 +134,9 @@ export async function POST(request: NextRequest) {
           raw.message?.id ||
           null;
 
-        // Log all available IDs for debugging
-        console.log("[Webhook] ImageMessage IDs - stanzaID:", waMessageId, "raw.id:", raw.id,
-          "msg.id:", raw.message?.id, "contextInfo keys:", ctxInfo ? Object.keys(ctxInfo).join(",") : "none");
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Webhook] ImageMessage IDs - stanzaID:", waMessageId, "contextInfo keys:", ctxInfo ? Object.keys(ctxInfo).join(",") : "none");
+        }
 
         if (waMessageId) {
           try {
@@ -144,10 +145,10 @@ export async function POST(request: NextRequest) {
               const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
               if (media.base64Data) {
                 imageUrl = `data:${mType};base64,${media.base64Data}`;
-                console.log("[Webhook] Got UAZAPI base64, size:", media.base64Data.length);
+                console.log("[Webhook] Image downloaded OK");
               } else if (media.fileURL) {
                 imageUrl = media.fileURL;
-                console.log("[Webhook] Got UAZAPI fileURL:", media.fileURL.substring(0, 80));
+                console.log("[Webhook] Image downloaded OK (URL)");
               }
             }
           } catch (err) {
@@ -205,7 +206,9 @@ export async function POST(request: NextRequest) {
       imageUrl = message.imageMessage?.url || null;
     }
 
-    console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, pushName, textContent: textContent?.substring(0, 100), imageUrl: !!imageUrl });
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, hasImage: !!imageUrl });
+    }
 
     // Prevent concurrent processing of same message
     if (_processingLock.has(messageId)) {
