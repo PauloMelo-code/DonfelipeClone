@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send } from "lucide-react";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -164,6 +164,7 @@ export default function ConfiguracoesPage() {
 
   const [backfilling, setBackfilling] = useState(false);
   const [tagging, setTagging] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const handleBackfillFipe = async () => {
     setBackfilling(true);
     try {
@@ -195,6 +196,29 @@ export default function ConfiguracoesPage() {
       toast.error("Erro de conexão");
     } finally {
       setTagging(false);
+    }
+  };
+
+  const handleCleanup = async (mode: string) => {
+    const labels: Record<string, string> = {
+      no_photo: "sem foto",
+      bad_margin: "com margem ruim (preco >= FIPE)",
+      all: "sem foto + margem ruim",
+    };
+    if (!confirm(`Remover veiculos ${labels[mode]}? Esta acao nao pode ser desfeita.`)) return;
+    setCleaning(true);
+    try {
+      const res = await fetch(`/api/vehicles/cleanup?mode=${mode}`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || `${data.removed} veiculos removidos`);
+      } else {
+        toast.error("Erro ao limpar");
+      }
+    } catch {
+      toast.error("Erro de conexao");
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -510,6 +534,38 @@ export default function ConfiguracoesPage() {
             >
               {tagging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MapPin className="h-3.5 w-3.5" />}
               {tagging ? "Tagueando..." : "Executar"}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Limpar veiculos sem foto</p>
+              <p className="text-xs text-muted-foreground">Remove veiculos com foto quebrada, expirada ou ausente</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCleanup("no_photo")}
+              disabled={cleaning}
+              className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              {cleaning ? "Limpando..." : "Executar"}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Limpar veiculos sem margem</p>
+              <p className="text-xs text-muted-foreground">Remove pendentes onde preco &gt;= FIPE (margem negativa)</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCleanup("bad_margin")}
+              disabled={cleaning}
+              className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+            >
+              {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              {cleaning ? "Limpando..." : "Executar"}
             </Button>
           </div>
         </div>
