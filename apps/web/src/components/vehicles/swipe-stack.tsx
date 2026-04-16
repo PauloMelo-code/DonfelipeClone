@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, MapPin } from "lucide-react";
+import { Check, X, Car, ZoomIn, MapPin, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SwipeVehicle {
@@ -37,6 +37,7 @@ interface SwipeStackProps {
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
+  onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
 }
 
@@ -46,6 +47,7 @@ function SwipeCard({
   onApprove,
   onReject,
   onPhotoClick,
+  onDeletePhoto,
   actionLoading,
   exitDir,
 }: {
@@ -54,6 +56,7 @@ function SwipeCard({
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
+  onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
   exitDir: "left" | "right" | null;
 }) {
@@ -150,6 +153,19 @@ function SwipeCard({
             >
               <ZoomIn className="h-3.5 w-3.5" />
               Ver original
+            </button>
+          )}
+          {isTop && onDeletePhoto && vehicle.photos.length > 0 && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Excluir esta foto?")) onDeletePhoto(vehicle.id, 0);
+              }}
+              className="absolute top-3 left-3 z-30 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-destructive/80 hover:text-destructive hover:bg-black/80 transition-all pointer-events-auto"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Excluir foto
             </button>
           )}
           <div className="absolute bottom-3 left-4 right-4">
@@ -267,6 +283,7 @@ export function SwipeStack({
   onApprove,
   onReject,
   onPhotoClick,
+  onDeletePhoto,
   actionLoading,
 }: SwipeStackProps) {
   const [exitDirection, setExitDirection] = useState<"left" | "right" | null>(
@@ -328,6 +345,7 @@ export function SwipeStack({
               onApprove={handleApprove}
               onReject={handleReject}
               onPhotoClick={onPhotoClick}
+              onDeletePhoto={onDeletePhoto}
               actionLoading={actionLoading}
               exitDir={exitDirection}
             />

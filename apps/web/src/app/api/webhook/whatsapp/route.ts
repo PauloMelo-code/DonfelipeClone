@@ -152,30 +152,12 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fallback: try other IDs
-        const fallbackIds = [raw.id, raw.message?.id, raw.message?.messageId, chat.messageId].filter(Boolean);
-        for (const fbId of fallbackIds) {
-          if (imageUrl) break;
-          try {
-            const media = await uazapi.downloadMedia(fbId);
-            if (media?.base64Data) {
-              const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
-              imageUrl = `data:${mType};base64,${media.base64Data}`;
-              console.log("[Webhook] Got UAZAPI base64 via fallback ID:", fbId, "size:", media.base64Data.length);
-            } else if (media?.fileURL) {
-              imageUrl = media.fileURL;
-              console.log("[Webhook] Got UAZAPI fileURL via fallback ID:", fbId);
-            }
-          } catch { /* ignore */ }
-        }
+        // REMOVED: fallback ID download loop — caused photo mismatch
+        // (downloading wrong image from different message IDs)
 
-        // Last resort: use CDN URL directly and persist (may be encrypted but worth trying)
+        // If primary download failed, skip this message (no photo = no capture)
         if (!imageUrl) {
-          const cdnUrl = contentObj?.URL as string || (typeof content === "string" && content.startsWith("http") ? content : null);
-          if (cdnUrl) {
-            imageUrl = cdnUrl;
-            console.warn("[Webhook] Using CDN URL as last resort:", cdnUrl.substring(0, 80));
-          }
+          console.warn("[Webhook] Image download failed for stanzaID:", waMessageId, "- skipping");
         }
 
         textContent = chat.wa_lastMessageTextVote || chat.caption || null;

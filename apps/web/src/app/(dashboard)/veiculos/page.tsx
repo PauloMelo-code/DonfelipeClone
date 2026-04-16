@@ -617,6 +617,19 @@ export default function VeiculosPage() {
                 setGalleryIndex(0);
               }
             }}
+            onDeletePhoto={async (vehicleId, photoIndex) => {
+              try {
+                const res = await fetch(`/api/vehicles/${vehicleId}/delete-photo?index=${photoIndex}`, { method: "DELETE" });
+                if (res.ok) {
+                  toast.success("Foto excluida");
+                  fetchVehicles();
+                } else {
+                  toast.error("Erro ao excluir foto");
+                }
+              } catch {
+                toast.error("Erro de conexao");
+              }
+            }}
             actionLoading={actionLoading}
           />
         ) : filtered.length === 0 ? (
