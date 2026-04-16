@@ -83,6 +83,9 @@ export async function POST(
 
     const sellingPrice = vehicle.price * (1 + effectiveMargin / 100);
 
+    let features: string[] = [];
+    try { features = JSON.parse(vehicle.features || "[]"); } catch { features = []; }
+
     const vehicleData = {
       model: vehicle.model,
       brand: vehicle.brand,
@@ -93,7 +96,7 @@ export async function POST(
       fipePrice,
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
-      features: JSON.parse(vehicle.features) as string[],
+      features,
       rawDescription: vehicle.rawDescription,
     };
 
@@ -126,10 +129,15 @@ export async function POST(
       },
     });
 
+    let parsedFeatures: string[] = [];
+    let parsedPhotos: string[] = [];
+    try { parsedFeatures = JSON.parse(updated.features || "[]"); } catch { /* */ }
+    try { parsedPhotos = JSON.parse(updated.photos || "[]"); } catch { /* */ }
+
     return NextResponse.json({
       ...updated,
-      features: JSON.parse(updated.features),
-      photos: JSON.parse(updated.photos),
+      features: parsedFeatures,
+      photos: parsedPhotos,
     });
   } catch (error) {
     console.error("[Vehicles] Error approving vehicle:", error);

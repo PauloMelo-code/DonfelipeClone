@@ -299,16 +299,23 @@ export default function VeiculosPage() {
     try {
       const res = await fetch(`/api/vehicles/${id}/${action}`, { method: "POST" });
       if (res.ok) {
-        toast.success(
-          action === "approve" ? "Veiculo aprovado!" : "Publicacao iniciada!"
-        );
-        setVehicles((prev) => prev.filter((v) => v.id !== id));
+        const data = await res.json();
+        if (data.status === "APPROVED" || action === "approve") {
+          toast.success("Veiculo aprovado!");
+          setVehicles((prev) => prev.filter((v) => v.id !== id));
+        } else {
+          toast.success("Publicacao iniciada!");
+          setVehicles((prev) => prev.filter((v) => v.id !== id));
+        }
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Erro ao executar acao");
+        const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
+        toast.error(err.error || `Erro ao ${action === "approve" ? "aprovar" : "publicar"}`);
+        // Re-fetch to ensure list is in sync
+        fetchVehicles();
       }
     } catch {
       toast.error("Erro de conexao");
+      fetchVehicles();
     } finally {
       setActionLoading(null);
     }
