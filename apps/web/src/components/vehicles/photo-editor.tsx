@@ -51,6 +51,93 @@ export function PhotoEditor({
   const cleanImageRef = useRef<ImageData | null>(null);
   const [history, setHistory] = useState<string[]>([]);
 
+  // Crop box state (WhatsApp-style: drag edges/corners)
+  const [cropBox, setCropBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const cropDragRef = useRef<{ edge: string; startY: number; startX: number; startBox: { x: number; y: number; w: number; h: number } } | null>(null);
+
+  // Initialize crop box when crop tool selected
+  useEffect(() => {
+    if (tool === "crop" && canvasRef.current && imageLoaded) {
+      setCropBox({ x: 0, y: 0, w: canvasRef.current.width, h: canvasRef.current.height });
+    } else {
+      setCropBox(null);
+    }
+  }, [tool, imageLoaded]);
+
+  function startCropDrag(e: React.PointerEvent, edge: string) {
+    e.stopPropagation();
+    e.preventDefault();
+    cropDragRef.current = { edge, startY: e.clientY, startX: e.clientX, startBox: cropBox ? { ...cropBox } : { x: 0, y: 0, w: 0, h: 0 } };
+
+    const onMove = (ev: PointerEvent) => {
+      if (!cropDragRef.current || !canvasRef.current) return;
+      const { edge: edg, startY, startX, startBox } = cropDragRef.current;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const dy = (ev.clientY - startY) * scaleY;
+      const dx = (ev.clientX - startX) * scaleX;
+
+      setCropBox(() => {
+        const box = { ...startBox };
+        if (edg === "top" || edg === "top-left" || edg === "top-right") {
+          box.y = Math.max(0, Math.min(startBox.y + dy, startBox.y + startBox.h - 50));
+          box.h = startBox.h - (box.y - startBox.y);
+        }
+        if (edg === "bottom" || edg === "bottom-left" || edg === "bottom-right") {
+          box.h = Math.max(50, Math.min(startBox.h + dy, canvas.height - startBox.y));
+        }
+        if (edg === "left" || edg === "top-left" || edg === "bottom-left") {
+          box.x = Math.max(0, Math.min(startBox.x + dx, startBox.x + startBox.w - 50));
+          box.w = startBox.w - (box.x - startBox.x);
+        }
+        if (edg === "right" || edg === "top-right" || edg === "bottom-right") {
+          box.w = Math.max(50, Math.min(startBox.w + dx, canvas.width - startBox.x));
+        }
+        return box;
+      });
+    };
+
+    const onUp = () => {
+      cropDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function applyCrop() {
+    if (!cropBox || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !cleanImageRef.current) return;
+
+    saveToHistory();
+
+    ctx.putImageData(cleanImageRef.current, 0, 0);
+
+    const { x, y, w, h } = cropBox;
+    const imageData = ctx.getImageData(
+      Math.round(x), Math.round(y), Math.round(w), Math.round(h)
+    );
+    canvas.width = Math.round(w);
+    canvas.height = Math.round(h);
+    ctx.putImageData(imageData, 0, 0);
+
+    try {
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      setCropBox(null);
+      setTool("blur");
+      onPhotoEdited(selectedIndex, dataUrl);
+    } catch {
+      setImageError(true);
+    }
+  }
+
   // Notify parent when fullscreen changes
   useEffect(() => {
     onFullscreenChange?.(fullscreen);
@@ -121,9 +208,9 @@ export function PhotoEditor({
     img.src = src;
   }, [selectedIndex, photos, editedPhotos]);
 
-  // Draw rect selection overlay (crop/blur only)
+  // Draw rect selection overlay (blur only — crop uses CSS overlay)
   useEffect(() => {
-    if (!currentRect || !imageLoaded || tool === "erase") return;
+    if (!currentRect || !imageLoaded || tool !== "blur") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -133,18 +220,10 @@ export function PhotoEditor({
 
     const { x, y, w, h } = currentRect;
 
-    if (tool === "crop") {
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
-      ctx.rect(x, y, w, h);
-      ctx.fill("evenodd");
-    } else {
-      ctx.fillStyle = "rgba(59,130,246,0.15)";
-      ctx.fillRect(x, y, w, h);
-    }
+    ctx.fillStyle = "rgba(59,130,246,0.15)";
+    ctx.fillRect(x, y, w, h);
 
-    ctx.strokeStyle = tool === "crop" ? "#E8731A" : "#3B82F6";
+    ctx.strokeStyle = "#3B82F6";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.strokeRect(x, y, w, h);
@@ -214,6 +293,7 @@ export function PhotoEditor({
   }, [selectedIndex, onPhotoEdited]);
 
   const startDraw = (pos: { x: number; y: number }) => {
+    if (tool === "crop") return; // crop is handled by overlay drag handles
     if (tool === "erase" || tool === "pencil") {
       saveToHistory();
       setDrawing(true);
@@ -226,7 +306,7 @@ export function PhotoEditor({
   };
 
   const moveDraw = (pos: { x: number; y: number }) => {
-    if (!drawing) return;
+    if (!drawing || tool === "crop") return;
     if (tool === "erase" || tool === "pencil") {
       paintAt(pos, tool === "erase" ? "#ffffff" : pencilColor);
     } else {
@@ -295,32 +375,25 @@ export function PhotoEditor({
 
     const { x, y, w, h } = currentRect;
 
-    if (tool === "crop") {
-      const imageData = ctx.getImageData(x, y, w, h);
-      canvas.width = w;
-      canvas.height = h;
-      ctx.putImageData(imageData, 0, 0);
-    } else {
-      // Blur using pixel-downscale approach (cross-browser compatible)
-      const imageData = ctx.getImageData(x, y, w, h);
-      const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = w;
-      tempCanvas.height = h;
-      const tempCtx = tempCanvas.getContext("2d");
-      if (!tempCtx) return;
-      tempCtx.putImageData(imageData, 0, 0);
+    // Blur using pixel-downscale approach (cross-browser compatible)
+    const imageData = ctx.getImageData(x, y, w, h);
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tempCtx = tempCanvas.getContext("2d");
+    if (!tempCtx) return;
+    tempCtx.putImageData(imageData, 0, 0);
 
-      const scale = 0.1;
-      const blurCanvas = document.createElement("canvas");
-      blurCanvas.width = w;
-      blurCanvas.height = h;
-      const blurCtx = blurCanvas.getContext("2d");
-      if (!blurCtx) return;
-      blurCtx.imageSmoothingEnabled = true;
-      blurCtx.drawImage(tempCanvas, 0, 0, w * scale, h * scale);
-      blurCtx.drawImage(blurCanvas, 0, 0, w * scale, h * scale, 0, 0, w, h);
-      ctx.drawImage(blurCanvas, x, y);
-    }
+    const scale = 0.1;
+    const blurCanvas = document.createElement("canvas");
+    blurCanvas.width = w;
+    blurCanvas.height = h;
+    const blurCtx = blurCanvas.getContext("2d");
+    if (!blurCtx) return;
+    blurCtx.imageSmoothingEnabled = true;
+    blurCtx.drawImage(tempCanvas, 0, 0, w * scale, h * scale);
+    blurCtx.drawImage(blurCanvas, 0, 0, w * scale, h * scale, 0, 0, w, h);
+    ctx.drawImage(blurCanvas, x, y);
 
     try {
       const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
@@ -484,29 +557,76 @@ export function PhotoEditor({
           ) : !imageLoaded ? (
             <div className="animate-pulse text-sm text-muted-foreground">Carregando...</div>
           ) : null}
-          <canvas
-            ref={canvasRef}
-            className={cn(
-              "max-w-full",
-              fullscreen ? "max-h-[60vh]" : "max-h-[300px]",
-              (!imageLoaded || imageError) && "hidden"
-            )}
-            style={{ cursor: cursorStyle, touchAction: "none" }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          />
+          <div className="relative inline-block">
+            <canvas
+              ref={canvasRef}
+              className={cn(
+                "max-w-full block",
+                fullscreen ? "max-h-[60vh]" : "max-h-[300px]",
+                (!imageLoaded || imageError) && "hidden"
+              )}
+              style={{ cursor: tool === "crop" ? "default" : cursorStyle, touchAction: "none" }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            />
+            {/* WhatsApp-style crop overlay */}
+            {tool === "crop" && cropBox && canvasRef.current && imageLoaded && (() => {
+              const canvas = canvasRef.current!;
+              const rect = canvas.getBoundingClientRect();
+              const scaleX = rect.width / canvas.width;
+              const scaleY = rect.height / canvas.height;
+              const bx = cropBox.x * scaleX;
+              const by = cropBox.y * scaleY;
+              const bw = cropBox.w * scaleX;
+              const bh = cropBox.h * scaleY;
+              return (
+                <div className="absolute inset-0" style={{ pointerEvents: "none" }}>
+                  {/* Dark overlay outside crop area */}
+                  <div className="absolute bg-black/60" style={{ top: 0, left: 0, right: 0, height: by }} />
+                  <div className="absolute bg-black/60" style={{ top: by + bh, left: 0, right: 0, bottom: 0 }} />
+                  <div className="absolute bg-black/60" style={{ top: by, left: 0, width: bx, height: bh }} />
+                  <div className="absolute bg-black/60" style={{ top: by, left: bx + bw, right: 0, height: bh }} />
+                  {/* Crop border */}
+                  <div className="absolute border-2 border-white" style={{ top: by, left: bx, width: bw, height: bh, pointerEvents: "auto" }}>
+                    {/* Corner handles */}
+                    <div className="absolute -top-2 -left-2 w-5 h-5 border-t-[3px] border-l-[3px] border-white rounded-tl cursor-nwse-resize"
+                         onPointerDown={(e) => startCropDrag(e, "top-left")} />
+                    <div className="absolute -top-2 -right-2 w-5 h-5 border-t-[3px] border-r-[3px] border-white rounded-tr cursor-nesw-resize"
+                         onPointerDown={(e) => startCropDrag(e, "top-right")} />
+                    <div className="absolute -bottom-2 -left-2 w-5 h-5 border-b-[3px] border-l-[3px] border-white rounded-bl cursor-nesw-resize"
+                         onPointerDown={(e) => startCropDrag(e, "bottom-left")} />
+                    <div className="absolute -bottom-2 -right-2 w-5 h-5 border-b-[3px] border-r-[3px] border-white rounded-br cursor-nwse-resize"
+                         onPointerDown={(e) => startCropDrag(e, "bottom-right")} />
+                    {/* Edge handles */}
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/80 rounded cursor-ns-resize"
+                         onPointerDown={(e) => startCropDrag(e, "top")} />
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/80 rounded cursor-ns-resize"
+                         onPointerDown={(e) => startCropDrag(e, "bottom")} />
+                    <div className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-8 bg-white/80 rounded cursor-ew-resize"
+                         onPointerDown={(e) => startCropDrag(e, "left")} />
+                    <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-8 bg-white/80 rounded cursor-ew-resize"
+                         onPointerDown={(e) => startCropDrag(e, "right")} />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </div>
 
         {/* Apply / hint */}
-        {tool !== "erase" && tool !== "pencil" && currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
+        {tool === "crop" && cropBox ? (
+          <Button size="sm" onClick={applyCrop} className="w-full gradient-orange text-white border-0">
+            Aplicar recorte
+          </Button>
+        ) : tool === "blur" && currentRect && currentRect.w > 10 && currentRect.h > 10 ? (
           <Button size="sm" onClick={applyTool} className="w-full gradient-orange text-white border-0">
-            {tool === "crop" ? "Aplicar recorte" : "Aplicar blur"}
+            Aplicar blur
           </Button>
         ) : (
           <p className="text-[11px] text-center text-muted-foreground">
-            {tool === "crop" ? "Arraste para selecionar a area de recorte"
+            {tool === "crop" ? "Arraste as bordas para ajustar o recorte"
               : tool === "blur" ? "Arraste para borrar a area selecionada"
               : tool === "pencil" ? "Pinte sobre a area que deseja cobrir"
               : "Pinte sobre o fundo para apaga-lo (branco)"}

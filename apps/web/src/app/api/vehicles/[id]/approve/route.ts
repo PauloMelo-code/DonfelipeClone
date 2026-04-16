@@ -63,7 +63,25 @@ export async function POST(
     });
     const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
 
-    const sellingPrice = vehicle.price * (1 + margin / 100);
+    // Smart pricing: if vehicle has good indicators and price is close to FIPE (within 12%),
+    // use the original price (no margin) — operator negotiates later
+    let effectiveMargin = margin;
+    if (fipePrice && vehicle.rawDescription) {
+      const discount = 1 - (vehicle.price / fipePrice);
+      const desc = vehicle.rawDescription.toLowerCase();
+      const hasGoodIndicators =
+        (vehicle.km < 60000) ||
+        /\b(unico\s*dono|único\s*dono|procedencia|procedência|sem\s*detalhes|revisado|revisões|revisoes)\b/i.test(desc);
+      const hasNoRedFlags =
+        !/\b(leil[aã]o|sinistro|batido|enchente|recuperado)\b/i.test(desc);
+
+      if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) {
+        effectiveMargin = 0;
+        console.log(`[approve] Smart pricing: ${vehicle.model} - good car at ${Math.round(discount * 100)}% FIPE, using 0% margin`);
+      }
+    }
+
+    const sellingPrice = vehicle.price * (1 + effectiveMargin / 100);
 
     const vehicleData = {
       model: vehicle.model,
@@ -79,7 +97,7 @@ export async function POST(
       rawDescription: vehicle.rawDescription,
     };
 
-    const formattedAd = formatVehicleAd(vehicleData, { profitMarginPercent: margin });
+    const formattedAd = formatVehicleAd(vehicleData, { profitMarginPercent: effectiveMargin });
 
     const updated = await prisma.vehicle.update({
       where: { id },
@@ -101,6 +119,7 @@ export async function POST(
         userId: auth.user.id,
         details: JSON.stringify({
           margin,
+          effectiveMargin,
           sellingPrice,
           originalPrice: vehicle.price,
         }),

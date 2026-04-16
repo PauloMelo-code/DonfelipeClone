@@ -12,6 +12,9 @@ import { persistImage } from "@/lib/media-storage";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
+// Simple in-memory lock to prevent concurrent processing of same message
+const _processingLock = new Set<string>();
+
 interface WebhookPayload {
   event: string;
   data: {
@@ -204,6 +207,13 @@ export async function POST(request: NextRequest) {
 
     console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, pushName, textContent: textContent?.substring(0, 100), imageUrl: !!imageUrl });
 
+    // Prevent concurrent processing of same message
+    if (_processingLock.has(messageId)) {
+      return NextResponse.json({ status: "ignored", reason: "already_processing" });
+    }
+    _processingLock.add(messageId);
+
+    try {
     // ── Persist image immediately (CDN URLs expire in minutes) ──
     if (imageUrl && imageUrl.startsWith("http")) {
       const persistedUrl = await persistImage(imageUrl);
@@ -302,6 +312,10 @@ export async function POST(request: NextRequest) {
     const location = (vehicleData.location as string) || null;
     const state = (vehicleData.state as string) || null;
     const features = (vehicleData.features as string[]) || [];
+    // If plate detected in text, add warning for operator review
+    if (plate) {
+      features.push("⚠️ PLACA VISÍVEL");
+    }
     const photos = [imageUrl];
 
     if (!model || !year || km === undefined || !price) {
@@ -466,6 +480,9 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
+    } finally {
+      _processingLock.delete(messageId);
+    }
   } catch (error) {
     console.error("[Webhook] Error processing WhatsApp webhook:", error);
     return NextResponse.json(
