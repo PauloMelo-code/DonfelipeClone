@@ -82,7 +82,7 @@ export const ALLOWED_SETTING_KEYS = [
 ] as const;
 
 export const updateSettingsSchema = z
-  .record(z.string(), z.string().max(500))
+  .record(z.string(), z.union([z.string(), z.number()]).transform(String))
   .refine(
     (val) =>
       Object.keys(val).every((k) =>
