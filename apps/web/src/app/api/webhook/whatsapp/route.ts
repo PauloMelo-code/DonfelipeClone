@@ -239,9 +239,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "own_message" });
     }
 
-    const group = await prisma.whatsAppGroup.findUnique({
+    let group = await prisma.whatsAppGroup.findUnique({
       where: { groupId: groupJid },
     });
+
+    // Auto-register new groups/broadcast lists as SOURCE (inactive by default)
+    if (!group && (isGroup || isBroadcast)) {
+      const autoName = pushName || groupJid.replace(/@.*/, "");
+      group = await prisma.whatsAppGroup.create({
+        data: {
+          groupId: groupJid,
+          name: isBroadcast ? `Lista: ${autoName}` : autoName,
+          role: "SOURCE",
+          active: true, // Auto-activate so it starts capturing immediately
+        },
+      });
+      console.log(`[Webhook] Auto-registered ${isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
+    }
 
     if (!group || group.role !== "SOURCE" || !group.active) {
       return NextResponse.json({
