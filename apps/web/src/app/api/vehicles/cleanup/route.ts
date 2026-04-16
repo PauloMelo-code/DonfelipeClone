@@ -51,11 +51,15 @@ export async function POST(request: NextRequest) {
       }
 
       if (shouldRemove) {
-        await prisma.postHistory.deleteMany({ where: { vehicleId: v.id } });
-        await prisma.auditLog.deleteMany({ where: { vehicleId: v.id } });
-        await prisma.vehicle.delete({ where: { id: v.id } });
-        removed++;
-        removedList.push({ model: v.model, status: v.status, reason });
+        try {
+          await prisma.auditLog.updateMany({ where: { vehicleId: v.id }, data: { vehicleId: null } });
+          await prisma.postHistory.deleteMany({ where: { vehicleId: v.id } });
+          await prisma.vehicle.delete({ where: { id: v.id } });
+          removed++;
+          removedList.push({ model: v.model, status: v.status, reason });
+        } catch (err) {
+          console.warn(`[cleanup] Failed to delete ${v.id} (${v.model}):`, err);
+        }
       }
     }
 

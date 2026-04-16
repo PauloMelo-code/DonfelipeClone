@@ -94,7 +94,8 @@
       "Bash(node generate.js)",
       "Bash(curl -s -X GET \"https://liaautomacoes.uazapi.com/instance/status\" -H \"Authorization: Bearer 35521eb9-392a-4b60-a1ca-e2069bf2746b\" -H \"Content-Type: application/json\")",
       "Bash(curl -s -X GET \"https://liaautomacoes.uazapi.com/instance/status\" -H \"token: 35521eb9-392a-4b60-a1ca-e2069bf2746b\" -H \"Content-Type: application/json\")",
-      "Bash(curl -s -X POST https://liaautomacoes.uazapi.com/instance/connect -H 'token: 01ebd372-5c13-43ea-aefa-8c61a8253c31' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{}')"
+      "Bash(curl -s -X POST https://liaautomacoes.uazapi.com/instance/connect -H 'token: 01ebd372-5c13-43ea-aefa-8c61a8253c31' -H 'Content-Type: application/json' -H 'Accept: application/json' -d '{}')",
+      "Bash(curl -s 'https://cugini.bahflash.tech/api/vehicles/cleanup?mode=no_photo' -X POST -H 'Cookie: next-auth.session-token=test')"
     ]
   }
 }
