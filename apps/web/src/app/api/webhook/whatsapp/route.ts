@@ -164,7 +164,15 @@ export async function POST(request: NextRequest) {
           console.warn("[Webhook] Image download failed for stanzaID:", waMessageId, "- skipping");
         }
 
-        textContent = chat.wa_lastMessageTextVote || chat.caption || null;
+        // Caption pode estar em varios lugares no payload UAZAPI
+        textContent =
+          (contentObj?.caption as string) ||
+          (contentObj?.text as string) ||
+          chat.wa_lastMessageTextVote ||
+          chat.wa_lastMessageText ||
+          chat.caption ||
+          chat.text ||
+          null;
       }
 
       // Fallback: try text from any field
@@ -277,16 +285,19 @@ export async function POST(request: NextRequest) {
 
     // Images without caption are ignored (no album logic)
     if (imageUrl && !textContent) {
+      console.log("[Webhook] IGNORED: image_no_caption for", groupJid);
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
     // Require image — text-only messages are not captured (skip AI call to save cost)
     if (!imageUrl) {
+      console.log("[Webhook] IGNORED: no_photo for", groupJid);
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
 
     // Pre-filter: skip messages too short to be vehicle ads (saves AI cost)
     if (textContent && textContent.length < 20) {
+      console.log("[Webhook] IGNORED: text_too_short (", textContent.length, "chars)");
       return NextResponse.json({ status: "ignored", reason: "text_too_short" });
     }
 
@@ -295,6 +306,7 @@ export async function POST(request: NextRequest) {
       const lower = textContent.toLowerCase();
       const hasVehicleKeyword = /\b(km|mil|ano|preco|valor|fipe|cambio|automatico|manual|flex|diesel|hibrido|\d{4}\/\d{2,4}|\d{2,3}\s*mil)\b/i.test(lower);
       if (!hasVehicleKeyword) {
+        console.log("[Webhook] IGNORED: no_vehicle_keywords for", textContent.substring(0, 80));
         return NextResponse.json({ status: "ignored", reason: "no_vehicle_keywords" });
       }
     }
