@@ -144,13 +144,25 @@ export default function ConfiguracoesPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Only send the whitelisted keys
+      const allowedKeys: (keyof Settings)[] = [
+        "profit_margin_percent", "delay_min_seconds", "delay_max_seconds",
+        "filter_min_year", "filter_min_price",
+      ];
+      const payload: Record<string, string> = {};
+      for (const k of allowedKeys) {
+        payload[k] = String(settings[k]);
+      }
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         toast.success("Configuracoes salvas!");
+      } else {
+        const err = await res.json().catch(() => ({ error: "Erro ao salvar" }));
+        toast.error(err.error || "Erro ao salvar");
       }
     } catch {
       toast.error("Erro ao salvar");
