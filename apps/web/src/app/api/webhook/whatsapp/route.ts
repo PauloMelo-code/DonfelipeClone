@@ -285,7 +285,12 @@ export async function POST(request: NextRequest) {
 
     // Images without caption are ignored (no album logic)
     if (imageUrl && !textContent) {
-      console.log("[Webhook] IGNORED: image_no_caption for", groupJid);
+      // DEBUG: log full chat object to find where caption lives
+      const chatKeys = Object.keys(chat).filter(k => {
+        const v = (chat as Record<string, unknown>)[k];
+        return typeof v === "string" && v.length > 20 && !v.startsWith("http") && !v.startsWith("{");
+      });
+      console.log("[Webhook] IGNORED: image_no_caption for", groupJid, "| chat text fields:", chatKeys.join(","), "| sample:", chatKeys.slice(0, 3).map(k => `${k}="${String((chat as Record<string, unknown>)[k]).substring(0, 60)}"`).join(" | "));
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
