@@ -16,13 +16,13 @@ const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 const _processingLock = new Set<string>();
 
 // Buffer for pairing image + caption sent as separate messages
-// Key: `${groupJid}:${senderName || senderJid}`
+// Key: `${groupJid}:${senderJid}` — usa JID unico do remetente (nao nome)
 // Value: { imageUrl, textContent, messageId, timestamp }
 interface BufferedMessage {
   imageUrl?: string;
   textContent?: string;
   messageId: string;
-  pushName: string | null;
+  senderJid: string;
   timestamp: number;
 }
 const _pairingBuffer = new Map<string, BufferedMessage>();
@@ -37,8 +37,10 @@ function cleanExpiredBuffer() {
   }
 }
 
-function getBufferKey(groupJid: string, pushName: string | null): string {
-  return `${groupJid}:${pushName || "unknown"}`;
+function getBufferKey(groupJid: string, senderJid: string | null): string {
+  // Sem JID do remetente, nao fazemos pareamento (seguranca)
+  if (!senderJid) return "";
+  return `${groupJid}:${senderJid}`;
 }
 
 interface WebhookPayload {
@@ -112,6 +114,7 @@ export async function POST(request: NextRequest) {
     let messageId: string;
     let isFromMe = false;
     let pushName: string | null = null;
+    let senderJid: string | null = null;
     let textContent: string | null = null;
     let imageUrl: string | null = null;
 
@@ -126,6 +129,8 @@ export async function POST(request: NextRequest) {
       messageId = chat.stanzaID || chat.messageId || raw.id || ("uazapi_" + Date.now());
       isFromMe = chat.fromMe === true || chat.fromMe === "true";
       pushName = chat.senderName || chat.pushName || chat.wa_name || null;
+      // JID unico do remetente (para pareamento de mensagens)
+      senderJid = chat.wa_lastMessageSender || chat.senderJid || chat.participant || null;
 
       // Extract text based on message type
       const msgType = chat.wa_lastMessageType || chat.messageType || "";
@@ -310,37 +315,34 @@ export async function POST(request: NextRequest) {
     }
 
     // === Buffer pairing: juntar foto + texto enviados separadamente ===
+    // So pareamos se temos o JID do remetente (seguranca — evita misturar
+    // mensagens de pessoas diferentes no mesmo grupo)
     cleanExpiredBuffer();
-    const bufferKey = getBufferKey(groupJid, pushName);
-    const buffered = _pairingBuffer.get(bufferKey);
+    const bufferKey = getBufferKey(groupJid, senderJid);
+    const buffered = bufferKey ? _pairingBuffer.get(bufferKey) : null;
 
-    if (imageUrl && !textContent) {
-      // Foto sem legenda — verifica se tem texto aguardando no buffer
+    if (imageUrl && !textContent && bufferKey) {
+      // Foto sem legenda — verifica se tem texto aguardando do MESMO remetente
       if (buffered?.textContent && !buffered.imageUrl) {
         textContent = buffered.textContent;
         _pairingBuffer.delete(bufferKey);
-        console.log("[Webhook] PAIRED: imagem + texto do buffer de", pushName);
+        console.log("[Webhook] PAIRED: imagem + texto do buffer de", senderJid);
       } else {
         // Guarda imagem no buffer aguardando texto (60s)
-        _pairingBuffer.set(bufferKey, { imageUrl, messageId, pushName, timestamp: Date.now() });
-        console.log("[Webhook] BUFFERED: imagem aguardando texto de", pushName);
+        _pairingBuffer.set(bufferKey, { imageUrl, messageId, senderJid: senderJid!, timestamp: Date.now() });
+        console.log("[Webhook] BUFFERED: imagem aguardando texto de", senderJid);
         return NextResponse.json({ status: "buffered", reason: "awaiting_caption" });
       }
-    } else if (!imageUrl && textContent) {
-      // Texto sem foto — verifica se tem imagem aguardando no buffer
+    } else if (!imageUrl && textContent && bufferKey) {
+      // Texto sem foto — verifica se tem imagem aguardando do MESMO remetente
       if (buffered?.imageUrl && !buffered.textContent) {
         imageUrl = buffered.imageUrl;
         _pairingBuffer.delete(bufferKey);
-        console.log("[Webhook] PAIRED: texto + imagem do buffer de", pushName);
-      } else {
-        // Guarda texto no buffer aguardando imagem (60s) se for longo o suficiente
-        if (textContent.length >= 20) {
-          _pairingBuffer.set(bufferKey, { textContent, messageId, pushName, timestamp: Date.now() });
-          console.log("[Webhook] BUFFERED: texto aguardando imagem de", pushName);
-          return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
-        }
-        console.log("[Webhook] IGNORED: no_photo for", groupJid);
-        return NextResponse.json({ status: "ignored", reason: "no_photo" });
+        console.log("[Webhook] PAIRED: texto + imagem do buffer de", senderJid);
+      } else if (textContent.length >= 20) {
+        _pairingBuffer.set(bufferKey, { textContent, messageId, senderJid: senderJid!, timestamp: Date.now() });
+        console.log("[Webhook] BUFFERED: texto aguardando imagem de", senderJid);
+        return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
       }
     }
 
