@@ -15,6 +15,32 @@ const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 // Simple in-memory lock to prevent concurrent processing of same message
 const _processingLock = new Set<string>();
 
+// Buffer for pairing image + caption sent as separate messages
+// Key: `${groupJid}:${senderName || senderJid}`
+// Value: { imageUrl, textContent, messageId, timestamp }
+interface BufferedMessage {
+  imageUrl?: string;
+  textContent?: string;
+  messageId: string;
+  pushName: string | null;
+  timestamp: number;
+}
+const _pairingBuffer = new Map<string, BufferedMessage>();
+const BUFFER_TTL_MS = 60 * 1000; // 60 seconds
+
+function cleanExpiredBuffer() {
+  const now = Date.now();
+  for (const [key, msg] of _pairingBuffer.entries()) {
+    if (now - msg.timestamp > BUFFER_TTL_MS) {
+      _pairingBuffer.delete(key);
+    }
+  }
+}
+
+function getBufferKey(groupJid: string, pushName: string | null): string {
+  return `${groupJid}:${pushName || "unknown"}`;
+}
+
 interface WebhookPayload {
   event: string;
   data: {
@@ -283,15 +309,48 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Images without caption are ignored (no album logic)
+    // === Buffer pairing: juntar foto + texto enviados separadamente ===
+    cleanExpiredBuffer();
+    const bufferKey = getBufferKey(groupJid, pushName);
+    const buffered = _pairingBuffer.get(bufferKey);
+
     if (imageUrl && !textContent) {
-      return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
+      // Foto sem legenda — verifica se tem texto aguardando no buffer
+      if (buffered?.textContent && !buffered.imageUrl) {
+        textContent = buffered.textContent;
+        _pairingBuffer.delete(bufferKey);
+        console.log("[Webhook] PAIRED: imagem + texto do buffer de", pushName);
+      } else {
+        // Guarda imagem no buffer aguardando texto (60s)
+        _pairingBuffer.set(bufferKey, { imageUrl, messageId, pushName, timestamp: Date.now() });
+        console.log("[Webhook] BUFFERED: imagem aguardando texto de", pushName);
+        return NextResponse.json({ status: "buffered", reason: "awaiting_caption" });
+      }
+    } else if (!imageUrl && textContent) {
+      // Texto sem foto — verifica se tem imagem aguardando no buffer
+      if (buffered?.imageUrl && !buffered.textContent) {
+        imageUrl = buffered.imageUrl;
+        _pairingBuffer.delete(bufferKey);
+        console.log("[Webhook] PAIRED: texto + imagem do buffer de", pushName);
+      } else {
+        // Guarda texto no buffer aguardando imagem (60s) se for longo o suficiente
+        if (textContent.length >= 20) {
+          _pairingBuffer.set(bufferKey, { textContent, messageId, pushName, timestamp: Date.now() });
+          console.log("[Webhook] BUFFERED: texto aguardando imagem de", pushName);
+          return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
+        }
+        console.log("[Webhook] IGNORED: no_photo for", groupJid);
+        return NextResponse.json({ status: "ignored", reason: "no_photo" });
+      }
     }
 
-    // Require image — text-only messages are not captured (skip AI call to save cost)
+    // Se ainda nao tem imagem, descarta
     if (!imageUrl) {
       console.log("[Webhook] IGNORED: no_photo for", groupJid);
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
+    }
+    if (!textContent) {
+      return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
     // Pre-filter: skip messages too short to be vehicle ads (saves AI cost)
