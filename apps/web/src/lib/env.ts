@@ -35,13 +35,19 @@ export function validateEnv(): void {
   }
 }
 
-// Run at module load (server-only)
-if (typeof window === "undefined") {
+// Run at module load (server-only) — but skip during Next.js build
+// Next.js build sets NEXT_PHASE to indicate it's collecting page data, env vars
+// might not be wired yet at that point even though NODE_ENV=production.
+const isNextBuildPhase =
+  process.env.NEXT_PHASE === "phase-production-build" ||
+  process.env.NEXT_PHASE === "phase-export";
+
+if (typeof window === "undefined" && !isNextBuildPhase) {
   try {
     validateEnv();
   } catch (err) {
     console.error(err);
-    // Don't crash dev — only crash prod
+    // Don't crash dev — only crash prod runtime
     if (process.env.NODE_ENV === "production") throw err;
   }
 }
