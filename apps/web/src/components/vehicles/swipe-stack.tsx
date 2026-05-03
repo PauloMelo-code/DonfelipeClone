@@ -235,6 +235,26 @@ function SwipeCard({
             </div>
           )}
 
+          {/* Origem do veiculo (grupo/lista/canal) */}
+          {vehicle.sourceGroup && (() => {
+            const jid = vehicle.sourceGroup.groupId || "";
+            const isBroadcast = jid.endsWith("@broadcast");
+            const isNewsletter = jid.endsWith("@newsletter");
+            const isPrivate = jid.endsWith("@s.whatsapp.net");
+            const sourceLabel = isBroadcast ? "Lista de transmissao"
+              : isNewsletter ? "Canal"
+              : isPrivate ? "Contato"
+              : "Grupo";
+            const sourceIcon = isBroadcast ? "📢" : isNewsletter ? "📡" : isPrivate ? "👤" : "👥";
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80 -mt-1">
+                <span>{sourceIcon}</span>
+                <span className="font-medium text-muted-foreground">{sourceLabel}:</span>
+                <span className="truncate flex-1 text-foreground/70">{vehicle.sourceGroup.name}</span>
+              </div>
+            );
+          })()}
+
           <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
             {onUpdateField ? (
               <InlineEdit
