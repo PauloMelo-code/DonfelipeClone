@@ -378,6 +378,18 @@ export default function VeiculosPage() {
   const handlePublishDirect = async (id: string) => {
     const vehicle = vehicles.find((v) => v.id === id);
     if (!vehicle) return;
+    // Estado: usa state do veiculo OU regiao do grupo origem como fallback
+    const effectiveState = vehicle.state || vehicle.sourceGroup?.region || null;
+
+    const preselect = (groups: WhatsAppGroup[]) => {
+      if (effectiveState) {
+        const regionGroups = groups.filter((g) => g.region === effectiveState);
+        setQuickPublishGroups(regionGroups.map((g) => g.groupId));
+      } else {
+        setQuickPublishGroups([]);
+      }
+    };
+
     // Ensure target groups are loaded
     if (targetGroups.length === 0) {
       try {
@@ -385,21 +397,14 @@ export default function VeiculosPage() {
         if (res.ok) {
           const groups: WhatsAppGroup[] = await res.json();
           setTargetGroups(groups);
-          if (vehicle.state) {
-            const regionGroups = groups.filter((g) => g.region === vehicle.state);
-            setQuickPublishGroups(regionGroups.length > 0 ? regionGroups.map((g) => g.groupId) : []);
-          } else {
-            setQuickPublishGroups([]);
-          }
+          preselect(groups);
         }
       } catch {
         setTargetGroups([]);
+        setQuickPublishGroups([]);
       }
-    } else if (vehicle.state) {
-      const regionGroups = targetGroups.filter((g) => g.region === vehicle.state);
-      setQuickPublishGroups(regionGroups.length > 0 ? regionGroups.map((g) => g.groupId) : []);
     } else {
-      setQuickPublishGroups([]);
+      preselect(targetGroups);
     }
     setQuickPublishVehicle(vehicle);
   };
@@ -1665,7 +1670,9 @@ export default function VeiculosPage() {
                 <p className="text-sm font-medium">{quickPublishVehicle.brand} {quickPublishVehicle.model}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {quickPublishVehicle.year} • {quickPublishVehicle.km.toLocaleString("pt-BR")} km • {formatPrice(quickPublishVehicle.price)}
-                  {quickPublishVehicle.state && <> • <span className="text-cugini-orange font-semibold">{quickPublishVehicle.state}</span></>}
+                  {(quickPublishVehicle.state || quickPublishVehicle.sourceGroup?.region) && (
+                    <> • <span className="text-cugini-orange font-semibold">{quickPublishVehicle.state || quickPublishVehicle.sourceGroup?.region}</span></>
+                  )}
                 </p>
               </div>
             )}
