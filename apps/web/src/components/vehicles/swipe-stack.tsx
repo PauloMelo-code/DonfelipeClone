@@ -36,6 +36,7 @@ interface SwipeVehicle {
     isCommunity?: boolean;
     isAnnounce?: boolean;
     ownerPhone?: string | null;
+    region?: string | null;
   } | null;
 }
 
@@ -232,14 +233,21 @@ function SwipeCard({
 
         {/* Info */}
         <div className="p-4 flex flex-col gap-3">
-          {vehicle.state && (
-            <div className="flex items-center gap-2 -mt-1">
-              <span className="inline-flex items-center gap-1 rounded-md bg-cugini-orange/15 border border-cugini-orange/30 px-2 py-0.5 text-xs font-semibold text-cugini-orange uppercase tracking-wide">
-                <MapPin className="h-3 w-3" /> {vehicle.state}
-              </span>
-              {vehicle.location && <span className="text-xs text-muted-foreground">{vehicle.location}</span>}
-            </div>
-          )}
+          {(() => {
+            // Estado de origem: usa state do veiculo, ou fallback para region do grupo
+            const stateLabel = vehicle.state || vehicle.sourceGroup?.region;
+            const isFromGroup = !vehicle.state && !!vehicle.sourceGroup?.region;
+            if (!stateLabel) return null;
+            return (
+              <div className="flex items-center gap-2 -mt-1 flex-wrap">
+                <span className="inline-flex items-center gap-1 rounded-md bg-cugini-orange/15 border border-cugini-orange/30 px-2 py-0.5 text-xs font-semibold text-cugini-orange uppercase tracking-wide">
+                  <MapPin className="h-3 w-3" /> {stateLabel}
+                  {isFromGroup && <span className="text-[10px] opacity-60 normal-case ml-0.5">(grupo)</span>}
+                </span>
+                {vehicle.location && <span className="text-xs text-muted-foreground">{vehicle.location}</span>}
+              </div>
+            );
+          })()}
 
           {/* Origem do veiculo (grupo/comunidade/canal/lista/contato) */}
           {vehicle.sourceGroup && (() => {

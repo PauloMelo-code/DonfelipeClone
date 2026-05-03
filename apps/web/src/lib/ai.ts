@@ -94,21 +94,31 @@ function extractWithRegex(text: string): VehicleData | null {
 
   // --- KM ---
   let km: number | null = null;
+  // IMPORTANTE: ordem dos patterns importa. Patterns mais especificos (km/quilometragem
+  // como prefixo) vem ANTES do generico "X.XXX km" que poderia confundir com ano.
   const kmPatterns = [
-    /\b(\d{1,3}[.\s]?\d{3})\s*km\b/i,
-    /\bkm\s*:?\s*([\d.,]+)\b/i,
-    /\b(\d{2,3})\s*mil\s*km\b/i,
     /\bquilometragem\s*:?\s*([\d.,]+)/i,
+    /\bkm\s*:?\s*([\d.,]+)/i,
+    /\b(\d{2,3})\s*mil\s*km\b/i,
+    /\b([\d.,]+)\s*km\b/i,
   ];
   for (const p of kmPatterns) {
     const m = clean.match(p);
     if (m) {
+      let n: number | null;
       if (/mil/i.test(m[0])) {
-        km = parseInt(m[1]) * 1000;
+        n = parseInt(m[1]) * 1000;
       } else {
-        km = parseBrazilianNumber(m[1]);
+        n = parseBrazilianNumber(m[1]);
       }
-      if (km !== null) break;
+      // Rejeita valores que parecem ano (1900-2099 com exatamente 4 digitos sem ponto)
+      const raw = m[1].replace(/[.,\s]/g, "");
+      if (n !== null && raw.length === 4 && /^(19|20)\d{2}$/.test(raw)) continue;
+      // KM razoavel: 0 a 999.999
+      if (n !== null && n >= 0 && n <= 999999) {
+        km = n;
+        break;
+      }
     }
   }
 
