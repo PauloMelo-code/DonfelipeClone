@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Play, Pause } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ interface HeaderProps {
 export function Header({ title, subtitle, live }: HeaderProps) {
   const { data: session } = useSession();
   const [paused, setPaused] = useState(false);
+  const [pauseLoading, setPauseLoading] = useState(false);
   const [health, setHealth] = useState<"ok" | "error" | "checking">("checking");
 
   useEffect(() => {
@@ -49,6 +50,7 @@ export function Header({ title, subtitle, live }: HeaderProps) {
 
   const togglePause = async () => {
     const next = !paused;
+    setPauseLoading(true);
     try {
       const res = await fetch("/api/publishing/pause", {
         method: "POST",
@@ -64,6 +66,8 @@ export function Header({ title, subtitle, live }: HeaderProps) {
       }
     } catch {
       toast.error("Erro de conexao");
+    } finally {
+      setPauseLoading(false);
     }
   };
 
@@ -99,17 +103,17 @@ export function Header({ title, subtitle, live }: HeaderProps) {
       <div className="flex items-center gap-3">
         <span
           className={cn(
-            "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-            health === "ok" && "bg-success/15 text-success border border-success/30",
-            health === "error" && "bg-destructive/15 text-destructive border border-destructive/30 animate-pulse",
-            health === "checking" && "bg-card border border-border text-muted-foreground"
+            "flex items-center gap-1.5 text-[11px] font-medium",
+            health === "ok" && "text-success",
+            health === "error" && "text-destructive",
+            health === "checking" && "text-muted-foreground"
           )}
           title={health === "ok" ? "Sistema operacional" : health === "error" ? "Sistema com problemas" : "Verificando..."}
         >
           <span className={cn(
             "h-1.5 w-1.5 rounded-full",
-            health === "ok" && "bg-success",
-            health === "error" && "bg-destructive",
+            health === "ok" && "bg-success shadow-[0_0_6px_rgba(52,211,153,0.6)]",
+            health === "error" && "bg-destructive animate-pulse",
             health === "checking" && "bg-muted-foreground"
           )} />
           {health === "ok" ? "Online" : health === "error" ? "Offline" : "..."}
@@ -117,15 +121,17 @@ export function Header({ title, subtitle, live }: HeaderProps) {
 
         <button
           onClick={togglePause}
+          disabled={pauseLoading}
           className={cn(
-            "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+            "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
             paused
-              ? "bg-destructive/15 text-destructive border border-destructive/40 animate-pulse"
-              : "bg-card border border-border text-muted-foreground hover:text-foreground"
+              ? "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15 animate-pulse"
+              : "border-success/30 bg-success/[0.07] text-success hover:bg-success/10"
           )}
-          title={paused ? "Retomar disparos" : "Pausar todos os disparos"}
+          title={paused ? "Disparo pausado — clique para retomar" : "Disparo ativo — clique para pausar"}
         >
-          {paused ? "🛑 Pausado" : "▶️ Ativo"}
+          {paused ? <Pause className="h-3 w-3 fill-current" /> : <Play className="h-3 w-3 fill-current" />}
+          {paused ? "Pausado" : "Ativo"}
         </button>
 
         <DropdownMenu>

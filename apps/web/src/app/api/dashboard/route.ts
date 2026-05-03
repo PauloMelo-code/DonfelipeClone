@@ -17,6 +17,9 @@ export async function GET() {
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    const sevenDaysAgo = new Date(startOfDay);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const [
       totalVehicles,
       pendingVehicles,
@@ -30,6 +33,10 @@ export async function GET() {
       todayPosts,
       sourceGroups,
       targetGroups,
+      vipPending,
+      topGroupsRaw,
+      qualityAgg,
+      highScorePending,
     ] = await Promise.all([
       prisma.vehicle.count(),
       prisma.vehicle.count({ where: { status: "PENDING" } }),
@@ -45,7 +52,41 @@ export async function GET() {
       }),
       prisma.whatsAppGroup.count({ where: { role: "SOURCE", active: true } }),
       prisma.whatsAppGroup.count({ where: { role: "TARGET", active: true } }),
+      prisma.vehicle.count({ where: { status: "PENDING", isVip: true } }),
+      prisma.vehicle.groupBy({
+        by: ["sourceGroupId"],
+        where: {
+          capturedAt: { gte: sevenDaysAgo },
+          sourceGroupId: { not: null },
+        },
+        _count: { _all: true },
+        orderBy: { _count: { sourceGroupId: "desc" } },
+        take: 5,
+      }),
+      prisma.vehicle.aggregate({
+        where: { status: "PENDING", qualityScore: { not: null } },
+        _avg: { qualityScore: true },
+      }),
+      prisma.vehicle.count({
+        where: { status: "PENDING", qualityScore: { gte: 8 } },
+      }),
     ]);
+
+    const topGroupIds = topGroupsRaw
+      .map((g) => g.sourceGroupId)
+      .filter((id): id is string => !!id);
+    const groupNames = topGroupIds.length
+      ? await prisma.whatsAppGroup.findMany({
+          where: { groupId: { in: topGroupIds } },
+          select: { groupId: true, name: true },
+        })
+      : [];
+    const nameMap = new Map(groupNames.map((g) => [g.groupId, g.name]));
+    const topGroupsWeek = topGroupsRaw.map((g) => ({
+      groupId: g.sourceGroupId as string,
+      name: nameMap.get(g.sourceGroupId as string) || "Grupo desconhecido",
+      count: g._count._all,
+    }));
 
     const total = approvedVehicles + publishedVehicles + rejectedVehicles;
     const approvalRate =
@@ -77,6 +118,10 @@ export async function GET() {
       rates: {
         approval: approvalRate,
       },
+      vipPending,
+      topGroupsWeek,
+      avgQualityScore: qualityAgg._avg.qualityScore ?? 0,
+      highScorePending,
     });
   } catch (error) {
     console.error("[Dashboard] Error fetching metrics:", error);

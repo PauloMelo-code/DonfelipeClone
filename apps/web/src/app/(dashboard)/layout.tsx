@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ServiceWorkerRegister } from "./_components/sw-register";
+import { PushPrompt } from "@/components/notifications/push-prompt";
 import { cn } from "@/lib/utils";
 
 export default function DashboardLayout({
@@ -27,6 +29,8 @@ export default function DashboardLayout({
       </main>
 
       <MobileBottomNav />
+      <ServiceWorkerRegister />
+      <PushPrompt />
     </div>
   );
 }

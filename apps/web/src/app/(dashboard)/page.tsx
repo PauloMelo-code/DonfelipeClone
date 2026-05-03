@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { StatCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeleton-card";
 import { DateRange } from "@/components/dashboard/date-range-picker";
-import { Car, Clock, Send, TrendingUp } from "lucide-react";
+import { Car, Clock, Send, TrendingUp, Crown, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DashboardData {
   vehicles: {
@@ -21,6 +23,10 @@ interface DashboardData {
   publications: { total: number; today: number };
   groups: { source: number; target: number };
   rates: { approval: string };
+  vipPending: number;
+  topGroupsWeek: { groupId: string; name: string; count: number }[];
+  avgQualityScore: number;
+  highScorePending: number;
 }
 
 interface ChartPoint {
@@ -61,6 +67,34 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // Poll for new VIP vehicles and show local notifications when permission granted
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    let lastVipCount = 0;
+    const check = async () => {
+      try {
+        const res = await fetch("/api/dashboard");
+        if (!res.ok) return;
+        const d = await res.json();
+        if (d.vipPending > lastVipCount && lastVipCount > 0) {
+          new Notification("🚗 Novo veículo VIP!", {
+            body: `${d.vipPending - lastVipCount} carro(s) premium aguardando revisão`,
+            icon: "/icon.svg",
+            tag: "cugini-vip",
+          });
+        }
+        lastVipCount = d.vipPending;
+      } catch {
+        /* ignore */
+      }
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Bom dia";
@@ -77,6 +111,27 @@ export default function DashboardPage() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Alert: VIP vehicles pending */}
+        {!loading && data && data.vipPending > 0 && (
+          <div className="rounded-2xl border border-yellow-400/40 bg-yellow-400/5 p-4 flex items-center gap-3">
+            <Crown className="h-6 w-6 text-yellow-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-yellow-400">
+                {data.vipPending} veículos VIP aguardando revisão
+              </p>
+              <p className="text-xs text-yellow-400/70">
+                Carros premium — prioridade alta
+              </p>
+            </div>
+            <Link
+              href="/veiculos"
+              className="rounded-lg bg-yellow-400/15 border border-yellow-400/30 px-3 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-400/20"
+            >
+              Revisar →
+            </Link>
+          </div>
+        )}
+
         {/* Stat Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {loading ? (
@@ -127,6 +182,59 @@ export default function DashboardPage() {
             dateRange={chartRange}
             onDateRangeChange={setChartRange}
           />
+        )}
+
+        {/* Insights row: top fornecedores + qualidade media */}
+        {!loading && data && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="glass rounded-2xl p-5 lg:col-span-2">
+              <div className="flex items-center gap-2 mb-4">
+                <Users className="h-4 w-4 text-cugini-orange" />
+                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
+                  Top fornecedores (7 dias)
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {data.topGroupsWeek && data.topGroupsWeek.length > 0 ? (
+                  data.topGroupsWeek.slice(0, 5).map((g) => (
+                    <div key={g.groupId} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{g.name}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{g.count}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem dados</p>
+                )}
+              </div>
+            </div>
+
+            <div className="glass rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp className="h-4 w-4 text-cugini-orange" />
+                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
+                  Qualidade média (pendentes)
+                </h3>
+              </div>
+              <p
+                className={cn(
+                  "text-3xl font-bold",
+                  data.avgQualityScore >= 7
+                    ? "text-success"
+                    : data.avgQualityScore >= 5
+                    ? "text-warning"
+                    : "text-destructive"
+                )}
+              >
+                {data.avgQualityScore ? data.avgQualityScore.toFixed(1) : "—"}
+                <span className="text-base text-muted-foreground/60">/10</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {data.highScorePending || 0} com score ≥ 8
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Summary Cards */}
