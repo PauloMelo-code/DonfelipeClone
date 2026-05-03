@@ -48,6 +48,7 @@ model Vehicle {
   status          String    @default("PENDING")
   formattedAd     String?
   rejectionReason String?
+  rejectionTags   String?
   capturedAt      DateTime  @default(now())
   approvedAt      DateTime?
   publishedAt     DateTime?

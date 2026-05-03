@@ -99,11 +99,13 @@ export const updateSettingsSchema = z
 // Reject
 // ---------------------------------------------------------------------------
 
-export const rejectVehicleSchema = z
-  .object({
-    rejectionReason: z.string().max(1000).optional(),
-  })
-  .optional();
+export const rejectVehicleSchema = z.object({
+  rejectionReason: z.string().max(1000).optional(),
+  rejectionTags: z.array(z.enum([
+    "fora_padrao", "sem_margem", "fora_sul", "repetido",
+    "km_alta", "modelo_mais_margem", "sem_foto"
+  ])).optional(),
+}).optional();
 
 // ---------------------------------------------------------------------------
 // Publish

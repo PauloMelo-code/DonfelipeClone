@@ -39,9 +39,13 @@ export async function POST(
     }
 
     let rejectionReason: string | null = null;
+    let rejectionTags: string[] | null = null;
     try {
       const body = await request.json();
       rejectionReason = body.rejectionReason || null;
+      if (Array.isArray(body.rejectionTags) && body.rejectionTags.length > 0) {
+        rejectionTags = body.rejectionTags;
+      }
     } catch {
       // Body is optional for rejection
     }
@@ -51,6 +55,7 @@ export async function POST(
       data: {
         status: "REJECTED",
         rejectionReason,
+        rejectionTags: rejectionTags ? JSON.stringify(rejectionTags) : null,
       },
     });
 
@@ -61,9 +66,13 @@ export async function POST(
         entityId: id,
         vehicleId: id,
         userId: auth.user.id,
-        details: rejectionReason
-          ? JSON.stringify({ reason: rejectionReason })
-          : null,
+        details:
+          rejectionReason || rejectionTags
+            ? JSON.stringify({
+                reason: rejectionReason,
+                tags: rejectionTags,
+              })
+            : null,
       },
     });
 

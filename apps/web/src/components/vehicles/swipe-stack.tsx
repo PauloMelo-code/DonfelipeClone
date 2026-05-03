@@ -7,8 +7,9 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, MapPin, Trash2 } from "lucide-react";
+import { Check, X, Car, ZoomIn, MapPin, Trash2, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InlineEdit } from "./inline-edit";
 
 interface SwipeVehicle {
   id: string;
@@ -39,6 +40,30 @@ interface SwipeStackProps {
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
   onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
+  onPublishDirect?: (id: string) => void;
+  onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
+  publishingDirectId?: string | null;
+}
+
+function MarginBadge({ price, fipePrice }: { price: number; fipePrice?: number | null }) {
+  if (!fipePrice || fipePrice <= 0) return null;
+  const discount = Math.round((1 - price / fipePrice) * 100);
+  let style: string;
+  let label: string;
+  if (discount >= 15) {
+    style = "bg-success/15 border-success/40 text-success font-bold";
+    label = `-${discount}% FIPE`;
+  } else if (discount >= 8) {
+    style = "bg-success/10 border-success/30 text-success";
+    label = `-${discount}% FIPE`;
+  } else if (discount >= 0) {
+    style = "bg-warning/10 border-warning/30 text-warning";
+    label = `-${discount}% FIPE`;
+  } else {
+    style = "bg-destructive/10 border-destructive/30 text-destructive";
+    label = `+${Math.abs(discount)}% FIPE`;
+  }
+  return <span className={cn("rounded-full border px-2 py-0.5 text-xs whitespace-nowrap", style)}>{label}</span>;
 }
 
 function SwipeCard({
@@ -50,6 +75,9 @@ function SwipeCard({
   onDeletePhoto,
   actionLoading,
   exitDir,
+  onPublishDirect,
+  onUpdateField,
+  publishingDirectId,
 }: {
   vehicle: SwipeVehicle;
   isTop: boolean;
@@ -59,6 +87,9 @@ function SwipeCard({
   onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
   exitDir: "left" | "right" | null;
+  onPublishDirect?: (id: string) => void;
+  onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
+  publishingDirectId?: string | null;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
@@ -178,10 +209,34 @@ function SwipeCard({
 
         {/* Info */}
         <div className="p-4 flex flex-col gap-3">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{vehicle.year}</span>
+          {vehicle.state && (
+            <div className="flex items-center gap-2 -mt-1">
+              <span className="inline-flex items-center gap-1 rounded-md bg-cugini-orange/15 border border-cugini-orange/30 px-2 py-0.5 text-xs font-semibold text-cugini-orange uppercase tracking-wide">
+                <MapPin className="h-3 w-3" /> {vehicle.state}
+              </span>
+              {vehicle.location && <span className="text-xs text-muted-foreground">{vehicle.location}</span>}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+            {onUpdateField ? (
+              <InlineEdit
+                value={vehicle.year}
+                type="number"
+                onSave={(v) => onUpdateField(vehicle.id, "year", v)}
+                className="text-foreground"
+              />
+            ) : <span>{vehicle.year}</span>}
             <span className="text-border">&bull;</span>
-            <span>{formatKm(vehicle.km)}</span>
+            {onUpdateField ? (
+              <InlineEdit
+                value={vehicle.km}
+                type="number"
+                onSave={(v) => onUpdateField(vehicle.id, "km", v)}
+                format={(v) => `${Number(v).toLocaleString("pt-BR")} km`}
+                className="text-foreground"
+              />
+            ) : <span>{formatKm(vehicle.km)}</span>}
             {vehicle.transmission && (
               <>
                 <span className="text-border">&bull;</span>
@@ -196,15 +251,9 @@ function SwipeCard({
             )}
           </div>
 
-          {(vehicle.color || vehicle.location || vehicle.state) && (
+          {vehicle.color && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {vehicle.color && <span>Cor: {vehicle.color}</span>}
-              {(vehicle.location || vehicle.state) && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  {vehicle.location}{vehicle.location && vehicle.state ? "/" : ""}{vehicle.state}
-                </span>
-              )}
+              <span>Cor: {vehicle.color}</span>
             </div>
           )}
 
@@ -216,15 +265,18 @@ function SwipeCard({
                 </p>
               )}
               <p className="text-xl font-bold text-cugini-orange">
-                {formatPrice(vehicle.price)}
+                {onUpdateField ? (
+                  <InlineEdit
+                    value={vehicle.price}
+                    type="number"
+                    onSave={(v) => onUpdateField(vehicle.id, "price", v)}
+                    format={(v) => formatPrice(Number(v))}
+                  />
+                ) : formatPrice(vehicle.price)}
               </p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              {vehicle.fipePrice && vehicle.fipePrice > vehicle.price && (
-                <span className="rounded-full bg-success/10 border border-success/30 px-2 py-0.5 text-xs text-success font-medium">
-                  -{Math.round((1 - vehicle.price / vehicle.fipePrice) * 100)}% FIPE
-                </span>
-              )}
+              <MarginBadge price={vehicle.price} fipePrice={vehicle.fipePrice} />
               {vehicle.fuel === "HIBRIDO" && (
                 <span className="rounded-full border border-success/30 px-2 py-0.5 text-xs text-success">
                   Hibrido
@@ -247,29 +299,36 @@ function SwipeCard({
 
           {/* Buttons */}
           {isTop && (
-            <div className="flex gap-3 pt-1">
+            <div className="grid grid-cols-3 gap-2 mt-auto pt-3">
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReject(vehicle.id);
-                }}
-                disabled={actionLoading === vehicle.id}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 min-h-[44px] border-2 border-destructive/30 text-destructive font-medium transition-all hover:bg-destructive/10 hover:border-destructive/50 active:scale-95"
+                onClick={(e) => { e.stopPropagation(); onReject(vehicle.id); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={actionLoading === vehicle.id || publishingDirectId === vehicle.id}
+                className="flex items-center justify-center gap-1.5 rounded-xl py-3 border-2 border-destructive/30 text-destructive font-medium transition-all hover:bg-destructive/10 hover:border-destructive/50 active:scale-95 min-h-[48px] disabled:opacity-50"
               >
-                <X className="h-5 w-5" />
-                Rejeitar
+                <X className="h-4 w-4" />
+                <span className="text-sm">Rejeitar</span>
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onApprove(vehicle.id);
-                }}
-                disabled={actionLoading === vehicle.id}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 min-h-[44px] border-2 border-success/30 text-success font-medium transition-all hover:bg-success/10 hover:border-success/50 active:scale-95"
+                onClick={(e) => { e.stopPropagation(); onApprove(vehicle.id); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={actionLoading === vehicle.id || publishingDirectId === vehicle.id}
+                className="flex items-center justify-center gap-1.5 rounded-xl py-3 border-2 border-border bg-card/50 text-foreground font-medium transition-all hover:border-white/30 active:scale-95 min-h-[48px] disabled:opacity-50"
               >
-                <Check className="h-5 w-5" />
-                Aprovar
+                <Check className="h-4 w-4" />
+                <span className="text-sm">Aprovar</span>
               </button>
+              {onPublishDirect && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onPublishDirect(vehicle.id); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  disabled={actionLoading === vehicle.id || publishingDirectId === vehicle.id}
+                  className="flex items-center justify-center gap-1.5 rounded-xl py-3 bg-gradient-to-br from-success to-success/70 text-white font-semibold transition-all hover:shadow-[0_0_20px_rgba(52,211,153,0.4)] active:scale-95 min-h-[48px] disabled:opacity-50"
+                >
+                  {publishingDirectId === vehicle.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="text-sm">Publicar</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -285,6 +344,9 @@ export function SwipeStack({
   onPhotoClick,
   onDeletePhoto,
   actionLoading,
+  onPublishDirect,
+  onUpdateField,
+  publishingDirectId,
 }: SwipeStackProps) {
   const [exitDirection, setExitDirection] = useState<"left" | "right" | null>(
     null
@@ -348,6 +410,9 @@ export function SwipeStack({
               onDeletePhoto={onDeletePhoto}
               actionLoading={actionLoading}
               exitDir={exitDirection}
+              onPublishDirect={onPublishDirect}
+              onUpdateField={onUpdateField}
+              publishingDirectId={publishingDirectId}
             />
           ))}
         </AnimatePresence>

@@ -74,7 +74,18 @@ interface Vehicle {
   capturedAt: string;
   sourceGroupId: string | null;
   sourceGroup: { name: string; groupId: string } | null;
+  state?: string | null;
 }
+
+const REJECTION_OPTIONS = [
+  { id: "fora_padrao", label: "Não é o padrão de veículo que trabalhamos" },
+  { id: "sem_margem", label: "Sem margem (mínimo 10% abaixo da FIPE)" },
+  { id: "fora_sul", label: "Não está localizado no Sul do Brasil" },
+  { id: "repetido", label: "Repetido, já apareceu antes" },
+  { id: "km_alta", label: "Km alta com pouca margem" },
+  { id: "modelo_mais_margem", label: "Esse modelo precisa de mais margem" },
+  { id: "sem_foto", label: "Anúncio sem foto / foto errada" },
+] as const;
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pendente", color: "bg-warning/10 text-warning border-warning/20" },
@@ -143,6 +154,8 @@ export default function VeiculosPage() {
   const [previewMode, setPreviewMode] = useState<"before" | "after">("after");
   const [rejectVehicleId, setRejectVehicleId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionTags, setRejectionTags] = useState<string[]>([]);
+  const [publishingDirectId, setPublishingDirectId] = useState<string | null>(null);
   const [galleryVehicle, setGalleryVehicle] = useState<Vehicle | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [margin, setMargin] = useState(10);
@@ -220,6 +233,17 @@ export default function VeiculosPage() {
     setBatchSelected(new Set());
     fetchVehicles();
   }, [fetchVehicles]);
+
+  // Auto-select region groups based on the publishVehicle's state once targetGroups load
+  useEffect(() => {
+    if (publishVehicle?.state && targetGroups.length > 0) {
+      const regionGroups = targetGroups.filter((g) => g.region === publishVehicle.state);
+      if (regionGroups.length > 0) {
+        setSelectedGroupIds(regionGroups.map((g) => g.groupId));
+        setExpandedRegions(new Set([publishVehicle.state]));
+      }
+    }
+  }, [publishVehicle?.id, publishVehicle?.state, targetGroups]);
 
   const toggleBatchSelect = (id: string) => {
     setBatchSelected((prev) => {
@@ -328,11 +352,15 @@ export default function VeiculosPage() {
       const res = await fetch(`/api/vehicles/${rejectVehicleId}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rejectionReason: rejectionReason.trim() || undefined }),
+        body: JSON.stringify({
+          rejectionReason: rejectionReason.trim() || undefined,
+          rejectionTags: rejectionTags.length > 0 ? rejectionTags : undefined,
+        }),
       });
       if (res.ok) {
         toast.success("Veiculo rejeitado.");
         setVehicles((prev) => prev.filter((v) => v.id !== rejectVehicleId));
+        setRejectionTags([]);
         setRejectVehicleId(null);
       } else {
         const err = await res.json();
@@ -343,6 +371,39 @@ export default function VeiculosPage() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handlePublishDirect = async (id: string) => {
+    if (publishingDirectId) return; // prevent double-click
+    setPublishingDirectId(id);
+    try {
+      const res = await fetch(`/api/vehicles/${id}/publish-direct`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(`Publicado em ${data.destinationGroups || 0} grupos da regiao ${data.sourceState || ""}`);
+        setVehicles((prev) => prev.filter((v) => v.id !== id));
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao publicar direto");
+        fetchVehicles();
+      }
+    } catch {
+      toast.error("Erro de conexao");
+      fetchVehicles();
+    } finally {
+      setPublishingDirectId(null);
+    }
+  };
+
+  const handleUpdateField = async (id: string, field: string, value: string | number) => {
+    const res = await fetch(`/api/vehicles/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    if (!res.ok) throw new Error("update_failed");
+    // Update local state with new value
+    setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, [field]: value } : v));
   };
 
   const getAdText = (v: Vehicle, marginOverride?: number) =>
@@ -648,6 +709,9 @@ export default function VeiculosPage() {
               }
             }}
             actionLoading={actionLoading}
+            onPublishDirect={handlePublishDirect}
+            onUpdateField={handleUpdateField}
+            publishingDirectId={publishingDirectId}
           />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -1441,47 +1505,77 @@ export default function VeiculosPage() {
       </Dialog>
 
       {/* Rejection Reason Dialog */}
-      <Dialog open={!!rejectVehicleId} onOpenChange={(open) => !open && setRejectVehicleId(null)}>
-        <DialogContent className="sm:max-w-sm">
+      <Dialog open={!!rejectVehicleId} onOpenChange={(open) => {
+        if (!open) {
+          setRejectVehicleId(null);
+          setRejectionReason("");
+          setRejectionTags([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
               Rejeitar veiculo
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Motivo da rejeicao (opcional)
-              </label>
+          <div className="space-y-3 pt-2">
+            <p className="text-xs text-muted-foreground">Selecione um ou mais motivos:</p>
+            <div className="space-y-1">
+              {REJECTION_OPTIONS.map((opt) => {
+                const checked = rejectionTags.includes(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    className={cn(
+                      "flex items-start gap-3 cursor-pointer rounded-lg p-2.5 border transition-colors",
+                      checked
+                        ? "bg-destructive/5 border-destructive/30"
+                        : "border-border hover:bg-white/[0.03]"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => setRejectionTags((prev) =>
+                        e.target.checked ? [...prev, opt.id] : prev.filter((t) => t !== opt.id)
+                      )}
+                      className="mt-0.5 accent-destructive shrink-0"
+                    />
+                    <span className="text-sm leading-snug">{opt.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Outros detalhes (opcional)</label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Ex: Preco muito alto, fotos ruins, dados incompletos..."
-                className="w-full h-24 rounded-lg bg-card border border-border p-3 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-destructive/50 focus:border-destructive/50"
+                placeholder="Ex: Carro de leilao suspeito..."
+                rows={2}
+                className="w-full rounded-lg bg-card border border-border p-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-destructive/50"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <Button
                 variant="outline"
-                className="flex-1 border-border"
-                onClick={() => setRejectVehicleId(null)}
+                onClick={() => {
+                  setRejectVehicleId(null);
+                  setRejectionReason("");
+                  setRejectionTags([]);
+                }}
+                className="flex-1"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={confirmReject}
-                disabled={actionLoading === rejectVehicleId}
-                className="flex-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 border-0"
+                disabled={(rejectionTags.length === 0 && !rejectionReason.trim()) || actionLoading === rejectVehicleId}
+                className="flex-1 bg-destructive hover:bg-destructive/90 text-white border-0"
               >
-                {actionLoading === rejectVehicleId ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <X className="h-4 w-4 mr-1" />
-                    Rejeitar
-                  </>
-                )}
+                {actionLoading === rejectVehicleId ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                Rejeitar{rejectionTags.length > 0 && ` (${rejectionTags.length})`}
               </Button>
             </div>
           </div>
