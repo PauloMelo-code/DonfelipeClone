@@ -385,6 +385,8 @@ export default function VeiculosPage() {
       if (effectiveState) {
         const regionGroups = groups.filter((g) => g.region === effectiveState);
         setQuickPublishGroups(regionGroups.map((g) => g.groupId));
+        // Auto-expandir a regiao do veiculo no quick modal
+        setExpandedRegions((prev) => new Set([...prev, `__quick_${effectiveState}`]));
       } else {
         setQuickPublishGroups([]);
       }
@@ -1679,32 +1681,74 @@ export default function VeiculosPage() {
 
             <p className="text-xs text-muted-foreground">Selecione os grupos para publicar:</p>
 
-            <div className="max-h-[40vh] overflow-y-auto space-y-2">
+            <div className="max-h-[50vh] overflow-y-auto space-y-2">
               {Array.from(groupsByRegion.entries()).map(([region, groups]) => {
                 const regionIds = groups.map((g) => g.groupId);
                 const selectedCount = regionIds.filter((id) => quickPublishGroups.includes(id)).length;
                 const allSelected = selectedCount === groups.length;
+                const expanded = expandedRegions.has(`__quick_${region}`);
                 return (
                   <div key={region} className="rounded-lg border border-border overflow-hidden">
-                    <button
-                      onClick={() => {
-                        if (allSelected) {
-                          setQuickPublishGroups((prev) => prev.filter((id) => !regionIds.includes(id)));
-                        } else {
-                          setQuickPublishGroups((prev) => [...new Set([...prev, ...regionIds])]);
-                        }
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <div className={cn(
-                        "h-4 w-4 rounded border flex items-center justify-center shrink-0",
-                        allSelected ? "bg-cugini-orange border-cugini-orange" : selectedCount > 0 ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
-                      )}>
-                        {(allSelected || selectedCount > 0) && <Check className="h-2.5 w-2.5 text-white" />}
+                    <div className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                      <button
+                        onClick={() => {
+                          if (allSelected) {
+                            setQuickPublishGroups((prev) => prev.filter((id) => !regionIds.includes(id)));
+                          } else {
+                            setQuickPublishGroups((prev) => [...new Set([...prev, ...regionIds])]);
+                          }
+                        }}
+                        className="flex items-center gap-3 flex-1 text-left"
+                      >
+                        <div className={cn(
+                          "h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                          allSelected ? "bg-cugini-orange border-cugini-orange" : selectedCount > 0 ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
+                        )}>
+                          {(allSelected || selectedCount > 0) && <Check className="h-2.5 w-2.5 text-white" />}
+                        </div>
+                        <span className="text-sm font-medium">{region}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">{selectedCount}/{groups.length}</span>
+                      </button>
+                      <button
+                        onClick={() => setExpandedRegions((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(`__quick_${region}`)) next.delete(`__quick_${region}`);
+                          else next.add(`__quick_${region}`);
+                          return next;
+                        })}
+                        className="p-1 rounded hover:bg-white/[0.05] shrink-0"
+                        title={expanded ? "Recolher" : "Expandir"}
+                      >
+                        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="border-t border-border/50 bg-card/30 max-h-60 overflow-y-auto">
+                        {groups.map((group) => {
+                          const checked = quickPublishGroups.includes(group.groupId);
+                          return (
+                            <label
+                              key={group.id}
+                              className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors border-b border-border/30 last:border-0"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setQuickPublishGroups((prev) => [...new Set([...prev, group.groupId])]);
+                                  } else {
+                                    setQuickPublishGroups((prev) => prev.filter((id) => id !== group.groupId));
+                                  }
+                                }}
+                                className="accent-cugini-orange shrink-0"
+                              />
+                              <span className="text-xs truncate flex-1">{group.name}</span>
+                            </label>
+                          );
+                        })}
                       </div>
-                      <span className="text-sm font-medium flex-1 text-left">{region}</span>
-                      <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
-                    </button>
+                    )}
                   </div>
                 );
               })}
