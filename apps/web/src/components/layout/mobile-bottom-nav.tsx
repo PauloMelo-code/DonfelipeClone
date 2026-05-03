@@ -12,6 +12,7 @@ import {
   UserCog,
   Shield,
   Settings,
+  BarChart3,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,7 @@ const PRIMARY_NAV = [
 ];
 
 const MORE_NAV = [
+  { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Usuarios", href: "/usuarios", icon: UserCog },
   { label: "Auditoria", href: "/auditoria", icon: Shield },
   { label: "Configuracoes", href: "/configuracoes", icon: Settings },

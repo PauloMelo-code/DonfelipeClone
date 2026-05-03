@@ -41,6 +41,14 @@ function randomDelay(minMs: number, maxMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Check if global publishing is paused (kill switch).
+ */
+async function isPublishingPaused(): Promise<boolean> {
+  const s = await prisma.setting.findUnique({ where: { key: "publishing_paused" } });
+  return s?.value === "true";
+}
+
 // ---------------------------------------------------------------------------
 // Publishing Engine
 // ---------------------------------------------------------------------------
@@ -66,6 +74,11 @@ export async function publishVehicle(
   vehicleId: string,
   options?: { targetGroupIds?: string[]; formattedAd?: string; sellingPrice?: number; userId?: string }
 ): Promise<PublishResult[]> {
+  // --- Kill switch: block if global publishing is paused ---
+  if (await isPublishingPaused()) {
+    throw new Error("Disparo global pausado");
+  }
+
   // --- Load the vehicle ---
   const vehicle = await prisma.vehicle.findUnique({
     where: { id: vehicleId },
@@ -163,6 +176,12 @@ export async function publishVehicle(
   const results: PublishResult[] = [];
 
   for (const group of targetGroups) {
+    // Kill switch: re-check before each group
+    if (await isPublishingPaused()) {
+      console.warn("[publisher] Pausa global detectada, abortando batch");
+      break;
+    }
+
     const result: PublishResult = {
       targetGroupId: group.groupId,
       targetGroupName: group.name,

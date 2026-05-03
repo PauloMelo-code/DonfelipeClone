@@ -29,7 +29,10 @@ interface SwipeVehicle {
   location?: string | null;
   state?: string | null;
   rawDescription?: string | null;
+  internalNotes?: string | null;
   capturedAt?: string;
+  qualityScore?: number | null;
+  isVip?: boolean;
   sourceGroup?: {
     name: string;
     groupId: string;
@@ -336,6 +339,22 @@ function SwipeCard({
             </div>
             <div className="flex flex-col items-end gap-1">
               <MarginBadge price={vehicle.price} fipePrice={vehicle.fipePrice} />
+              {vehicle.qualityScore != null && (
+                <span className={cn(
+                  "rounded-full border px-2 py-0.5 text-xs font-bold",
+                  vehicle.qualityScore >= 8 ? "bg-success/20 border-success/50 text-success" :
+                  vehicle.qualityScore >= 5 ? "bg-warning/15 border-warning/40 text-warning" :
+                  "bg-destructive/10 border-destructive/30 text-destructive"
+                )}>
+                  {vehicle.qualityScore >= 8 ? "🔥 " : ""}
+                  Score {vehicle.qualityScore}/10
+                </span>
+              )}
+              {vehicle.isVip && (
+                <span className="rounded-full border border-yellow-400/60 bg-yellow-400/15 px-2 py-0.5 text-xs font-bold text-yellow-400">
+                  ⭐ VIP
+                </span>
+              )}
               {vehicle.fuel === "HIBRIDO" && (
                 <span className="rounded-full border border-success/30 px-2 py-0.5 text-xs text-success">
                   Hibrido

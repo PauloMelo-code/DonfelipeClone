@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Shield,
   UserCog,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -27,6 +28,7 @@ const navigation = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Veiculos", href: "/veiculos", icon: Car },
   { label: "Publicacoes", href: "/publicacoes", icon: Send },
+  { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Grupos", href: "/grupos", icon: Users },
   { label: "Usuarios", href: "/usuarios", icon: UserCog },
   { label: "Auditoria", href: "/auditoria", icon: Shield },

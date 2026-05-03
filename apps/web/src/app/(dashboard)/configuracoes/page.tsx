@@ -5,7 +5,8 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -15,6 +16,8 @@ interface Settings {
   delay_max_seconds: string;
   filter_min_year: string;
   filter_min_price: string;
+  blocklist_keywords: string;
+  vip_keywords: string;
 }
 
 type WaState = "open" | "connecting" | "close" | "error" | "unknown" | "not_configured";
@@ -26,6 +29,8 @@ export default function ConfiguracoesPage() {
     delay_max_seconds: "15",
     filter_min_year: "2018",
     filter_min_price: "30000",
+    blocklist_keywords: "",
+    vip_keywords: "",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -148,6 +153,7 @@ export default function ConfiguracoesPage() {
       const allowedKeys: (keyof Settings)[] = [
         "profit_margin_percent", "delay_min_seconds", "delay_max_seconds",
         "filter_min_year", "filter_min_price",
+        "blocklist_keywords", "vip_keywords",
       ];
       const payload: Record<string, string> = {};
       for (const k of allowedKeys) {
@@ -505,6 +511,46 @@ export default function ConfiguracoesPage() {
                 className="bg-card border-border"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Blocklist + VIP */}
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Ban className="h-4 w-4 text-cugini-orange" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Palavras-chave
+            </h3>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <Ban className="h-3.5 w-3.5 text-destructive" />
+              Blocklist (rejeicao automatica)
+            </Label>
+            <Textarea
+              value={settings.blocklist_keywords}
+              onChange={(e) => update("blocklist_keywords", e.target.value)}
+              placeholder="leilão, sinistro, batido, enchente, recuperado"
+              className="bg-card border-border min-h-[80px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Separe por virgula. Veiculos com essas palavras serao rejeitados automaticamente.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <Crown className="h-3.5 w-3.5 text-warning" />
+              VIP keywords (prioridade)
+            </Label>
+            <Textarea
+              value={settings.vip_keywords}
+              onChange={(e) => update("vip_keywords", e.target.value)}
+              placeholder="Defender, Range Rover, M3, Porsche"
+              className="bg-card border-border min-h-[80px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Separe por virgula. Veiculos com essas palavras recebem prioridade.
+            </p>
           </div>
         </div>
 

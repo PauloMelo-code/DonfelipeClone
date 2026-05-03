@@ -71,10 +71,14 @@ interface Vehicle {
   formattedAd: string | null;
   rejectionReason: string | null;
   rawDescription: string | null;
+  internalNotes?: string | null;
   capturedAt: string;
   sourceGroupId: string | null;
   sourceGroup: { name: string; groupId: string; isCommunity?: boolean; isAnnounce?: boolean; ownerPhone?: string | null; region?: string | null } | null;
   state?: string | null;
+  qualityScore?: number | null;
+  isVip?: boolean;
+  autoRejectedReason?: string | null;
 }
 
 const REJECTION_OPTIONS = [
@@ -176,6 +180,7 @@ export default function VeiculosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const PAGE_SIZE = 20;
 
   const groupsByRegion = useMemo(() => {
@@ -631,6 +636,38 @@ export default function VeiculosPage() {
 
   const isPending = activeTab === "PENDING";
 
+  // Keyboard shortcuts for the PENDING tab swipe stack
+  useEffect(() => {
+    if (!isPending) return;
+    const handler = (e: KeyboardEvent) => {
+      // Skip if typing in input/textarea
+      const target = e.target as HTMLElement;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+      // Skip if any modal is open
+      if (rejectVehicleId || publishVehicle || quickPublishVehicle || galleryVehicle) return;
+
+      const topVehicle = swipeVehicles[0];
+      if (!topVehicle) return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleAction(topVehicle.id, "reject");
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleAction(topVehicle.id, "approve");
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        handlePublishDirect(topVehicle.id);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShowShortcuts(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPending, swipeVehicles, rejectVehicleId, publishVehicle, quickPublishVehicle, galleryVehicle]);
+
   return (
     <>
       <Header title="Veiculos" subtitle="Fila de revisao e publicacao" />
@@ -747,6 +784,19 @@ export default function VeiculosPage() {
           </div>
         ) : isPending ? (
           /* Tinder-style swipe for PENDING */
+          <>
+          <div className="hidden sm:flex items-center justify-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
+            <kbd className="rounded bg-card border border-border px-1.5 py-0.5">&larr;</kbd> Rejeitar
+            <kbd className="rounded bg-card border border-border px-1.5 py-0.5">&rarr;</kbd> Aprovar
+            <kbd className="rounded bg-card border border-border px-1.5 py-0.5">&uarr;</kbd> Publicar direto
+            <button
+              onClick={() => setShowShortcuts(true)}
+              className="rounded bg-card border border-border px-1.5 py-0.5 hover:text-foreground transition-colors"
+              title="Atalhos de teclado"
+            >
+              ? Ajuda
+            </button>
+          </div>
           <SwipeStack
             vehicles={swipeVehicles}
             onApprove={(id) => handleAction(id, "approve")}
@@ -783,6 +833,7 @@ export default function VeiculosPage() {
               }
             }}
           />
+          </>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-cugini-orange/[0.06] border border-cugini-orange/10">
@@ -1775,6 +1826,36 @@ export default function VeiculosPage() {
                 Publicar ({quickPublishGroups.length})
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyboard Shortcuts Help Dialog */}
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Atalhos de teclado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Rejeitar</span>
+              <kbd className="rounded bg-card border border-border px-2 py-1 text-xs">&larr;</kbd>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Aprovar</span>
+              <kbd className="rounded bg-card border border-border px-2 py-1 text-xs">&rarr;</kbd>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Publicar direto</span>
+              <kbd className="rounded bg-card border border-border px-2 py-1 text-xs">&uarr;</kbd>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Mostrar ajuda</span>
+              <kbd className="rounded bg-card border border-border px-2 py-1 text-xs">?</kbd>
+            </div>
+            <p className="text-xs text-muted-foreground/60 pt-2 border-t border-border">
+              Atalhos funcionam apenas na aba Pendentes, quando nao ha modais abertos e voce nao esta digitando.
+            </p>
           </div>
         </DialogContent>
       </Dialog>

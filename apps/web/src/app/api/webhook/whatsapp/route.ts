@@ -9,6 +9,9 @@ import { applyFilters } from "@/lib/vehicle-parser";
 import { rateLimit } from "@/lib/rate-limit";
 import { uazapi } from "@/lib/uazapi";
 import { persistImage } from "@/lib/media-storage";
+import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning";
+import { calculateQualityScore } from "@/lib/quality-score";
+import { isVipVehicle } from "@/lib/vip-detection";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -556,6 +559,29 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Blocklist check
+    let autoRejectedReason: string | null = null;
+    if (textContent) {
+      const blockedKw = await checkBlocklist(textContent);
+      if (blockedKw) {
+        autoRejectedReason = `blocklist:${blockedKw}`;
+      }
+    }
+
+    // Rejection pattern check
+    if (!autoRejectedReason) {
+      const pattern = await checkRejectionPattern({ model, year, km, fipePrice, price });
+      if (pattern.matched) {
+        autoRejectedReason = `learned:${pattern.reason}:${pattern.similarCount}_similares`;
+      }
+    }
+
+    // Quality score
+    const { score: qualityScore } = calculateQualityScore({ km, year, price, fipePrice, rawDescription: textContent });
+
+    // VIP detection
+    const isVip = await isVipVehicle(model, brand);
+
     const vehicle = await prisma.vehicle.create({
       data: {
         model,
@@ -578,7 +604,12 @@ export async function POST(request: NextRequest) {
         sourceMessageId: messageId,
         sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
         vehicleHash,
-        status: "PENDING",
+        qualityScore,
+        isVip,
+        autoRejectedReason,
+        status: autoRejectedReason ? "REJECTED" : "PENDING",
+        rejectedAt: autoRejectedReason ? new Date() : null,
+        rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
       },
     });
 

@@ -79,6 +79,9 @@ export const ALLOWED_SETTING_KEYS = [
   "filter_min_year",
   "filter_min_price",
   "filter_max_km",
+  "blocklist_keywords",
+  "vip_keywords",
+  "publishing_paused",
 ] as const;
 
 export const updateSettingsSchema = z

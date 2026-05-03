@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import {
   DropdownMenu,
@@ -10,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LogOut, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface HeaderProps {
   title: string;
@@ -19,6 +22,50 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, live }: HeaderProps) {
   const { data: session } = useSession();
+  const [paused, setPaused] = useState(false);
+  const [health, setHealth] = useState<"ok" | "error" | "checking">("checking");
+
+  useEffect(() => {
+    fetch("/api/publishing/pause")
+      .then((r) => r.json())
+      .then((d) => setPaused(!!d.paused))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const r = await fetch("/api/health");
+        if (!cancelled) setHealth(r.ok ? "ok" : "error");
+      } catch {
+        if (!cancelled) setHealth("error");
+      }
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const togglePause = async () => {
+    const next = !paused;
+    try {
+      const res = await fetch("/api/publishing/pause", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paused: next }),
+      });
+      if (res.ok) {
+        setPaused(next);
+        toast.success(next ? "Disparo pausado" : "Disparo retomado");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err?.error || "Erro ao alternar pausa");
+      }
+    } catch {
+      toast.error("Erro de conexao");
+    }
+  };
 
   const initials = session?.user?.name
     ? session.user.name
@@ -49,7 +96,38 @@ export function Header({ title, subtitle, live }: HeaderProps) {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            "flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+            health === "ok" && "bg-success/15 text-success border border-success/30",
+            health === "error" && "bg-destructive/15 text-destructive border border-destructive/30 animate-pulse",
+            health === "checking" && "bg-card border border-border text-muted-foreground"
+          )}
+          title={health === "ok" ? "Sistema operacional" : health === "error" ? "Sistema com problemas" : "Verificando..."}
+        >
+          <span className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            health === "ok" && "bg-success",
+            health === "error" && "bg-destructive",
+            health === "checking" && "bg-muted-foreground"
+          )} />
+          {health === "ok" ? "Online" : health === "error" ? "Offline" : "..."}
+        </span>
+
+        <button
+          onClick={togglePause}
+          className={cn(
+            "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+            paused
+              ? "bg-destructive/15 text-destructive border border-destructive/40 animate-pulse"
+              : "bg-card border border-border text-muted-foreground hover:text-foreground"
+          )}
+          title={paused ? "Retomar disparos" : "Pausar todos os disparos"}
+        >
+          {paused ? "🛑 Pausado" : "▶️ Ativo"}
+        </button>
+
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-full transition-all duration-200 hover:opacity-80 outline-none">
             <Avatar className="h-8 w-8 border border-white/[0.08] transition-colors duration-200 hover:border-cugini-orange/30">

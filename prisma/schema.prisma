@@ -54,6 +54,13 @@ model Vehicle {
   approvedAt      DateTime?
   publishedAt     DateTime?
   rejectedAt      DateTime?
+  soldAt          DateTime?
+  soldPrice       Float?
+  soldNotes       String?
+  internalNotes   String?
+  qualityScore    Int?
+  isVip           Boolean   @default(false)
+  autoRejectedReason String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
