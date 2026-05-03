@@ -93,6 +93,9 @@ model WhatsAppGroup {
   filters   String?
   photoUrl  String?
   region    String?
+  isCommunity Boolean @default(false)
+  isAnnounce  Boolean @default(false)
+  ownerPhone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

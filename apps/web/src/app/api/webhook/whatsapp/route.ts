@@ -282,18 +282,42 @@ export async function POST(request: NextRequest) {
       where: { groupId: groupJid },
     });
 
+    // Capturar flags do UAZAPI (wa_isGroup_community, wa_isGroup_announce)
+    const isCommunity = chat?.wa_isGroup_community === true;
+    const isAnnounce = chat?.wa_isGroup_announce === true;
+    const chatName = chat?.wa_name || chat?.name || raw.message?.groupName || pushName || groupJid.replace(/@.*/, "");
+
     // Auto-register new groups/broadcast lists as SOURCE (inactive by default)
     if (!group && (isGroup || isBroadcast)) {
-      const autoName = pushName || groupJid.replace(/@.*/, "");
+      const prefix = isAnnounce ? "Canal: " : isBroadcast ? "Lista: " : isCommunity ? "Comunidade: " : "";
       group = await prisma.whatsAppGroup.create({
         data: {
           groupId: groupJid,
-          name: isBroadcast ? `Lista: ${autoName}` : autoName,
+          name: prefix + chatName,
           role: "SOURCE",
-          active: true, // Auto-activate so it starts capturing immediately
+          active: true,
+          isCommunity,
+          isAnnounce,
+          ownerPhone: chat?.owner || null,
         },
       });
-      console.log(`[Webhook] Auto-registered ${isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
+      console.log(`[Webhook] Auto-registered ${isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
+    } else if (group) {
+      // Atualiza flags se mudaram
+      const needsUpdate =
+        group.isCommunity !== isCommunity ||
+        group.isAnnounce !== isAnnounce ||
+        (chat?.owner && !group.ownerPhone);
+      if (needsUpdate) {
+        await prisma.whatsAppGroup.update({
+          where: { id: group.id },
+          data: {
+            isCommunity,
+            isAnnounce,
+            ownerPhone: group.ownerPhone || chat?.owner || null,
+          },
+        });
+      }
     }
 
     if (!group || group.role !== "SOURCE" || !group.active) {

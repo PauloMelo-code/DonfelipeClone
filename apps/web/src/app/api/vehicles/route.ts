@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       prisma.vehicle.findMany({
         where,
         include: {
-          sourceGroup: { select: { name: true, groupId: true } },
+          sourceGroup: { select: { name: true, groupId: true, isCommunity: true, isAnnounce: true, ownerPhone: true } },
           _count: { select: { postHistory: true } },
         },
         orderBy: { [sortBy]: sortOrder },

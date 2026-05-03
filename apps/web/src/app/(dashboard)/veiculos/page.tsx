@@ -73,7 +73,7 @@ interface Vehicle {
   rawDescription: string | null;
   capturedAt: string;
   sourceGroupId: string | null;
-  sourceGroup: { name: string; groupId: string } | null;
+  sourceGroup: { name: string; groupId: string; isCommunity?: boolean; isAnnounce?: boolean; ownerPhone?: string | null } | null;
   state?: string | null;
 }
 

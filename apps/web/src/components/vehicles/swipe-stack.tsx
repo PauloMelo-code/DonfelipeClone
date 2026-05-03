@@ -30,7 +30,13 @@ interface SwipeVehicle {
   state?: string | null;
   rawDescription?: string | null;
   capturedAt?: string;
-  sourceGroup?: { name: string; groupId: string } | null;
+  sourceGroup?: {
+    name: string;
+    groupId: string;
+    isCommunity?: boolean;
+    isAnnounce?: boolean;
+    ownerPhone?: string | null;
+  } | null;
 }
 
 interface SwipeStackProps {
@@ -235,22 +241,30 @@ function SwipeCard({
             </div>
           )}
 
-          {/* Origem do veiculo (grupo/lista/canal) */}
+          {/* Origem do veiculo (grupo/comunidade/canal/lista/contato) */}
           {vehicle.sourceGroup && (() => {
-            const jid = vehicle.sourceGroup.groupId || "";
+            const sg = vehicle.sourceGroup;
+            const jid = sg.groupId || "";
             const isBroadcast = jid.endsWith("@broadcast");
             const isNewsletter = jid.endsWith("@newsletter");
             const isPrivate = jid.endsWith("@s.whatsapp.net");
-            const sourceLabel = isBroadcast ? "Lista de transmissao"
-              : isNewsletter ? "Canal"
-              : isPrivate ? "Contato"
-              : "Grupo";
-            const sourceIcon = isBroadcast ? "📢" : isNewsletter ? "📡" : isPrivate ? "👤" : "👥";
+
+            let sourceLabel: string;
+            let sourceIcon: string;
+            if (sg.isAnnounce || isNewsletter) { sourceLabel = "Canal"; sourceIcon = "📡"; }
+            else if (sg.isCommunity) { sourceLabel = "Comunidade"; sourceIcon = "🏘️"; }
+            else if (isBroadcast) { sourceLabel = "Lista de transmissao"; sourceIcon = "📢"; }
+            else if (isPrivate) { sourceLabel = "Contato"; sourceIcon = "👤"; }
+            else { sourceLabel = "Grupo"; sourceIcon = "👥"; }
+
+            // Para lista de transmissao sem nome, exibe o numero
+            const displayName = sg.name || (sg.ownerPhone ? `+${sg.ownerPhone}` : jid.replace(/@.*/, ""));
+
             return (
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80 -mt-1">
                 <span>{sourceIcon}</span>
                 <span className="font-medium text-muted-foreground">{sourceLabel}:</span>
-                <span className="truncate flex-1 text-foreground/70">{vehicle.sourceGroup.name}</span>
+                <span className="truncate flex-1 text-foreground/70">{displayName}</span>
               </div>
             );
           })()}
