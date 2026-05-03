@@ -52,6 +52,7 @@ model Vehicle {
   capturedAt      DateTime  @default(now())
   approvedAt      DateTime?
   publishedAt     DateTime?
+  rejectedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

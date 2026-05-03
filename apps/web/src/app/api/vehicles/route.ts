@@ -60,10 +60,14 @@ export async function GET(request: NextRequest) {
       prisma.vehicle.count({ where }),
     ]);
 
+    const safeParseArray = (s: string | null | undefined): unknown[] => {
+      if (!s) return [];
+      try { return JSON.parse(s); } catch { return []; }
+    };
     const parsed = vehicles.map((v) => ({
       ...v,
-      features: JSON.parse(v.features),
-      photos: JSON.parse(v.photos),
+      features: safeParseArray(v.features),
+      photos: safeParseArray(v.photos),
     }));
 
     return NextResponse.json({

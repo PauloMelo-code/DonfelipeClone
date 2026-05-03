@@ -19,6 +19,27 @@ interface Group {
   active: boolean;
   filters: string | null;
   region: string | null;
+  isCommunity?: boolean;
+  isAnnounce?: boolean;
+  ownerPhone?: string | null;
+}
+
+function getGroupType(g: Group): string {
+  if (g.isAnnounce || g.groupId.endsWith("@newsletter")) return "canal";
+  if (g.isCommunity) return "comunidade";
+  if (g.groupId.endsWith("@broadcast")) return "lista";
+  if (g.groupId.endsWith("@s.whatsapp.net")) return "contato";
+  return "grupo";
+}
+
+function getGroupTypeIcon(type: string): string {
+  switch (type) {
+    case "canal": return "📡";
+    case "comunidade": return "🏘️";
+    case "lista": return "📢";
+    case "contato": return "👤";
+    default: return "👥";
+  }
 }
 
 const REGIONS = ["SC", "RS", "PR", "SP", "Nacional"] as const;
@@ -29,6 +50,7 @@ export default function GruposPage() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [regionFilter, setRegionFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>("todos");
   const [mobileGroupTab, setMobileGroupTab] = useState<"SOURCE" | "TARGET">("TARGET");
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({ phone: "", name: "", role: "SOURCE" as "SOURCE" | "TARGET" });
@@ -171,6 +193,7 @@ export default function GruposPage() {
   const matchesFilters = (g: Group) => {
     if (search && !g.name.toLowerCase().includes(searchLower)) return false;
     if (regionFilter.length > 0 && !regionFilter.includes(g.region || "")) return false;
+    if (typeFilter !== "todos" && getGroupType(g) !== typeFilter) return false;
     return true;
   };
   const sourceGroups = groups.filter((g) => g.role === "SOURCE" && matchesFilters(g));
@@ -187,7 +210,10 @@ export default function GruposPage() {
     >
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: "6px", alignItems: "center" }}>
         <div style={{ overflow: "hidden", minWidth: 0 }}>
-          <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }}>{group.name}</p>
+          <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }}>
+            <span style={{ marginRight: "6px" }}>{getGroupTypeIcon(getGroupType(group))}</span>
+            {group.name}
+          </p>
           <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", opacity: 0.5 }}>{group.groupId}</p>
         </div>
         <Badge
@@ -362,6 +388,31 @@ export default function GruposPage() {
                 Limpar
               </button>
             )}
+          </div>
+
+          {/* Type filter */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {[
+              { id: "todos", label: "Todos" },
+              { id: "grupo", label: "👥 Grupos" },
+              { id: "comunidade", label: "🏘️ Comunidades" },
+              { id: "canal", label: "📡 Canais" },
+              { id: "lista", label: "📢 Listas" },
+              { id: "contato", label: "👤 Contatos" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTypeFilter(t.id)}
+                className={cn(
+                  "shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
+                  typeFilter === t.id
+                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           {/* Mobile: tab toggle for Fonte/Destino */}

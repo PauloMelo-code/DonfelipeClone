@@ -36,8 +36,8 @@ export async function GET(
 
     return NextResponse.json({
       ...vehicle,
-      features: JSON.parse(vehicle.features),
-      photos: JSON.parse(vehicle.photos),
+      features: (() => { try { return JSON.parse(vehicle.features || "[]"); } catch { return []; } })(),
+      photos: (() => { try { return JSON.parse(vehicle.photos || "[]"); } catch { return []; } })(),
     });
   } catch (error) {
     console.error("[Vehicles] Error fetching vehicle:", error);
@@ -97,8 +97,8 @@ export async function PUT(
 
     return NextResponse.json({
       ...vehicle,
-      features: JSON.parse(vehicle.features),
-      photos: JSON.parse(vehicle.photos),
+      features: (() => { try { return JSON.parse(vehicle.features || "[]"); } catch { return []; } })(),
+      photos: (() => { try { return JSON.parse(vehicle.photos || "[]"); } catch { return []; } })(),
     });
   } catch (error) {
     console.error("[Vehicles] Error updating vehicle:", error);

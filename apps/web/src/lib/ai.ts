@@ -360,7 +360,7 @@ const VEHICLE_JSON_SCHEMA = {
 function parseGptResponse(raw: string): VehicleData | null {
   try {
     const parsed = JSON.parse(raw);
-    if (!parsed.model || !parsed.year || !parsed.km || !parsed.price) return null;
+    if (!parsed.model || parsed.year == null || parsed.km == null || !parsed.price) return null;
     return {
       model: parsed.model, brand: parsed.brand ?? undefined,
       year: parsed.year, yearModel: parsed.yearModel ?? undefined,

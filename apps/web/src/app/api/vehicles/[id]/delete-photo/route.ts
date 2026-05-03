@@ -35,8 +35,10 @@ export async function DELETE(
       data: { photos: JSON.stringify(photos) },
     });
 
+    let parsedPhotos: string[] = [];
+    try { parsedPhotos = JSON.parse(updated.photos || "[]"); } catch { /* */ }
     return NextResponse.json({
-      photos: JSON.parse(updated.photos),
+      photos: parsedPhotos,
       remaining: photos.length,
     });
   } catch (error) {

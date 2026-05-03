@@ -23,11 +23,11 @@ export async function POST(
 
     if (vehicle.status === "APPROVED") {
       // Idempotent: already approved, return success
-      return NextResponse.json({
-        ...vehicle,
-        features: JSON.parse(vehicle.features),
-        photos: JSON.parse(vehicle.photos),
-      });
+      let f: unknown[] = [];
+      let p: unknown[] = [];
+      try { f = JSON.parse(vehicle.features || "[]"); } catch { /* */ }
+      try { p = JSON.parse(vehicle.photos || "[]"); } catch { /* */ }
+      return NextResponse.json({ ...vehicle, features: f, photos: p });
     }
 
     if (vehicle.status !== "PENDING") {

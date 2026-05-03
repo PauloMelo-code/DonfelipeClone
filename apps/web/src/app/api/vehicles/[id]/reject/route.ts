@@ -21,12 +21,11 @@ export async function POST(
     }
 
     if (vehicle.status === "REJECTED") {
-      // Idempotent: already rejected, return success
-      return NextResponse.json({
-        ...vehicle,
-        features: JSON.parse(vehicle.features),
-        photos: JSON.parse(vehicle.photos),
-      });
+      let f: unknown[] = [];
+      let p: unknown[] = [];
+      try { f = JSON.parse(vehicle.features || "[]"); } catch { /* */ }
+      try { p = JSON.parse(vehicle.photos || "[]"); } catch { /* */ }
+      return NextResponse.json({ ...vehicle, features: f, photos: p });
     }
 
     if (vehicle.status !== "PENDING" && vehicle.status !== "APPROVED") {
@@ -76,11 +75,11 @@ export async function POST(
       },
     });
 
-    return NextResponse.json({
-      ...updated,
-      features: JSON.parse(updated.features),
-      photos: JSON.parse(updated.photos),
-    });
+    let f: unknown[] = [];
+    let p: unknown[] = [];
+    try { f = JSON.parse(updated.features || "[]"); } catch { /* */ }
+    try { p = JSON.parse(updated.photos || "[]"); } catch { /* */ }
+    return NextResponse.json({ ...updated, features: f, photos: p });
   } catch (error) {
     console.error("[Vehicles] Error rejecting vehicle:", error);
     return NextResponse.json(

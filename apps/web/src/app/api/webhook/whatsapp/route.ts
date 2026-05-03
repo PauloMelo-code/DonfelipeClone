@@ -424,8 +424,8 @@ export async function POST(request: NextRequest) {
     const plate = (vehicleData.plate as string) || null;
     const location = (vehicleData.location as string) || null;
     const state = (vehicleData.state as string) || null;
-    const features = (vehicleData.features as string[]) || [];
-    // If plate detected in text, add warning for operator review
+    // Clone para nao poluir cache de extracao da AI (mesmo objeto e reutilizado)
+    const features = [...((vehicleData.features as string[]) || [])];
     if (plate) {
       features.push("⚠️ PLACA VISÍVEL");
     }
