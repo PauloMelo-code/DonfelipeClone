@@ -7,7 +7,7 @@ import {
   useTransform,
   AnimatePresence,
 } from "framer-motion";
-import { Check, X, Car, ZoomIn, MapPin, Trash2, Send, Loader2 } from "lucide-react";
+import { Check, X, Car, ZoomIn, MapPin, Trash2, Send, Loader2, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InlineEdit } from "./inline-edit";
 
@@ -43,6 +43,7 @@ interface SwipeStackProps {
   onPublishDirect?: (id: string) => void;
   onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
   publishingDirectId?: string | null;
+  onEditPhoto?: (vehicle: SwipeVehicle) => void;
 }
 
 function MarginBadge({ price, fipePrice }: { price: number; fipePrice?: number | null }) {
@@ -78,6 +79,7 @@ function SwipeCard({
   onPublishDirect,
   onUpdateField,
   publishingDirectId,
+  onEditPhoto,
 }: {
   vehicle: SwipeVehicle;
   isTop: boolean;
@@ -90,6 +92,7 @@ function SwipeCard({
   onPublishDirect?: (id: string) => void;
   onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
   publishingDirectId?: string | null;
+  onEditPhoto?: (vehicle: SwipeVehicle) => void;
 }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
@@ -196,7 +199,21 @@ function SwipeCard({
               className="absolute top-3 left-3 z-30 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-destructive/80 hover:text-destructive hover:bg-black/80 transition-all pointer-events-auto"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Excluir foto
+              Excluir
+            </button>
+          )}
+          {isTop && onEditPhoto && vehicle.photos.length > 0 && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditPhoto(vehicle);
+              }}
+              className="absolute top-12 left-3 z-30 flex items-center gap-1.5 rounded-full bg-cugini-orange/90 px-2.5 py-1 text-[11px] text-white hover:bg-cugini-orange transition-all pointer-events-auto"
+              title="Editar foto (cortar/pintar)"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar foto
             </button>
           )}
           <div className="absolute bottom-3 left-4 right-4">
@@ -347,6 +364,7 @@ export function SwipeStack({
   onPublishDirect,
   onUpdateField,
   publishingDirectId,
+  onEditPhoto,
 }: SwipeStackProps) {
   const [exitDirection, setExitDirection] = useState<"left" | "right" | null>(
     null
@@ -413,6 +431,7 @@ export function SwipeStack({
               onPublishDirect={onPublishDirect}
               onUpdateField={onUpdateField}
               publishingDirectId={publishingDirectId}
+              onEditPhoto={onEditPhoto}
             />
           ))}
         </AnimatePresence>

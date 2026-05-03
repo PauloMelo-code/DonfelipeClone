@@ -17,6 +17,8 @@ export async function POST(
 
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const requestedGroupIds: string[] | undefined = Array.isArray(body?.targetGroupIds) ? body.targetGroupIds : undefined;
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
@@ -70,9 +72,13 @@ export async function POST(
       });
     }
 
-    // Auto-selecionar grupos destino baseado no estado
+    // Selecionar grupos destino: usar requestedGroupIds se fornecido, senao auto-selecionar por estado
     let targetGroups;
-    if (vehicle.state) {
+    if (requestedGroupIds && requestedGroupIds.length > 0) {
+      targetGroups = await prisma.whatsAppGroup.findMany({
+        where: { role: "TARGET", active: true, groupId: { in: requestedGroupIds } },
+      });
+    } else if (vehicle.state) {
       targetGroups = await prisma.whatsAppGroup.findMany({
         where: { role: "TARGET", active: true, region: vehicle.state },
       });

@@ -156,6 +156,8 @@ export default function VeiculosPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionTags, setRejectionTags] = useState<string[]>([]);
   const [publishingDirectId, setPublishingDirectId] = useState<string | null>(null);
+  const [quickPublishVehicle, setQuickPublishVehicle] = useState<Vehicle | null>(null);
+  const [quickPublishGroups, setQuickPublishGroups] = useState<string[]>([]);
   const [galleryVehicle, setGalleryVehicle] = useState<Vehicle | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [margin, setMargin] = useState(10);
@@ -374,17 +376,53 @@ export default function VeiculosPage() {
   };
 
   const handlePublishDirect = async (id: string) => {
-    if (publishingDirectId) return; // prevent double-click
+    const vehicle = vehicles.find((v) => v.id === id);
+    if (!vehicle) return;
+    // Ensure target groups are loaded
+    if (targetGroups.length === 0) {
+      try {
+        const res = await fetch("/api/groups?role=TARGET&active=true");
+        if (res.ok) {
+          const groups: WhatsAppGroup[] = await res.json();
+          setTargetGroups(groups);
+          if (vehicle.state) {
+            const regionGroups = groups.filter((g) => g.region === vehicle.state);
+            setQuickPublishGroups(regionGroups.length > 0 ? regionGroups.map((g) => g.groupId) : []);
+          } else {
+            setQuickPublishGroups([]);
+          }
+        }
+      } catch {
+        setTargetGroups([]);
+      }
+    } else if (vehicle.state) {
+      const regionGroups = targetGroups.filter((g) => g.region === vehicle.state);
+      setQuickPublishGroups(regionGroups.length > 0 ? regionGroups.map((g) => g.groupId) : []);
+    } else {
+      setQuickPublishGroups([]);
+    }
+    setQuickPublishVehicle(vehicle);
+  };
+
+  const confirmQuickPublish = async () => {
+    if (!quickPublishVehicle || quickPublishGroups.length === 0) return;
+    const id = quickPublishVehicle.id;
     setPublishingDirectId(id);
     try {
-      const res = await fetch(`/api/vehicles/${id}/publish-direct`, { method: "POST" });
+      const res = await fetch(`/api/vehicles/${id}/publish-direct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetGroupIds: quickPublishGroups }),
+      });
       if (res.ok) {
         const data = await res.json();
-        toast.success(`Publicado em ${data.destinationGroups || 0} grupos da regiao ${data.sourceState || ""}`);
+        toast.success(`Publicado em ${data.destinationGroups || quickPublishGroups.length} grupos`);
         setVehicles((prev) => prev.filter((v) => v.id !== id));
+        setQuickPublishVehicle(null);
+        setQuickPublishGroups([]);
       } else {
         const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "Erro ao publicar direto");
+        toast.error(err.error || "Erro ao publicar");
         fetchVehicles();
       }
     } catch {
@@ -712,6 +750,13 @@ export default function VeiculosPage() {
             onPublishDirect={handlePublishDirect}
             onUpdateField={handleUpdateField}
             publishingDirectId={publishingDirectId}
+            onEditPhoto={(v) => {
+              const vehicle = vehicles.find((veh) => veh.id === v.id);
+              if (vehicle) {
+                openPublishModal(vehicle);
+                setPublishTab("photo");
+              }
+            }}
           />
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -1576,6 +1621,89 @@ export default function VeiculosPage() {
               >
                 {actionLoading === rejectVehicleId ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                 Rejeitar{rejectionTags.length > 0 && ` (${rejectionTags.length})`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Publish Modal */}
+      <Dialog open={!!quickPublishVehicle} onOpenChange={(open) => {
+        if (!open && !publishingDirectId) {
+          setQuickPublishVehicle(null);
+          setQuickPublishGroups([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-success" />
+              Publicar direto
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            {quickPublishVehicle && (
+              <div className="rounded-lg bg-card border border-border p-3">
+                <p className="text-sm font-medium">{quickPublishVehicle.brand} {quickPublishVehicle.model}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {quickPublishVehicle.year} • {quickPublishVehicle.km.toLocaleString("pt-BR")} km • {formatPrice(quickPublishVehicle.price)}
+                  {quickPublishVehicle.state && <> • <span className="text-cugini-orange font-semibold">{quickPublishVehicle.state}</span></>}
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">Selecione os grupos para publicar:</p>
+
+            <div className="max-h-[40vh] overflow-y-auto space-y-2">
+              {Array.from(groupsByRegion.entries()).map(([region, groups]) => {
+                const regionIds = groups.map((g) => g.groupId);
+                const selectedCount = regionIds.filter((id) => quickPublishGroups.includes(id)).length;
+                const allSelected = selectedCount === groups.length;
+                return (
+                  <div key={region} className="rounded-lg border border-border overflow-hidden">
+                    <button
+                      onClick={() => {
+                        if (allSelected) {
+                          setQuickPublishGroups((prev) => prev.filter((id) => !regionIds.includes(id)));
+                        } else {
+                          setQuickPublishGroups((prev) => [...new Set([...prev, ...regionIds])]);
+                        }
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+                    >
+                      <div className={cn(
+                        "h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                        allSelected ? "bg-cugini-orange border-cugini-orange" : selectedCount > 0 ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
+                      )}>
+                        {(allSelected || selectedCount > 0) && <Check className="h-2.5 w-2.5 text-white" />}
+                      </div>
+                      <span className="text-sm font-medium flex-1 text-left">{region}</span>
+                      <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setQuickPublishVehicle(null);
+                  setQuickPublishGroups([]);
+                }}
+                disabled={!!publishingDirectId}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmQuickPublish}
+                disabled={quickPublishGroups.length === 0 || !!publishingDirectId}
+                className="flex-1 bg-success hover:bg-success/90 text-white border-0"
+              >
+                {publishingDirectId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Publicar ({quickPublishGroups.length})
               </Button>
             </div>
           </div>
