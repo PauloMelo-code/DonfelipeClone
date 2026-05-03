@@ -27,6 +27,7 @@ interface DashboardData {
   topGroupsWeek: { groupId: string; name: string; count: number }[];
   avgQualityScore: number;
   highScorePending: number;
+  staleApproved: number;
 }
 
 interface ChartPoint {
@@ -128,6 +129,20 @@ export default function DashboardPage() {
               className="rounded-lg bg-yellow-400/15 border border-yellow-400/30 px-3 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-400/20"
             >
               Revisar →
+            </Link>
+          </div>
+        )}
+
+        {/* Alert: stale approved vehicles */}
+        {!loading && data && data.staleApproved > 0 && (
+          <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 flex items-center gap-3">
+            <Clock className="h-6 w-6 text-warning shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-warning">{data.staleApproved} aprovados há mais de 24h</p>
+              <p className="text-xs text-warning/70">Veículos esquecidos sem publicação</p>
+            </div>
+            <Link href="/veiculos" className="rounded-lg bg-warning/15 border border-warning/30 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20">
+              Publicar →
             </Link>
           </div>
         )}

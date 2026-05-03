@@ -55,6 +55,7 @@ export async function POST(
         status: "REJECTED",
         rejectionReason,
         rejectionTags: rejectionTags ? JSON.stringify(rejectionTags) : null,
+        rejectedAt: new Date(),
       },
     });
 

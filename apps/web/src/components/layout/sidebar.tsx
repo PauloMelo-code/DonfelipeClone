@@ -16,6 +16,7 @@ import {
   Shield,
   UserCog,
   BarChart3,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +31,7 @@ const navigation = [
   { label: "Publicacoes", href: "/publicacoes", icon: Send },
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Grupos", href: "/grupos", icon: Users },
+  { label: "Templates", href: "/templates", icon: MessageSquare },
   { label: "Usuarios", href: "/usuarios", icon: UserCog },
   { label: "Auditoria", href: "/auditoria", icon: Shield },
 ];

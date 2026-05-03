@@ -37,6 +37,7 @@ export async function GET() {
       topGroupsRaw,
       qualityAgg,
       highScorePending,
+      staleApprovedCount,
     ] = await Promise.all([
       prisma.vehicle.count(),
       prisma.vehicle.count({ where: { status: "PENDING" } }),
@@ -69,6 +70,12 @@ export async function GET() {
       }),
       prisma.vehicle.count({
         where: { status: "PENDING", qualityScore: { gte: 8 } },
+      }),
+      prisma.vehicle.count({
+        where: {
+          status: "APPROVED",
+          approvedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
       }),
     ]);
 
@@ -122,6 +129,7 @@ export async function GET() {
       topGroupsWeek,
       avgQualityScore: qualityAgg._avg.qualityScore ?? 0,
       highScorePending,
+      staleApproved: staleApprovedCount,
     });
   } catch (error) {
     console.error("[Dashboard] Error fetching metrics:", error);

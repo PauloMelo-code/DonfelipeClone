@@ -61,6 +61,7 @@ model Vehicle {
   qualityScore    Int?
   isVip           Boolean   @default(false)
   autoRejectedReason String?
+  photoHash       String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -74,7 +75,20 @@ model Vehicle {
   @@index([sourceMessageId])
   @@index([sourceGroupId])
   @@index([state])
+  @@index([photoHash])
   @@map("vehicles")
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  content   String
+  category  String?
+  shortcut  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("message_templates")
 }
 
 model PostHistory {

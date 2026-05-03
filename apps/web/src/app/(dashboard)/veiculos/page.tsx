@@ -332,7 +332,22 @@ export default function VeiculosPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.status === "APPROVED" || action === "approve") {
-          toast.success("Veiculo aprovado!");
+          toast.success("Veiculo aprovado!", {
+            action: {
+              label: "Desfazer",
+              onClick: async () => {
+                const r = await fetch(`/api/vehicles/${id}/undo`, { method: "POST" });
+                if (r.ok) {
+                  toast.success("Acao desfeita");
+                  fetchVehicles();
+                } else {
+                  const err = await r.json().catch(() => ({}));
+                  toast.error(err.error || "Erro ao desfazer");
+                }
+              },
+            },
+            duration: 10000,
+          });
           setVehicles((prev) => prev.filter((v) => v.id !== id));
         } else {
           toast.success("Publicacao iniciada!");
@@ -365,7 +380,23 @@ export default function VeiculosPage() {
         }),
       });
       if (res.ok) {
-        toast.success("Veiculo rejeitado.");
+        const rejectedId = rejectVehicleId;
+        toast.success("Veiculo rejeitado.", {
+          action: {
+            label: "Desfazer",
+            onClick: async () => {
+              const r = await fetch(`/api/vehicles/${rejectedId}/undo`, { method: "POST" });
+              if (r.ok) {
+                toast.success("Acao desfeita");
+                fetchVehicles();
+              } else {
+                const err = await r.json().catch(() => ({}));
+                toast.error(err.error || "Erro ao desfazer");
+              }
+            },
+          },
+          duration: 10000,
+        });
         setVehicles((prev) => prev.filter((v) => v.id !== rejectVehicleId));
         setRejectionTags([]);
         setRejectVehicleId(null);

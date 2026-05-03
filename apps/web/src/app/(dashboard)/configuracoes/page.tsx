@@ -626,6 +626,21 @@ export default function ConfiguracoesPage() {
               {cleaning ? "Limpando..." : "Executar"}
             </Button>
           </div>
+
+          {/* Telegram alerts info section */}
+          <div className="space-y-2 pt-3 border-t border-border">
+            <p className="text-sm font-medium">Alertas Telegram</p>
+            <p className="text-xs text-muted-foreground">
+              Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID nas variaveis de ambiente.
+              Voce recebera alertas quando:
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 ml-4 list-disc">
+              <li>Carro VIP capturado</li>
+              <li>Oportunidade com score &gt;= 8</li>
+              <li>WhatsApp desconectado</li>
+              <li>Erros criticos do sistema</li>
+            </ul>
+          </div>
         </div>
 
         <Button

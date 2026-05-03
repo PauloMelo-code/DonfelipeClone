@@ -12,6 +12,8 @@ import { persistImage } from "@/lib/media-storage";
 import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning";
 import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
+import { hashPhoto } from "@/lib/photo-hash";
+import { alertVipCaptured, alertHighScore } from "@/lib/telegram";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -401,6 +403,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "text_too_short" });
     }
 
+    // Calculate photo hash for duplicate detection
+    const photoHash = imageUrl ? hashPhoto(imageUrl) : null;
+
+    // Check if exact same photo was already captured (in last 30 days)
+    if (photoHash) {
+      const duplicate = await prisma.vehicle.findFirst({
+        where: {
+          photoHash,
+          capturedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          NOT: { id: undefined as never }, // ignore current
+        },
+      });
+      if (duplicate) {
+        console.log(`[Webhook] Duplicate photo detected: ${photoHash} (existing: ${duplicate.id})`);
+        return NextResponse.json({
+          status: "duplicate",
+          existingId: duplicate.id,
+          photoMatch: true,
+        });
+      }
+    }
+
     // Pre-filter: must contain at least one vehicle-related keyword
     if (textContent) {
       const lower = textContent.toLowerCase();
@@ -604,6 +628,7 @@ export async function POST(request: NextRequest) {
         sourceMessageId: messageId,
         sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
         vehicleHash,
+        photoHash,
         qualityScore,
         isVip,
         autoRejectedReason,
@@ -612,6 +637,14 @@ export async function POST(request: NextRequest) {
         rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
       },
     });
+
+    // Fire-and-forget Telegram alerts for noteworthy captures
+    if (isVip && !autoRejectedReason) {
+      void alertVipCaptured(model, year, price).catch(() => {});
+    }
+    if (qualityScore && qualityScore >= 8 && !autoRejectedReason) {
+      void alertHighScore(model, year, qualityScore).catch(() => {});
+    }
 
     await prisma.auditLog.create({
       data: {
