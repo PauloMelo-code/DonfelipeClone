@@ -10,9 +10,27 @@ export async function POST(
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
 
-  try {
-    const { id } = await params;
+  const { id } = await params;
 
+  // Atomic claim: lock vehicle to prevent double-click race.
+  // Republish operates on PUBLISHED vehicles (and APPROVED transient state set below).
+  const claim = await prisma.vehicle.updateMany({
+    where: {
+      id,
+      status: { in: ["PUBLISHED", "APPROVED"] },
+      OR: [
+        { publishingLockedAt: null },
+        { publishingLockedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } }, // 5 min stale lock
+      ],
+    },
+    data: { publishingLockedAt: new Date() },
+  });
+
+  if (claim.count === 0) {
+    return NextResponse.json({ error: "Veiculo ja em processamento ou ja publicado" }, { status: 409 });
+  }
+
+  try {
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
 
     if (!vehicle) {
@@ -78,5 +96,10 @@ export async function POST(
   } catch (error) {
     console.error("[Vehicles] Error republishing vehicle:", error);
     return NextResponse.json({ error: "Erro ao reenviar veiculo" }, { status: 500 });
+  } finally {
+    await prisma.vehicle.update({
+      where: { id },
+      data: { publishingLockedAt: null },
+    }).catch(() => {});
   }
 }

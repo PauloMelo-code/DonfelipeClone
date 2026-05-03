@@ -42,13 +42,14 @@ model Vehicle {
   photos          String    @default("[]")
   rawDescription  String?
   sourceGroupId   String?
-  sourceMessageId String?
+  sourceMessageId String?   @unique
   sellerPhone     String?
   vehicleHash     String
   status          String    @default("PENDING")
   formattedAd     String?
   rejectionReason String?
   rejectionTags   String?
+  publishingLockedAt DateTime?
   capturedAt      DateTime  @default(now())
   approvedAt      DateTime?
   publishedAt     DateTime?
@@ -64,6 +65,8 @@ model Vehicle {
   @@index([vehicleHash])
   @@index([capturedAt])
   @@index([sourceMessageId])
+  @@index([sourceGroupId])
+  @@index([state])
   @@map("vehicles")
 }
 
@@ -82,6 +85,7 @@ model PostHistory {
 
   @@index([vehicleHash, targetGroupId, postedAt])
   @@index([postedAt])
+  @@index([vehicleId])
   @@map("post_history")
 }
 
@@ -103,6 +107,7 @@ model WhatsAppGroup {
   sourceVehicles Vehicle[]     @relation("SourceVehicles")
   targetPosts    PostHistory[] @relation("TargetPosts")
 
+  @@index([role, active])
   @@map("whatsapp_groups")
 }
 
@@ -129,6 +134,7 @@ model AuditLog {
 
   @@index([action])
   @@index([createdAt])
+  @@index([vehicleId])
   @@map("audit_logs")
 }
 
@@ -139,5 +145,6 @@ model MediaFile {
   originalUrl String?
   createdAt   DateTime @default(now())
 
+  @@index([createdAt])
   @@map("media_files")
 }

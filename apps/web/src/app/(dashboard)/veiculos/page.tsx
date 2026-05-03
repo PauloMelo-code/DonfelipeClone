@@ -434,14 +434,32 @@ export default function VeiculosPage() {
   };
 
   const handleUpdateField = async (id: string, field: string, value: string | number) => {
-    const res = await fetch(`/api/vehicles/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ [field]: value }),
-    });
-    if (!res.ok) throw new Error("update_failed");
-    // Update local state with new value
-    setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, [field]: value } : v));
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    try {
+      const res = await fetch(`/api/vehicles/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err?.details?.[0]?.message || err?.error || "Erro ao salvar";
+        throw new Error(msg);
+      }
+      // Use server response to update local state (canonical source of truth)
+      const updated = await res.json().catch(() => null);
+      setVehicles((prev) => prev.map((v) => {
+        if (v.id !== id) return v;
+        if (updated && typeof updated === "object" && updated.id) {
+          return { ...v, ...updated };
+        }
+        return { ...v, [field]: value };
+      }));
+    } finally {
+      clearTimeout(timeout);
+    }
   };
 
   const getAdText = (v: Vehicle, marginOverride?: number) =>

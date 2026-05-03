@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -36,6 +36,11 @@ export function InlineEdit({
 
   const stringValue = value == null ? "" : String(value);
 
+  // Re-sync draft when prop value changes (e.g. after save or external update)
+  useEffect(() => {
+    if (!editing) setDraft(stringValue);
+  }, [stringValue, editing]);
+
   const commit = async () => {
     if (saving) return;
     if (draft === stringValue) {
@@ -44,16 +49,21 @@ export function InlineEdit({
     }
     setSaving(true);
     try {
-      const next = type === "number" ? Number(draft) : draft;
-      if (type === "number" && isNaN(Number(draft))) {
-        throw new Error("invalid_number");
+      if (type === "number" && (draft.trim() === "" || isNaN(Number(draft)))) {
+        toast.error("Valor invalido");
+        setDraft(stringValue);
+        setEditing(false);
+        return;
       }
+      const next = type === "number" ? Number(draft) : draft;
       await onSave(next);
       toast.success("Salvo");
       setEditing(false);
-    } catch {
-      toast.error("Erro ao salvar");
+    } catch (err) {
+      const msg = err instanceof Error && err.message ? err.message : "Erro ao salvar";
+      toast.error(msg.length > 80 ? "Erro ao salvar" : msg);
       setDraft(stringValue);
+      setEditing(false);
     } finally {
       setSaving(false);
     }

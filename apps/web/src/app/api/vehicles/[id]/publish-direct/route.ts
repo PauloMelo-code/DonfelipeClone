@@ -15,14 +15,36 @@ export async function POST(
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
 
+  const { id } = await params;
+
+  // Atomic claim: lock vehicle to prevent double-click race
+  const claim = await prisma.vehicle.updateMany({
+    where: {
+      id,
+      status: { in: ["PENDING", "APPROVED"] },
+      OR: [
+        { publishingLockedAt: null },
+        { publishingLockedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } }, // 5 min stale lock
+      ],
+    },
+    data: { publishingLockedAt: new Date() },
+  });
+
+  if (claim.count === 0) {
+    return NextResponse.json({ error: "Veiculo ja em processamento ou ja publicado" }, { status: 409 });
+  }
+
   try {
-    const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const requestedGroupIds: string[] | undefined = Array.isArray(body?.targetGroupIds) ? body.targetGroupIds : undefined;
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
     }
+
+    // Variables that may be set during auto-approve, used later for publish
+    let formattedAd: string | undefined;
+    let sellingPrice: number | undefined;
 
     // Auto-aprovar se PENDING (replica logica do approve/route.ts)
     if (vehicle.status === "PENDING") {
@@ -55,11 +77,11 @@ export async function POST(
         if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) effectiveMargin = 0;
       }
 
-      const sellingPrice = vehicle.price * (1 + effectiveMargin / 100);
+      sellingPrice = vehicle.price * (1 + effectiveMargin / 100);
       let features: string[] = [];
       try { features = JSON.parse(vehicle.features || "[]"); } catch {}
 
-      const formattedAd = formatVehicleAd({
+      formattedAd = formatVehicleAd({
         model: vehicle.model, brand: vehicle.brand, year: vehicle.year,
         yearModel: vehicle.yearModel, km: vehicle.km, price: vehicle.price,
         fipePrice, transmission: vehicle.transmission, fuel: vehicle.fuel,
@@ -70,6 +92,10 @@ export async function POST(
         where: { id },
         data: { status: "APPROVED", sellingPrice, formattedAd, fipePrice, approvedAt: new Date() },
       });
+    } else {
+      // Vehicle already APPROVED — pull existing ad/price for publishVehicle
+      formattedAd = vehicle.formattedAd ?? undefined;
+      sellingPrice = vehicle.sellingPrice ?? undefined;
     }
 
     // Selecionar grupos destino: usar requestedGroupIds se fornecido, senao auto-selecionar por estado
@@ -98,10 +124,13 @@ export async function POST(
       return NextResponse.json({ error: "Nenhum grupo destino configurado" }, { status: 400 });
     }
 
-    // Publicar
+    // Publicar — passa formattedAd/sellingPrice para garantir que smart pricing
+    // (inclusive 0% margin) seja respeitado no envio.
     const results = await publishVehicle(id, {
       targetGroupIds: targetGroups.map((g) => g.groupId),
       userId: auth.user.id,
+      formattedAd,
+      sellingPrice,
     });
 
     const totalSent = results.filter((r) => r.success).length;
@@ -138,5 +167,10 @@ export async function POST(
   } catch (error) {
     console.error("[publish-direct] Error:", error);
     return NextResponse.json({ error: "Erro ao publicar direto" }, { status: 500 });
+  } finally {
+    await prisma.vehicle.update({
+      where: { id },
+      data: { publishingLockedAt: null },
+    }).catch(() => {});
   }
 }

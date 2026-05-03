@@ -7,12 +7,12 @@ import { z } from "zod/v4";
 export const createVehicleSchema = z.object({
   model: z.string().min(1, "Modelo obrigatorio").max(200),
   brand: z.string().max(100).nullable().optional(),
-  year: z.number().int().min(1990).max(new Date().getFullYear() + 2),
+  year: z.number().int().min(1990).max(2030),
   yearModel: z
     .number()
     .int()
     .min(1990)
-    .max(new Date().getFullYear() + 2)
+    .max(2030)
     .nullable()
     .optional(),
   km: z.number().int().min(0).max(999999),

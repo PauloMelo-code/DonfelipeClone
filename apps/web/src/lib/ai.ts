@@ -291,6 +291,7 @@ function getCached(text: string): VehicleData | null | undefined {
 }
 
 function setCache(text: string, data: VehicleData | null): void {
+  if (!data) return; // Do not pollute cache with negative results
   const key = cacheKey(text);
   _cache.set(key, { data, ts: Date.now() });
   if (_cache.size > CACHE_MAX) {

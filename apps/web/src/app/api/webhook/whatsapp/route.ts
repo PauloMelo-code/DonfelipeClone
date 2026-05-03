@@ -37,6 +37,13 @@ function cleanExpiredBuffer() {
   }
 }
 
+// Periodically clean expired buffer entries even when no traffic
+if (typeof setInterval !== "undefined") {
+  const _bufferTimer = setInterval(cleanExpiredBuffer, 30_000);
+  // Don't keep process alive just for this
+  if (typeof _bufferTimer.unref === "function") _bufferTimer.unref();
+}
+
 function getBufferKey(groupJid: string, senderJid: string | null): string {
   // Sem JID do remetente, nao fazemos pareamento (seguranca)
   if (!senderJid) return "";
@@ -99,6 +106,12 @@ export async function POST(request: NextRequest) {
         { error: "Rate limit exceeded" },
         { status: 429 }
       );
+    }
+
+    // Reject oversized webhook payloads (max 10MB)
+    const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
+    if (contentLength > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "Payload too large" }, { status: 413 });
     }
 
     const raw = await request.json();
