@@ -99,8 +99,8 @@ export async function publishVehicle(
     "profit_margin_percent",
     10
   );
-  const delayMinSeconds = await getSettingNumber("delay_min_seconds", 5);
-  const delayMaxSeconds = await getSettingNumber("delay_max_seconds", 15);
+  const delayMinSeconds = await getSettingNumber("delay_min_seconds", 3);
+  const delayMaxSeconds = await getSettingNumber("delay_max_seconds", 8);
 
   // --- Format the ad ---
   const features: string[] = (() => {

@@ -618,10 +618,18 @@ export default function VeiculosPage() {
         body: JSON.stringify(updateData),
       });
 
-      // Publish or republish
-      const endpoint = republishMode
-        ? `/api/vehicles/${publishVehicle.id}/republish`
-        : `/api/vehicles/${publishVehicle.id}/publish`;
+      // Choose endpoint based on status:
+      // - PENDING → publish-direct (aprova + publica)
+      // - APPROVED → publish
+      // - PUBLISHED (republishMode) → republish
+      let endpoint: string;
+      if (republishMode) {
+        endpoint = `/api/vehicles/${publishVehicle.id}/republish`;
+      } else if (publishVehicle.status === "PENDING") {
+        endpoint = `/api/vehicles/${publishVehicle.id}/publish-direct`;
+      } else {
+        endpoint = `/api/vehicles/${publishVehicle.id}/publish`;
+      }
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -638,6 +646,8 @@ export default function VeiculosPage() {
           setVehicles((prev) => prev.filter((v) => v.id !== publishVehicle.id));
         }
         setPublishVehicle(null);
+        setEditedAd("");
+        setEditedPhotos({});
         fetchVehicles();
       } else {
         const err = await res.json();
@@ -648,6 +658,34 @@ export default function VeiculosPage() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  // Auto-save edicoes ao fechar modal sem publicar
+  const handleClosePublishModal = async () => {
+    if (!publishVehicle) return;
+    const hasEdits = editedAd && editedAd !== (publishVehicle.formattedAd || "");
+    const hasPhotoEdits = Object.keys(editedPhotos).length > 0;
+    if (hasEdits || hasPhotoEdits) {
+      try {
+        const updateData: Record<string, unknown> = {};
+        if (hasEdits) updateData.formattedAd = editedAd;
+        if (hasPhotoEdits) {
+          const photos = parseArray(publishVehicle.photos);
+          updateData.photos = photos.map((p, i) => editedPhotos[i] || p);
+        }
+        await fetch(`/api/vehicles/${publishVehicle.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateData),
+        });
+        toast.success("Edicoes salvas");
+      } catch {
+        toast.error("Erro ao salvar edicoes");
+      }
+    }
+    setPublishVehicle(null);
+    setEditedAd("");
+    setEditedPhotos({});
   };
 
   const formatPrice = (v: number) =>
@@ -1146,7 +1184,7 @@ export default function VeiculosPage() {
       </Dialog>
 
       {/* Publish Modal (enhanced) */}
-      <Dialog open={!!publishVehicle} onOpenChange={(open) => !open && setPublishVehicle(null)}>
+      <Dialog open={!!publishVehicle} onOpenChange={(open) => { if (!open) handleClosePublishModal(); }}>
         <DialogContent showCloseButton={false} className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-3xl sm:rounded-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 h-full sm:h-auto">
           <div className="flex flex-col h-full sm:max-h-[90vh]">
             {/* Header */}
@@ -1158,7 +1196,7 @@ export default function VeiculosPage() {
                   {publishVehicle && ` \u00B7 ${formatPrice(publishVehicle.price)} (custo)`}
                 </p>
               </div>
-              <button onClick={() => setPublishVehicle(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={handleClosePublishModal} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -1492,7 +1530,7 @@ export default function VeiculosPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 border-border"
-                onClick={() => setPublishVehicle(null)}
+                onClick={handleClosePublishModal}
               >
                 Cancelar
               </Button>

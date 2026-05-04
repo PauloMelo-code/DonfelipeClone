@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < vehicleIds.length; i++) {
       if (i > 0) {
-        await delay(3000 + Math.random() * 5000); // 3-8s between vehicles
+        await delay(2000 + Math.random() * 3000); // 2-5s between vehicles
       }
       const vehicleId = vehicleIds[i];
       const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
