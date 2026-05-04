@@ -38,6 +38,11 @@ import {
   Square,
   Layers,
   ChevronDown,
+  MapPin,
+  Radio,
+  Building2,
+  Megaphone,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -1225,24 +1230,27 @@ export default function VeiculosPage() {
                 {/* Source origin chip \u2014 group/community/region the car came from */}
                 {publishVehicle && (publishVehicle.sourceGroup || publishVehicle.state) && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    {publishVehicle.sourceGroup && (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] border border-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-[260px]"
-                        title={publishVehicle.sourceGroup.name}
-                      >
-                        <span className="shrink-0">
-                          {publishVehicle.sourceGroup.isAnnounce ? "\uD83D\uDCE1"
-                            : publishVehicle.sourceGroup.isCommunity ? "\uD83C\uDFD8\uFE0F"
-                            : publishVehicle.sourceGroup.groupId.endsWith("@broadcast") ? "\uD83D\uDCE2"
-                            : publishVehicle.sourceGroup.groupId.endsWith("@s.whatsapp.net") ? "\uD83D\uDC64"
-                            : "\uD83D\uDC65"}
+                    {publishVehicle.sourceGroup && (() => {
+                      const sg = publishVehicle.sourceGroup;
+                      const Icon = sg.isAnnounce ? Radio
+                        : sg.isCommunity ? Building2
+                        : sg.groupId.endsWith("@broadcast") ? Megaphone
+                        : sg.groupId.endsWith("@s.whatsapp.net") ? User
+                        : Users;
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] border border-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-[260px]"
+                          title={sg.name}
+                        >
+                          <Icon className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{sg.name}</span>
                         </span>
-                        <span className="truncate">{publishVehicle.sourceGroup.name}</span>
-                      </span>
-                    )}
+                      );
+                    })()}
                     {(publishVehicle.state || publishVehicle.sourceGroup?.region) && (
                       <span className="inline-flex items-center gap-1 rounded-md bg-cugini-orange/10 border border-cugini-orange/30 px-1.5 py-0.5 text-[11px] font-semibold text-cugini-orange uppercase tracking-wide">
-                        \uD83D\uDCCD {publishVehicle.state || publishVehicle.sourceGroup?.region}
+                        <MapPin className="h-3 w-3" />
+                        {publishVehicle.state || publishVehicle.sourceGroup?.region}
                       </span>
                     )}
                   </div>
