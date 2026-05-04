@@ -177,8 +177,14 @@ export function PhotoEditor({
     img.src = prev;
   }, [history, selectedIndex, onPhotoEdited]);
 
-  // Load image onto canvas
+  // Keep latest editedPhotos available without making it a dep that triggers reload
+  const editedPhotosRef = useRef(editedPhotos);
   useEffect(() => {
+    editedPhotosRef.current = editedPhotos;
+  }, [editedPhotos]);
+
+  // Imperative image loader (used by switch effect AND by resetPhoto)
+  const loadImage = useCallback((src: string) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -187,10 +193,6 @@ export function PhotoEditor({
     setImageLoaded(false);
     setImageError(false);
     setCurrentRect(null);
-    setHistory([]);
-
-    const src = editedPhotos[selectedIndex] || photos[selectedIndex];
-    if (!src) return;
 
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -206,7 +208,16 @@ export function PhotoEditor({
     };
     img.onerror = () => setImageError(true);
     img.src = src;
-  }, [selectedIndex, photos, editedPhotos]);
+  }, []);
+
+  // Load image when actually switching photos (NOT on every edit save)
+  // editedPhotos is read via ref so saves don't trigger reload + history reset
+  useEffect(() => {
+    const src = editedPhotosRef.current[selectedIndex] || photos[selectedIndex];
+    if (!src) return;
+    setHistory([]); // reset undo history only on actual photo switch
+    loadImage(src);
+  }, [selectedIndex, photos, loadImage]);
 
   // Draw rect selection overlay (blur only — crop uses CSS overlay)
   useEffect(() => {
@@ -409,6 +420,8 @@ export function PhotoEditor({
     setCurrentRect(null);
     setHistory([]);
     onPhotoReset(selectedIndex);
+    // Reload original imperatively (since editedPhotos is no longer a useEffect dep)
+    if (photos[selectedIndex]) loadImage(photos[selectedIndex]);
   };
 
   if (photos.length === 0) {

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { updateGroupSchema } from "@/lib/validations";
+import { invalidateGroupsCache } from "../route";
 
 export async function GET(
   _request: NextRequest,
@@ -59,6 +60,8 @@ export async function PUT(
       data,
     });
 
+    invalidateGroupsCache();
+
     return NextResponse.json({
       ...updated,
       filters: updated.filters ? JSON.parse(updated.filters) : null,
@@ -88,6 +91,7 @@ export async function DELETE(
     await prisma.postHistory.deleteMany({ where: { targetGroupId: group.groupId } });
 
     await prisma.whatsAppGroup.delete({ where: { id } });
+    invalidateGroupsCache();
     return NextResponse.json({ message: "Grupo removido com sucesso" });
   } catch (error) {
     console.error("[Groups] Error deleting group:", error);

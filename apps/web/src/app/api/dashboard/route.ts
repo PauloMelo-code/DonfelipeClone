@@ -2,9 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 
+// 20s cache for the heavy 17-query payload. Multiple tabs/users share one
+// computation cycle; staleness <20s is fine for a dashboard.
+let dashCache: { data: unknown; expiresAt: number } | null = null;
+const DASH_TTL_MS = 20_000;
+
 export async function GET() {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
+
+  if (dashCache && dashCache.expiresAt > Date.now()) {
+    return NextResponse.json(dashCache.data, { headers: { "X-Cache": "HIT" } });
+  }
 
   try {
     const now = new Date();
@@ -101,7 +110,7 @@ export async function GET() {
         ? (((approvedVehicles + publishedVehicles) / total) * 100).toFixed(1)
         : "0";
 
-    return NextResponse.json({
+    const payload = {
       vehicles: {
         total: totalVehicles,
         pending: pendingVehicles,
@@ -130,7 +139,10 @@ export async function GET() {
       avgQualityScore: qualityAgg._avg.qualityScore ?? 0,
       highScorePending,
       staleApproved: staleApprovedCount,
-    });
+    };
+
+    dashCache = { data: payload, expiresAt: Date.now() + DASH_TTL_MS };
+    return NextResponse.json(payload, { headers: { "X-Cache": "MISS" } });
   } catch (error) {
     console.error("[Dashboard] Error fetching metrics:", error);
     return NextResponse.json(

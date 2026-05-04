@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishVehicle } from "@/lib/publisher";
 import { requireAuth } from "@/lib/auth";
@@ -62,44 +62,51 @@ export async function POST(
       data: { status: "APPROVED" },
     });
 
-    let results;
-    try {
-      results = await publishVehicle(id, {
-        targetGroupIds,
-        formattedAd: formattedAd || vehicle.formattedAd || undefined,
-        sellingPrice: sellingPrice || vehicle.sellingPrice || undefined,
-        userId: auth.user.id,
-      });
-    } catch (err) {
-      // Restore PUBLISHED status if publishVehicle throws before any send
-      await prisma.vehicle.update({ where: { id }, data: { status: "PUBLISHED" } });
-      throw err;
-    }
+    // Fire-and-forget: respond immediately, run republish in background.
+    const userId = auth.user.id;
+    const adForBg = formattedAd || vehicle.formattedAd || undefined;
+    const priceForBg = sellingPrice || vehicle.sellingPrice || undefined;
+    const ids = targetGroupIds;
 
-    // publishVehicle sets PUBLISHED if any success; if all failed, restore manually
-    const anySuccess = results.some((r) => r.success);
-    if (!anySuccess) {
-      await prisma.vehicle.update({ where: { id }, data: { status: "PUBLISHED" } });
-    }
-
-    const groupsPublished = results.filter((r) => r.success).length;
-    const groupsFailed = results.filter((r) => !r.success && !r.skippedReason).length;
-    const groupsSkipped = results.filter((r) => !!r.skippedReason).length;
+    after(async () => {
+      try {
+        const results = await publishVehicle(id, {
+          targetGroupIds: ids,
+          formattedAd: adForBg,
+          sellingPrice: priceForBg,
+          userId,
+          quickPublish: true,
+        });
+        // publishVehicle sets PUBLISHED if any success; if all failed, restore manually
+        const anySuccess = results.some((r) => r.success);
+        if (!anySuccess) {
+          await prisma.vehicle.update({ where: { id }, data: { status: "PUBLISHED" } });
+        }
+      } catch (err) {
+        console.error("[Vehicles] Background republish failed:", err);
+        await prisma.vehicle
+          .update({ where: { id }, data: { status: "PUBLISHED" } })
+          .catch(() => {});
+      } finally {
+        await prisma.vehicle
+          .update({ where: { id }, data: { publishingLockedAt: null } })
+          .catch(() => {});
+      }
+    });
 
     return NextResponse.json({
-      message: "Reenvio concluido",
-      groupsPublished,
-      groupsFailed,
-      groupsSkipped,
-      results,
+      message: "Reenvio enfileirado",
+      status: "publishing",
+      groupsPublished: targetGroupIds?.length ?? 0,
+      groupsFailed: 0,
+      groupsSkipped: 0,
+      results: [],
     });
   } catch (error) {
     console.error("[Vehicles] Error republishing vehicle:", error);
+    await prisma.vehicle
+      .update({ where: { id }, data: { publishingLockedAt: null } })
+      .catch(() => {});
     return NextResponse.json({ error: "Erro ao reenviar veiculo" }, { status: 500 });
-  } finally {
-    await prisma.vehicle.update({
-      where: { id },
-      data: { publishingLockedAt: null },
-    }).catch(() => {});
   }
 }

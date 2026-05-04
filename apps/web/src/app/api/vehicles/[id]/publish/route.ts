@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishVehicle } from "@/lib/publisher";
 import { requireAuth } from "@/lib/auth";
@@ -70,31 +70,43 @@ export async function POST(
       // Body is optional
     }
 
-    const results = await publishVehicle(id, {
-      targetGroupIds,
-      formattedAd,
-      sellingPrice,
-      userId: auth.user.id,
+    // Fire-and-forget: respond immediately, run publish in background.
+    // Next.js `after()` keeps the function alive until the work finishes,
+    // even after the response is flushed.
+    const userId = auth.user.id;
+    after(async () => {
+      try {
+        await publishVehicle(id, {
+          targetGroupIds,
+          formattedAd,
+          sellingPrice,
+          userId,
+          quickPublish: true,
+        });
+      } catch (err) {
+        console.error("[Vehicles] Background publish failed:", err);
+      } finally {
+        await prisma.vehicle
+          .update({ where: { id }, data: { publishingLockedAt: null } })
+          .catch(() => {});
+      }
     });
-    const groupsPublished = results.filter((r) => r.success).length;
-    const groupsFailed = results.filter((r) => !r.success).length;
 
     return NextResponse.json({
-      message: "Veiculo publicado com sucesso",
-      groupsPublished,
-      groupsFailed,
-      results,
+      message: "Publicacao enfileirada",
+      status: "publishing",
+      groupsPublished: targetGroupIds?.length ?? 0,
+      groupsFailed: 0,
+      results: [],
     });
   } catch (error) {
     console.error("[Vehicles] Error publishing vehicle:", error);
+    await prisma.vehicle
+      .update({ where: { id }, data: { publishingLockedAt: null } })
+      .catch(() => {});
     return NextResponse.json(
       { error: "Erro ao publicar veiculo" },
       { status: 500 }
     );
-  } finally {
-    await prisma.vehicle.update({
-      where: { id },
-      data: { publishingLockedAt: null },
-    }).catch(() => {});
   }
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -44,28 +44,80 @@ function getGroupTypeIcon(type: string): string {
 
 const REGIONS = ["SC", "RS", "PR", "SP", "Nacional"] as const;
 
+const PAGE_SIZE = 50;
+
+interface PaginatedResponse {
+  groups: Group[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 export default function GruposPage() {
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [sourceData, setSourceData] = useState<PaginatedResponse | null>(null);
+  const [targetData, setTargetData] = useState<PaginatedResponse | null>(null);
+  const [sourcePage, setSourcePage] = useState(1);
+  const [targetPage, setTargetPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [regionFilter, setRegionFilter] = useState<string[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("todos");
   const [mobileGroupTab, setMobileGroupTab] = useState<"SOURCE" | "TARGET">("TARGET");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({ phone: "", name: "", role: "SOURCE" as "SOURCE" | "TARGET" });
+  const [addForm, setAddForm] = useState({
+    phone: "",
+    name: "",
+    role: "SOURCE" as "SOURCE" | "TARGET",
+    kind: "individual" as "individual" | "broadcast",
+  });
   const [adding, setAdding] = useState(false);
+
+  // Debounce search input — avoid hitting server on every keystroke
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [search]);
+
+  // Reset pagination when search/region changes
+  useEffect(() => {
+    setSourcePage(1);
+    setTargetPage(1);
+  }, [debouncedSearch, regionFilter]);
+
+  const buildUrl = useCallback(
+    (role: "SOURCE" | "TARGET", page: number) => {
+      const params = new URLSearchParams({
+        role,
+        page: String(page),
+        limit: String(PAGE_SIZE),
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      // Region filter: server supports single region, so if multi-selected we apply client-side.
+      // If exactly one region selected, push to server for efficiency.
+      if (regionFilter.length === 1) params.set("region", regionFilter[0]);
+      return `/api/groups?${params.toString()}`;
+    },
+    [debouncedSearch, regionFilter]
+  );
 
   const fetchGroups = useCallback(async () => {
     try {
-      const res = await fetch("/api/groups");
-      if (res.ok) setGroups(await res.json());
+      const [sRes, tRes] = await Promise.all([
+        fetch(buildUrl("SOURCE", sourcePage)),
+        fetch(buildUrl("TARGET", targetPage)),
+      ]);
+      if (sRes.ok) setSourceData(await sRes.json());
+      if (tRes.ok) setTargetData(await tRes.json());
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buildUrl, sourcePage, targetPage]);
 
   useEffect(() => {
     fetchGroups();
@@ -88,7 +140,20 @@ export default function GruposPage() {
   };
 
   const handleActivateAll = async (role: "SOURCE" | "TARGET", active: boolean) => {
-    const toUpdate = groups.filter((g) => g.role === role && g.active !== active);
+    // Operates on the current page only — for full-list activation, fetch all roles unpaginated.
+    // To keep this snappy and avoid loading every group, fetch a special unpaginated endpoint.
+    let toUpdate: Group[] = [];
+    try {
+      const params = new URLSearchParams({ role, counts: "false" });
+      const res = await fetch(`/api/groups?${params.toString()}`);
+      if (res.ok) {
+        const all: Group[] = await res.json();
+        toUpdate = all.filter((g) => g.active !== active);
+      }
+    } catch {
+      toast.error("Erro ao carregar grupos");
+      return;
+    }
     if (toUpdate.length === 0) return;
 
     try {
@@ -156,16 +221,58 @@ export default function GruposPage() {
     }
   };
 
+  // Convert a "phone@broadcast" entry (incorrectly constructed) into a proper
+  // individual DM (@s.whatsapp.net). Recreates the entry since groupId is unique.
+  const handleConvertToDM = async (group: Group) => {
+    const phone = group.groupId.replace(/@broadcast$/, "");
+    if (!/^\d+$/.test(phone)) {
+      toast.error("Esta entrada nao parece um numero de telefone");
+      return;
+    }
+    const newJid = `${phone}@s.whatsapp.net`;
+    try {
+      const del = await fetch(`/api/groups/${group.id}`, { method: "DELETE" });
+      if (!del.ok) throw new Error("delete failed");
+      const create = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupId: newJid,
+          name: group.name,
+          role: group.role,
+          active: group.active,
+          region: group.region,
+        }),
+      });
+      if (!create.ok) throw new Error("create failed");
+      toast.success("JID corrigido para DM");
+      fetchGroups();
+    } catch {
+      toast.error("Erro ao corrigir JID");
+    }
+  };
+
   const handleAddManual = async () => {
     const raw = addForm.phone.trim();
     // If user pasted a full JID, use it as-is
-    const isJid = raw.endsWith("@broadcast") || raw.endsWith("@g.us") || raw.endsWith("@newsletter");
+    const isJid =
+      raw.endsWith("@broadcast") ||
+      raw.endsWith("@g.us") ||
+      raw.endsWith("@newsletter") ||
+      raw.endsWith("@s.whatsapp.net");
     const phone = isJid ? raw : raw.replace(/\D/g, "");
     if (!phone || phone.length < 5 || !addForm.name.trim()) {
       toast.error("Preencha um número válido e nome");
       return;
     }
-    const groupId = isJid ? phone : `${phone}@broadcast`;
+    // Plain phone digits → individual contact (@s.whatsapp.net), NOT @broadcast.
+    // Constructing @broadcast from a phone is invalid: broadcast lists must be
+    // real existing JIDs returned by WhatsApp.
+    const groupId = isJid
+      ? phone
+      : addForm.kind === "broadcast"
+        ? `${phone}@broadcast`
+        : `${phone}@s.whatsapp.net`;
     setAdding(true);
     try {
       const res = await fetch("/api/groups", {
@@ -176,7 +283,7 @@ export default function GruposPage() {
       if (res.ok) {
         toast.success("Grupo adicionado!");
         setShowAddModal(false);
-        setAddForm({ phone: "", name: "", role: "SOURCE" });
+        setAddForm({ phone: "", name: "", role: "SOURCE", kind: "individual" });
         fetchGroups();
       } else {
         const err = await res.json();
@@ -189,15 +296,53 @@ export default function GruposPage() {
     }
   };
 
-  const searchLower = search.toLowerCase();
-  const matchesFilters = (g: Group) => {
-    if (search && !g.name.toLowerCase().includes(searchLower)) return false;
-    if (regionFilter.length > 0 && !regionFilter.includes(g.region || "")) return false;
+  // Server already filtered by role + search + (single) region.
+  // Client only applies multi-region (when 2+ selected) and type filter (computed from JID).
+  const matchesClientFilters = (g: Group) => {
+    if (regionFilter.length > 1 && !regionFilter.includes(g.region || "")) return false;
     if (typeFilter !== "todos" && getGroupType(g) !== typeFilter) return false;
     return true;
   };
-  const sourceGroups = groups.filter((g) => g.role === "SOURCE" && matchesFilters(g));
-  const targetGroups = groups.filter((g) => g.role === "TARGET" && matchesFilters(g));
+  const sourceGroups = (sourceData?.groups || []).filter(matchesClientFilters);
+  const targetGroups = (targetData?.groups || []).filter(matchesClientFilters);
+  const totalLoaded = (sourceData?.pagination.total || 0) + (targetData?.pagination.total || 0);
+
+  const PaginationBar = ({
+    page,
+    totalPages,
+    total,
+    onChange,
+  }: {
+    page: number;
+    totalPages: number;
+    total: number;
+    onChange: (newPage: number) => void;
+  }) => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/50">
+        <span className="text-[11px] text-muted-foreground">
+          {total} grupos · pag {page} de {totalPages}
+        </span>
+        <div className="flex gap-1">
+          <button
+            onClick={() => onChange(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onChange(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const renderGroupCard = (group: Group) => (
     <div
@@ -215,6 +360,15 @@ export default function GruposPage() {
             {group.name}
           </p>
           <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", opacity: 0.5 }}>{group.groupId}</p>
+          {/^\d{8,15}@broadcast$/.test(group.groupId) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleConvertToDM(group); }}
+              className="text-[10px] text-cugini-orange hover:underline mt-0.5"
+              title="Converter para DM (@s.whatsapp.net)"
+            >
+              Corrigir → DM
+            </button>
+          )}
         </div>
         <Badge
           variant="outline"
@@ -283,7 +437,7 @@ export default function GruposPage() {
         </div>
 
         {/* Modal adicionar número manual */}
-        <Dialog open={showAddModal} onOpenChange={(open) => { setShowAddModal(open); if (!open) setAddForm({ phone: "", name: "", role: "SOURCE" }); }}>
+        <Dialog open={showAddModal} onOpenChange={(open) => { setShowAddModal(open); if (!open) setAddForm({ phone: "", name: "", role: "SOURCE", kind: "individual" }); }}>
           <DialogContent className="sm:max-w-sm bg-card border-border">
             <DialogHeader>
               <DialogTitle>Adicionar número manualmente</DialogTitle>
@@ -298,17 +452,43 @@ export default function GruposPage() {
                   className="bg-background border-border"
                 />
                 <p className="text-[11px] text-muted-foreground/60 mt-1">
-                  Ex: 5511999999999 → será salvo como ...@broadcast
+                  Ex: 5511999999999 → enviado direto pra esse número (DM).
+                  Cole um JID completo (@g.us, @broadcast, @newsletter) pra usar como-está.
                 </p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Nome do grupo/lista</label>
                 <Input
-                  placeholder="Lista Teste SP"
+                  placeholder="Teste — meu número"
                   value={addForm.name}
                   onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
                   className="bg-background border-border"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Forma de envio</label>
+                <div className="flex gap-2">
+                  {(
+                    [
+                      { id: "individual", label: "Número direto", hint: "DM (s.whatsapp.net)" },
+                      { id: "broadcast", label: "Lista transmissão", hint: "@broadcast" },
+                    ] as const
+                  ).map((k) => (
+                    <button
+                      key={k.id}
+                      onClick={() => setAddForm((f) => ({ ...f, kind: k.id }))}
+                      className={cn(
+                        "flex-1 rounded-lg py-2 text-xs font-medium border transition-all",
+                        addForm.kind === k.id
+                          ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                          : "bg-card text-muted-foreground border-border hover:border-white/20"
+                      )}
+                    >
+                      <div>{k.label}</div>
+                      <div className="text-[10px] opacity-60 mt-0.5">{k.hint}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Tipo</label>
@@ -344,7 +524,7 @@ export default function GruposPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
           </div>
-        ) : groups.length === 0 ? (
+        ) : totalLoaded === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <Users className="mb-3 h-12 w-12 opacity-20" />
             <p className="text-sm">Nenhum grupo encontrado</p>
@@ -426,7 +606,7 @@ export default function GruposPage() {
                   : "bg-card/50 text-muted-foreground"
               )}
             >
-              Destino ({targetGroups.length})
+              Destino ({targetData?.pagination.total ?? 0})
             </button>
             <button
               onClick={() => setMobileGroupTab("SOURCE")}
@@ -437,7 +617,7 @@ export default function GruposPage() {
                   : "bg-card/50 text-muted-foreground"
               )}
             >
-              Fonte ({sourceGroups.length})
+              Fonte ({sourceData?.pagination.total ?? 0})
             </button>
           </div>
 
@@ -448,7 +628,7 @@ export default function GruposPage() {
                 <div className="flex items-center gap-2">
                   <Radio className="h-4 w-4 text-success" />
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Grupos Fonte ({sourceGroups.length})
+                    Grupos Fonte ({sourceData?.pagination.total ?? 0})
                   </h3>
                 </div>
                 <div className="flex gap-2">
@@ -474,10 +654,18 @@ export default function GruposPage() {
                 {sourceGroups.map((group) => renderGroupCard(group))}
                 {sourceGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo fonte configurado
+                    Nenhum grupo fonte nesta pagina
                   </p>
                 )}
               </div>
+              {sourceData && (
+                <PaginationBar
+                  page={sourceData.pagination.page}
+                  totalPages={sourceData.pagination.totalPages}
+                  total={sourceData.pagination.total}
+                  onChange={setSourcePage}
+                />
+              )}
             </div>
 
             {/* Target Groups */}
@@ -486,7 +674,7 @@ export default function GruposPage() {
                 <div className="flex items-center gap-2">
                   <Target className="h-4 w-4 text-cugini-orange" />
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                    Grupos Destino ({targetGroups.length})
+                    Grupos Destino ({targetData?.pagination.total ?? 0})
                   </h3>
                 </div>
                 <div className="flex gap-2">
@@ -512,10 +700,18 @@ export default function GruposPage() {
                 {targetGroups.map((group) => renderGroupCard(group))}
                 {targetGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo destino configurado
+                    Nenhum grupo destino nesta pagina
                   </p>
                 )}
               </div>
+              {targetData && (
+                <PaginationBar
+                  page={targetData.pagination.page}
+                  totalPages={targetData.pagination.totalPages}
+                  total={targetData.pagination.total}
+                  onChange={setTargetPage}
+                />
+              )}
             </div>
           </div>
 
@@ -524,6 +720,8 @@ export default function GruposPage() {
             {(() => {
               const isSource = mobileGroupTab === "SOURCE";
               const groupList = isSource ? sourceGroups : targetGroups;
+              const data = isSource ? sourceData : targetData;
+              const setPage = isSource ? setSourcePage : setTargetPage;
               const role = isSource ? "SOURCE" : "TARGET";
               return (
                 <>
@@ -531,7 +729,7 @@ export default function GruposPage() {
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {isSource ? <Radio className="h-4 w-4 text-success shrink-0" /> : <Target className="h-4 w-4 text-cugini-orange shrink-0" />}
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
-                        {isSource ? "Fonte" : "Destino"} ({groupList.length})
+                        {isSource ? "Fonte" : "Destino"} ({data?.pagination.total ?? 0})
                       </h3>
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -545,14 +743,22 @@ export default function GruposPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto rounded-xl">
+                  <div className="space-y-2 max-h-[calc(100vh-420px)] overflow-y-auto rounded-xl">
                     {groupList.map((group) => renderGroupCard(group))}
                     {groupList.length === 0 && (
                       <p className="text-sm text-muted-foreground py-4 text-center">
-                        Nenhum grupo {isSource ? "fonte" : "destino"} configurado
+                        Nenhum grupo {isSource ? "fonte" : "destino"} nesta pagina
                       </p>
                     )}
                   </div>
+                  {data && (
+                    <PaginationBar
+                      page={data.pagination.page}
+                      totalPages={data.pagination.totalPages}
+                      total={data.pagination.total}
+                      onChange={setPage}
+                    />
+                  )}
                 </>
               );
             })()}

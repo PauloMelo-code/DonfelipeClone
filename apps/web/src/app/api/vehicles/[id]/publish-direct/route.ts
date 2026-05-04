@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -124,53 +124,68 @@ export async function POST(
       return NextResponse.json({ error: "Nenhum grupo destino configurado" }, { status: 400 });
     }
 
-    // Publicar — passa formattedAd/sellingPrice para garantir que smart pricing
-    // (inclusive 0% margin) seja respeitado no envio.
-    const results = await publishVehicle(id, {
-      targetGroupIds: targetGroups.map((g) => g.groupId),
-      userId: auth.user.id,
-      formattedAd,
-      sellingPrice,
-    });
+    // Fire-and-forget: respond immediately, run publish + audit in background.
+    const userId = auth.user.id;
+    const groupIds = targetGroups.map((g) => g.groupId);
+    const groupCount = targetGroups.length;
+    const sourceState = vehicle.state;
+    const adForBg = formattedAd;
+    const priceForBg = sellingPrice;
 
-    const totalSent = results.filter((r) => r.success).length;
-    const totalFailed = results.filter((r) => !r.success && !r.skippedReason).length;
-    const totalSkipped = results.filter((r) => !!r.skippedReason).length;
+    after(async () => {
+      try {
+        const results = await publishVehicle(id, {
+          targetGroupIds: groupIds,
+          userId,
+          formattedAd: adForBg,
+          sellingPrice: priceForBg,
+          quickPublish: true,
+        });
 
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_PUBLISHED_DIRECT",
-        entityType: "Vehicle",
-        entityId: id,
-        vehicleId: id,
-        userId: auth.user.id,
-        details: JSON.stringify({
-          triggeredBy: "fast-track",
-          sourceState: vehicle.state,
-          destinationGroups: targetGroups.length,
-          totalSent,
-          totalFailed,
-          totalSkipped,
-        }),
-      },
+        const totalSent = results.filter((r) => r.success).length;
+        const totalFailed = results.filter((r) => !r.success && !r.skippedReason).length;
+        const totalSkipped = results.filter((r) => !!r.skippedReason).length;
+
+        await prisma.auditLog.create({
+          data: {
+            action: "VEHICLE_PUBLISHED_DIRECT",
+            entityType: "Vehicle",
+            entityId: id,
+            vehicleId: id,
+            userId,
+            details: JSON.stringify({
+              triggeredBy: "fast-track",
+              sourceState,
+              destinationGroups: groupCount,
+              totalSent,
+              totalFailed,
+              totalSkipped,
+            }),
+          },
+        }).catch(() => {});
+      } catch (err) {
+        console.error("[publish-direct] Background publish failed:", err);
+      } finally {
+        await prisma.vehicle
+          .update({ where: { id }, data: { publishingLockedAt: null } })
+          .catch(() => {});
+      }
     });
 
     return NextResponse.json({
-      status: "published",
+      status: "publishing",
       sourceState: vehicle.state,
       destinationGroups: targetGroups.length,
-      totalSent,
-      totalFailed,
-      totalSkipped,
-      results,
+      totalSent: 0,
+      totalFailed: 0,
+      totalSkipped: 0,
+      results: [],
     });
   } catch (error) {
     console.error("[publish-direct] Error:", error);
+    await prisma.vehicle
+      .update({ where: { id }, data: { publishingLockedAt: null } })
+      .catch(() => {});
     return NextResponse.json({ error: "Erro ao publicar direto" }, { status: 500 });
-  } finally {
-    await prisma.vehicle.update({
-      where: { id },
-      data: { publishingLockedAt: null },
-    }).catch(() => {});
   }
 }

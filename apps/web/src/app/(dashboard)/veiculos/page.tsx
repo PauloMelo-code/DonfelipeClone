@@ -281,10 +281,11 @@ export default function VeiculosPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(`${data.totalPublished} de ${data.total} veiculos publicados!`);
+        toast.success(`${data.total} veiculos enfileirados — publicando em background`);
         setBatchSelected(new Set());
         setShowBatchModal(false);
-        fetchVehicles();
+        // Don't refetch immediately — backend processes in background.
+        // List will update naturally on next refresh (user can pull-to-refresh).
       } else {
         toast.error("Erro ao publicar em lote");
       }
@@ -431,7 +432,7 @@ export default function VeiculosPage() {
     // Ensure target groups are loaded
     if (targetGroups.length === 0) {
       try {
-        const res = await fetch("/api/groups?role=TARGET&active=true");
+        const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
         if (res.ok) {
           const groups: WhatsAppGroup[] = await res.json();
           setTargetGroups(groups);
@@ -537,7 +538,7 @@ export default function VeiculosPage() {
       : 10;
     setMargin(existingMargin);
     try {
-      const res = await fetch("/api/groups?role=TARGET&active=true");
+      const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
       if (res.ok) {
         const groups: WhatsAppGroup[] = await res.json();
         setTargetGroups(groups);
@@ -555,7 +556,7 @@ export default function VeiculosPage() {
     setPublishTab("photo");
     // Fetch target groups
     try {
-      const res = await fetch("/api/groups?role=TARGET&active=true");
+      const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
       if (res.ok) {
         const groups: WhatsAppGroup[] = await res.json();
         setTargetGroups(groups);
@@ -601,62 +602,74 @@ export default function VeiculosPage() {
       toast.error("Selecione pelo menos um grupo destino");
       return;
     }
-    setActionLoading(publishVehicle.id);
+
+    // Snapshot everything we need before closing the modal.
+    const vehicleId = publishVehicle.id;
+    const vehicleStatus = publishVehicle.status;
+    const sellingPrice = publishVehicle.price * (1 + margin / 100);
+
+    const updateData: Record<string, unknown> = { formattedAd: editedAd, sellingPrice };
+    if (Object.keys(editedPhotos).length > 0) {
+      const photos = parseArray(publishVehicle.photos);
+      updateData.photos = photos.map((p, i) => editedPhotos[i] || p);
+    }
+
+    let endpoint: string;
+    if (republishMode) {
+      endpoint = `/api/vehicles/${vehicleId}/republish`;
+    } else if (vehicleStatus === "PENDING") {
+      endpoint = `/api/vehicles/${vehicleId}/publish-direct`;
+    } else {
+      endpoint = `/api/vehicles/${vehicleId}/publish`;
+    }
+
+    // Optimistic UI: close modal + remove from list IMMEDIATELY.
+    // Both requests run in background; result toast fires when POST resolves.
+    if (!republishMode) {
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+    }
+    setPublishVehicle(null);
+    setEditedAd("");
+    setEditedPhotos({});
+
+    toast.loading("Publicando...", { id: `publish-${vehicleId}` });
+
+    // Fire PUT + POST in parallel — neither blocks the UI.
+    const putPromise = fetch(`/api/vehicles/${vehicleId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateData),
+    }).catch(() => null);
+
+    const postPromise = fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetGroupIds: selectedGroupIds,
+        formattedAd: editedAd,
+        sellingPrice,
+      }),
+    });
+
+    // Don't await PUT — it doesn't block the publish endpoint (which reads
+    // formattedAd from the request body).
+    void putPromise;
+
     try {
-      const sellingPrice = publishVehicle.price * (1 + margin / 100);
-
-      // Save edited ad text and photos first
-      const updateData: Record<string, unknown> = { formattedAd: editedAd, sellingPrice };
-      if (Object.keys(editedPhotos).length > 0) {
-        const photos = parseArray(publishVehicle.photos);
-        const updatedPhotos = photos.map((p, i) => editedPhotos[i] || p);
-        updateData.photos = updatedPhotos;
-      }
-      await fetch(`/api/vehicles/${publishVehicle.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updateData),
-      });
-
-      // Choose endpoint based on status:
-      // - PENDING → publish-direct (aprova + publica)
-      // - APPROVED → publish
-      // - PUBLISHED (republishMode) → republish
-      let endpoint: string;
-      if (republishMode) {
-        endpoint = `/api/vehicles/${publishVehicle.id}/republish`;
-      } else if (publishVehicle.status === "PENDING") {
-        endpoint = `/api/vehicles/${publishVehicle.id}/publish-direct`;
-      } else {
-        endpoint = `/api/vehicles/${publishVehicle.id}/publish`;
-      }
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          targetGroupIds: selectedGroupIds,
-          formattedAd: editedAd,
-          sellingPrice,
-        }),
-      });
+      const res = await postPromise;
       if (res.ok) {
-        toast.success(republishMode ? "Reenvio iniciado!" : "Publicacao iniciada!");
-        if (!republishMode) {
-          setVehicles((prev) => prev.filter((v) => v.id !== publishVehicle.id));
-        }
-        setPublishVehicle(null);
-        setEditedAd("");
-        setEditedPhotos({});
-        fetchVehicles();
+        toast.success(republishMode ? "Reenvio iniciado!" : "Publicacao iniciada!", {
+          id: `publish-${vehicleId}`,
+        });
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Erro ao publicar");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao publicar", { id: `publish-${vehicleId}` });
+        // Re-fetch only on error so user sees the vehicle re-appear with correct state
+        fetchVehicles();
       }
     } catch {
-      toast.error("Erro de conexao");
-    } finally {
-      setActionLoading(null);
+      toast.error("Erro de conexao", { id: `publish-${vehicleId}` });
+      fetchVehicles();
     }
   };
 
@@ -1126,7 +1139,7 @@ export default function VeiculosPage() {
               size="sm"
               onClick={() => {
                 if (targetGroups.length === 0) {
-                  fetch("/api/groups?role=TARGET&active=true")
+                  fetch("/api/groups?role=TARGET&active=true&counts=false")
                     .then((r) => r.json())
                     .then((data) => {
                       setTargetGroups(data);

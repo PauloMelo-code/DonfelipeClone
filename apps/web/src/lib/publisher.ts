@@ -72,7 +72,7 @@ async function isPublishingPaused(): Promise<boolean> {
  */
 export async function publishVehicle(
   vehicleId: string,
-  options?: { targetGroupIds?: string[]; formattedAd?: string; sellingPrice?: number; userId?: string }
+  options?: { targetGroupIds?: string[]; formattedAd?: string; sellingPrice?: number; userId?: string; quickPublish?: boolean }
 ): Promise<PublishResult[]> {
   // --- Kill switch: block if global publishing is paused ---
   if (await isPublishingPaused()) {
@@ -99,8 +99,15 @@ export async function publishVehicle(
     "profit_margin_percent",
     10
   );
-  const delayMinSeconds = await getSettingNumber("delay_min_seconds", 3);
-  const delayMaxSeconds = await getSettingNumber("delay_max_seconds", 8);
+  // Quick publish (admin clicked single button): minimal delay (0.3-1s).
+  // Batch publish: configurable anti-ban delay (default 1-3s).
+  const delayMinSeconds = options?.quickPublish
+    ? 0.3
+    : await getSettingNumber("delay_min_seconds", 1);
+  const delayMaxSeconds = options?.quickPublish
+    ? 1
+    : await getSettingNumber("delay_max_seconds", 3);
+  const skipComposing = options?.quickPublish === true;
 
   // --- Format the ad ---
   const features: string[] = (() => {
@@ -209,17 +216,19 @@ export async function publishVehicle(
         continue;
       }
 
-      // 2. Send "composing" presence
-      await getSendClient().sendPresence({
-        number: group.groupId,
-        presence: "composing",
-      });
+      // 2. Send "composing" presence (skipped in quick publish for speed)
+      // Run in parallel with delay so it doesn't add to total time
+      const presencePromise = skipComposing
+        ? Promise.resolve()
+        : getSendClient()
+            .sendPresence({ number: group.groupId, presence: "composing" })
+            .catch(() => {}); // presence failure shouldn't block sending
 
-      // 3. Random delay
-      await randomDelay(
-        delayMinSeconds * 1000,
-        delayMaxSeconds * 1000
-      );
+      // 3. Random delay (in parallel with presence)
+      await Promise.all([
+        presencePromise,
+        randomDelay(delayMinSeconds * 1000, delayMaxSeconds * 1000),
+      ]);
 
       // 4. Send message
       let messageId: string | undefined;

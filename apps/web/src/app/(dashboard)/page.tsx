@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
@@ -47,13 +47,35 @@ export default function DashboardPage() {
     label: "Últimos 14 dias",
   });
 
+  // Track previous VIP count between polls so we can fire desktop notifications
+  // without an additional /api/dashboard request.
+  const lastVipCountRef = useRef<number>(0);
+
   const fetchData = useCallback(async () => {
     try {
       const [dashRes, chartRes] = await Promise.all([
         fetch("/api/dashboard"),
         fetch(`/api/dashboard/chart?startDate=${chartRange.startDate.toISOString()}&endDate=${chartRange.endDate.toISOString()}`),
       ]);
-      if (dashRes.ok) setData(await dashRes.json());
+      if (dashRes.ok) {
+        const d: DashboardData = await dashRes.json();
+        setData(d);
+        // Fire VIP notification if count grew (consolidated from old 60s poll)
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted" &&
+          d.vipPending > lastVipCountRef.current &&
+          lastVipCountRef.current > 0
+        ) {
+          new Notification("🚗 Novo veículo VIP!", {
+            body: `${d.vipPending - lastVipCountRef.current} carro(s) premium aguardando revisão`,
+            icon: "/icon.svg",
+            tag: "cugini-vip",
+          });
+        }
+        lastVipCountRef.current = d.vipPending;
+      }
       if (chartRes.ok) setChartData(await chartRes.json());
     } catch {
       // silently fail
@@ -62,39 +84,35 @@ export default function DashboardPage() {
     }
   }, [chartRange]);
 
+  // Single poll: pause when tab hidden, slower interval (60s instead of 30s).
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  // Poll for new VIP vehicles and show local notifications when permission granted
-  useEffect(() => {
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "granted") return;
-
-    let lastVipCount = 0;
-    const check = async () => {
-      try {
-        const res = await fetch("/api/dashboard");
-        if (!res.ok) return;
-        const d = await res.json();
-        if (d.vipPending > lastVipCount && lastVipCount > 0) {
-          new Notification("🚗 Novo veículo VIP!", {
-            body: `${d.vipPending - lastVipCount} carro(s) premium aguardando revisão`,
-            icon: "/icon.svg",
-            tag: "cugini-vip",
-          });
-        }
-        lastVipCount = d.vipPending;
-      } catch {
-        /* ignore */
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(fetchData, 60_000);
+    };
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
       }
     };
-    check();
-    const id = setInterval(check, 60_000);
-    return () => clearInterval(id);
-  }, []);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchData();
+        start();
+      } else {
+        stop();
+      }
+    };
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchData]);
 
   const greeting = () => {
     const hour = new Date().getHours();

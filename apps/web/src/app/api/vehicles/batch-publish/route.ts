@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { publishVehicle } from "@/lib/publisher";
@@ -15,33 +15,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "vehicleIds obrigatorio" }, { status: 400 });
     }
 
-    const results: Array<{ vehicleId: string; model: string; success: boolean; groupsPublished: number; error?: string }> = [];
-    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+    const userId = auth.user?.id;
 
-    for (let i = 0; i < vehicleIds.length; i++) {
-      if (i > 0) {
-        await delay(2000 + Math.random() * 3000); // 2-5s between vehicles
+    // Fire-and-forget: respond immediately. Frontend shows "publicando em lote"
+    // and polls vehicle list naturally for status updates.
+    after(async () => {
+      const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < vehicleIds.length; i++) {
+        if (i > 0) {
+          await delay(800 + Math.random() * 1200); // 0.8-2s between vehicles (anti-ban)
+        }
+        const vehicleId = vehicleIds[i];
+        try {
+          const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+          if (!vehicle || vehicle.status !== "APPROVED") continue;
+          await publishVehicle(vehicleId, {
+            targetGroupIds,
+            userId,
+          });
+        } catch (err) {
+          console.error(`[BatchPublish] vehicle ${vehicleId} failed:`, err);
+        }
       }
-      const vehicleId = vehicleIds[i];
-      const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-      if (!vehicle || vehicle.status !== "APPROVED") {
-        results.push({ vehicleId, model: vehicle?.model ?? vehicleId, success: false, groupsPublished: 0, error: "Veiculo nao aprovado" });
-        continue;
-      }
-      try {
-        const publishResults = await publishVehicle(vehicleId, {
-          targetGroupIds,
-          userId: auth.user?.id,
-        });
-        const published = publishResults.filter((r) => r.success).length;
-        results.push({ vehicleId, model: vehicle.model, success: published > 0, groupsPublished: published });
-      } catch (err) {
-        results.push({ vehicleId, model: vehicle.model, success: false, groupsPublished: 0, error: String(err) });
-      }
-    }
+    });
 
-    const totalPublished = results.filter((r) => r.success).length;
-    return NextResponse.json({ results, totalPublished, total: vehicleIds.length });
+    return NextResponse.json({
+      status: "queued",
+      total: vehicleIds.length,
+      message: `${vehicleIds.length} veiculos enfileirados`,
+    });
   } catch (error) {
     console.error("[BatchPublish] Error:", error);
     return NextResponse.json({ error: "Erro ao publicar em lote" }, { status: 500 });

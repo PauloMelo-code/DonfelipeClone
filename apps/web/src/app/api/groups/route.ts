@@ -4,6 +4,16 @@ import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { createGroupSchema } from "@/lib/validations";
 
+// In-memory cache for groups list (groups change rarely, hot read path).
+// Cleared on any mutation in POST/PUT/DELETE handlers.
+type CachedGroupsEntry = { data: unknown; expiresAt: number };
+const groupsCache = new Map<string, CachedGroupsEntry>();
+const GROUPS_CACHE_TTL_MS = 30_000;
+
+export function invalidateGroupsCache() {
+  groupsCache.clear();
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
@@ -12,27 +22,97 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role");
     const active = searchParams.get("active");
+    const search = searchParams.get("search")?.trim() || "";
+    const region = searchParams.get("region");
+    // ?counts=false skips the expensive _count aggregates.
+    const includeCounts = searchParams.get("counts") !== "false";
+    // Pagination is opt-in: if `page` is present, return { groups, pagination }.
+    // Otherwise return the legacy flat array (backward compat for publish modal).
+    const pageParam = searchParams.get("page");
+    const paginated = pageParam !== null;
+    const page = Math.max(1, parseInt(pageParam || "1", 10));
+    const limit = Math.min(
+      200,
+      Math.max(1, parseInt(searchParams.get("limit") || "50", 10))
+    );
 
-    const where: Record<string, unknown> = {};
-
-    if (role && role !== "ALL") {
-      where.role = role;
+    const cacheKey = [
+      role ?? "ALL",
+      active ?? "ANY",
+      includeCounts ? "C" : "N",
+      search,
+      region ?? "ALL",
+      paginated ? `P${page}x${limit}` : "FULL",
+    ].join("|");
+    const cached = groupsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: { "X-Cache": "HIT" },
+      });
     }
 
+    const where: Record<string, unknown> = {};
+    if (role && role !== "ALL") where.role = role;
     if (active !== null && active !== undefined && active !== "") {
       where.active = active === "true";
     }
+    if (search) {
+      where.name = { contains: search, mode: "insensitive" };
+    }
+    if (region) {
+      where.region = region === "" ? null : region;
+    }
 
+    if (paginated) {
+      const [groups, total] = await Promise.all([
+        prisma.whatsAppGroup.findMany({
+          where,
+          ...(includeCounts
+            ? {
+                include: {
+                  _count: { select: { sourceVehicles: true, targetPosts: true } },
+                },
+              }
+            : {}),
+          orderBy: { name: "asc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.whatsAppGroup.count({ where }),
+      ]);
+
+      const parsed = groups.map((g) => ({
+        ...g,
+        filters: g.filters ? JSON.parse(g.filters) : null,
+      }));
+
+      const payload = {
+        groups: parsed,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+
+      groupsCache.set(cacheKey, {
+        data: payload,
+        expiresAt: Date.now() + GROUPS_CACHE_TTL_MS,
+      });
+      return NextResponse.json(payload, { headers: { "X-Cache": "MISS" } });
+    }
+
+    // Legacy flat-array path (publish modal, batch publish, etc.)
     const groups = await prisma.whatsAppGroup.findMany({
       where,
-      include: {
-        _count: {
-          select: {
-            sourceVehicles: true,
-            targetPosts: true,
-          },
-        },
-      },
+      ...(includeCounts
+        ? {
+            include: {
+              _count: { select: { sourceVehicles: true, targetPosts: true } },
+            },
+          }
+        : {}),
       orderBy: { name: "asc" },
     });
 
@@ -41,7 +121,12 @@ export async function GET(request: NextRequest) {
       filters: g.filters ? JSON.parse(g.filters) : null,
     }));
 
-    return NextResponse.json(parsed);
+    groupsCache.set(cacheKey, {
+      data: parsed,
+      expiresAt: Date.now() + GROUPS_CACHE_TTL_MS,
+    });
+
+    return NextResponse.json(parsed, { headers: { "X-Cache": "MISS" } });
   } catch (error) {
     console.error("[Groups] Error listing groups:", error);
     return NextResponse.json(
@@ -84,6 +169,8 @@ export async function POST(request: NextRequest) {
         region: region || null,
       },
     });
+
+    invalidateGroupsCache();
 
     return NextResponse.json(
       {
