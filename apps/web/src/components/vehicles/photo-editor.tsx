@@ -81,6 +81,12 @@ export function PhotoEditor({
 
       setCropBox(() => {
         const box = { ...startBox };
+        // "move" = drag entire crop box without resizing
+        if (edg === "move") {
+          box.x = Math.max(0, Math.min(startBox.x + dx, canvas.width - startBox.w));
+          box.y = Math.max(0, Math.min(startBox.y + dy, canvas.height - startBox.h));
+          return box;
+        }
         if (edg === "top" || edg === "top-left" || edg === "top-right") {
           box.y = Math.max(0, Math.min(startBox.y + dy, startBox.y + startBox.h - 50));
           box.h = startBox.h - (box.y - startBox.y);
@@ -601,26 +607,69 @@ export function PhotoEditor({
                   <div className="absolute bg-black/60" style={{ top: by + bh, left: 0, right: 0, bottom: 0 }} />
                   <div className="absolute bg-black/60" style={{ top: by, left: 0, width: bx, height: bh }} />
                   <div className="absolute bg-black/60" style={{ top: by, left: bx + bw, right: 0, height: bh }} />
-                  {/* Crop border */}
-                  <div className="absolute border-2 border-white" style={{ top: by, left: bx, width: bw, height: bh, pointerEvents: "auto" }}>
-                    {/* Corner handles */}
-                    <div className="absolute -top-2 -left-2 w-5 h-5 border-t-[3px] border-l-[3px] border-white rounded-tl cursor-nwse-resize"
-                         onPointerDown={(e) => startCropDrag(e, "top-left")} />
-                    <div className="absolute -top-2 -right-2 w-5 h-5 border-t-[3px] border-r-[3px] border-white rounded-tr cursor-nesw-resize"
-                         onPointerDown={(e) => startCropDrag(e, "top-right")} />
-                    <div className="absolute -bottom-2 -left-2 w-5 h-5 border-b-[3px] border-l-[3px] border-white rounded-bl cursor-nesw-resize"
-                         onPointerDown={(e) => startCropDrag(e, "bottom-left")} />
-                    <div className="absolute -bottom-2 -right-2 w-5 h-5 border-b-[3px] border-r-[3px] border-white rounded-br cursor-nwse-resize"
-                         onPointerDown={(e) => startCropDrag(e, "bottom-right")} />
-                    {/* Edge handles */}
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/80 rounded cursor-ns-resize"
-                         onPointerDown={(e) => startCropDrag(e, "top")} />
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-8 h-4 bg-white/80 rounded cursor-ns-resize"
-                         onPointerDown={(e) => startCropDrag(e, "bottom")} />
-                    <div className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-8 bg-white/80 rounded cursor-ew-resize"
-                         onPointerDown={(e) => startCropDrag(e, "left")} />
-                    <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-8 bg-white/80 rounded cursor-ew-resize"
-                         onPointerDown={(e) => startCropDrag(e, "right")} />
+                  {/* Crop border. The interior captures pointer-events for dragging the
+                      whole box. Handles are wrapped in 44x44 invisible touch targets so
+                      thumbs can grab them on mobile. */}
+                  <div
+                    className="absolute border-2 border-white cursor-move"
+                    style={{ top: by, left: bx, width: bw, height: bh, pointerEvents: "auto", touchAction: "none" }}
+                    onPointerDown={(e) => {
+                      // Only start move-drag if user touched the interior (not a handle)
+                      if ((e.target as HTMLElement).dataset.handle) return;
+                      startCropDrag(e, "move");
+                    }}
+                  >
+                    {/* Corner handles — 44x44 hit area, small white L visual on top */}
+                    {([
+                      { edge: "top-left", pos: "-top-6 -left-6", inner: "top-4 left-4 border-t-[3px] border-l-[3px] rounded-tl", cursor: "cursor-nwse-resize" },
+                      { edge: "top-right", pos: "-top-6 -right-6", inner: "top-4 right-4 border-t-[3px] border-r-[3px] rounded-tr", cursor: "cursor-nesw-resize" },
+                      { edge: "bottom-left", pos: "-bottom-6 -left-6", inner: "bottom-4 left-4 border-b-[3px] border-l-[3px] rounded-bl", cursor: "cursor-nesw-resize" },
+                      { edge: "bottom-right", pos: "-bottom-6 -right-6", inner: "bottom-4 right-4 border-b-[3px] border-r-[3px] rounded-br", cursor: "cursor-nwse-resize" },
+                    ] as const).map((c) => (
+                      <div
+                        key={c.edge}
+                        data-handle="1"
+                        className={cn("absolute w-11 h-11", c.pos, c.cursor)}
+                        style={{ touchAction: "none" }}
+                        onPointerDown={(e) => startCropDrag(e, c.edge)}
+                      >
+                        <span aria-hidden className={cn("absolute w-5 h-5 border-white", c.inner)} />
+                      </div>
+                    ))}
+
+                    {/* Edge handles — 44px hit area, slim white bar visual */}
+                    <div
+                      data-handle="1"
+                      className="absolute -top-6 left-1/2 -translate-x-1/2 w-16 h-10 cursor-ns-resize flex items-center justify-center"
+                      style={{ touchAction: "none" }}
+                      onPointerDown={(e) => startCropDrag(e, "top")}
+                    >
+                      <span aria-hidden className="w-10 h-1.5 bg-white/90 rounded" />
+                    </div>
+                    <div
+                      data-handle="1"
+                      className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-16 h-10 cursor-ns-resize flex items-center justify-center"
+                      style={{ touchAction: "none" }}
+                      onPointerDown={(e) => startCropDrag(e, "bottom")}
+                    >
+                      <span aria-hidden className="w-10 h-1.5 bg-white/90 rounded" />
+                    </div>
+                    <div
+                      data-handle="1"
+                      className="absolute top-1/2 -left-6 -translate-y-1/2 h-16 w-10 cursor-ew-resize flex items-center justify-center"
+                      style={{ touchAction: "none" }}
+                      onPointerDown={(e) => startCropDrag(e, "left")}
+                    >
+                      <span aria-hidden className="h-10 w-1.5 bg-white/90 rounded" />
+                    </div>
+                    <div
+                      data-handle="1"
+                      className="absolute top-1/2 -right-6 -translate-y-1/2 h-16 w-10 cursor-ew-resize flex items-center justify-center"
+                      style={{ touchAction: "none" }}
+                      onPointerDown={(e) => startCropDrag(e, "right")}
+                    >
+                      <span aria-hidden className="h-10 w-1.5 bg-white/90 rounded" />
+                    </div>
                   </div>
                 </div>
               );
@@ -639,7 +688,7 @@ export function PhotoEditor({
           </Button>
         ) : (
           <p className="text-[11px] text-center text-muted-foreground">
-            {tool === "crop" ? "Arraste as bordas para ajustar o recorte"
+            {tool === "crop" ? "Arraste as bordas/cantos pra redimensionar · arraste o meio pra mover"
               : tool === "blur" ? "Arraste para borrar a area selecionada"
               : tool === "pencil" ? "Pinte sobre a area que deseja cobrir"
               : "Pinte sobre o fundo para apaga-lo (branco)"}

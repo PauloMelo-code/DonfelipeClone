@@ -241,16 +241,26 @@ export default function VeiculosPage() {
     fetchVehicles();
   }, [fetchVehicles]);
 
-  // Auto-select region groups based on the publishVehicle's state once targetGroups load
+  // Auto-select region groups based on the vehicle's state OR source group region.
+  // If neither is detected, leave ALL groups unmarked (user must opt in explicitly).
   useEffect(() => {
-    if (publishVehicle?.state && targetGroups.length > 0) {
-      const regionGroups = targetGroups.filter((g) => g.region === publishVehicle.state);
-      if (regionGroups.length > 0) {
-        setSelectedGroupIds(regionGroups.map((g) => g.groupId));
-        setExpandedRegions(new Set([publishVehicle.state]));
-      }
+    if (!publishVehicle || targetGroups.length === 0) return;
+    const effectiveRegion =
+      publishVehicle.state ||
+      publishVehicle.sourceGroup?.region ||
+      null;
+    if (effectiveRegion) {
+      const regionGroups = targetGroups.filter((g) => g.region === effectiveRegion);
+      // Even if no matching destination groups for this region, leave selection
+      // empty rather than auto-selecting all — operator must choose consciously.
+      setSelectedGroupIds(regionGroups.map((g) => g.groupId));
+      setExpandedRegions(new Set([effectiveRegion]));
+    } else {
+      // No region detected → unmark everything, expand nothing
+      setSelectedGroupIds([]);
+      setExpandedRegions(new Set());
     }
-  }, [publishVehicle?.id, publishVehicle?.state, targetGroups]);
+  }, [publishVehicle?.id, publishVehicle?.state, publishVehicle?.sourceGroup?.region, targetGroups]);
 
   const toggleBatchSelect = (id: string) => {
     setBatchSelected((prev) => {
@@ -537,12 +547,13 @@ export default function VeiculosPage() {
       ? Math.round(((vehicle.sellingPrice / vehicle.price) - 1) * 100)
       : 10;
     setMargin(existingMargin);
+    // Start empty — useEffect picks groups by region automatically.
+    setSelectedGroupIds([]);
     try {
       const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
       if (res.ok) {
         const groups: WhatsAppGroup[] = await res.json();
         setTargetGroups(groups);
-        setSelectedGroupIds(groups.map((g) => g.groupId));
       }
     } catch {
       setTargetGroups([]);
@@ -554,13 +565,16 @@ export default function VeiculosPage() {
     setPublishVehicle(vehicle);
     setEditedPhotos({});
     setPublishTab("photo");
+    // Start with empty selection — the auto-select-by-region useEffect picks
+    // the right groups once both vehicle and targetGroups are loaded. If no
+    // region is detected, selection stays empty (operator chooses manually).
+    setSelectedGroupIds([]);
     // Fetch target groups
     try {
       const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
       if (res.ok) {
         const groups: WhatsAppGroup[] = await res.json();
         setTargetGroups(groups);
-        setSelectedGroupIds(groups.map((g) => g.groupId));
       }
     } catch {
       setTargetGroups([]);
@@ -1201,15 +1215,40 @@ export default function VeiculosPage() {
         <DialogContent showCloseButton={false} className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-3xl sm:rounded-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 h-full sm:h-auto">
           <div className="flex flex-col h-full sm:max-h-[90vh]">
             {/* Header */}
-            <div className="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
-              <div>
+            <div className="px-5 py-3.5 border-b border-white/10 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-foreground">{republishMode ? "Reenviar veiculo" : "Publicar veiculo"}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
                   {publishVehicle?.brand && `${publishVehicle.brand} `}{publishVehicle?.model}
                   {publishVehicle && ` \u00B7 ${formatPrice(publishVehicle.price)} (custo)`}
                 </p>
+                {/* Source origin chip \u2014 group/community/region the car came from */}
+                {publishVehicle && (publishVehicle.sourceGroup || publishVehicle.state) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    {publishVehicle.sourceGroup && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] border border-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-[260px]"
+                        title={publishVehicle.sourceGroup.name}
+                      >
+                        <span className="shrink-0">
+                          {publishVehicle.sourceGroup.isAnnounce ? "\uD83D\uDCE1"
+                            : publishVehicle.sourceGroup.isCommunity ? "\uD83C\uDFD8\uFE0F"
+                            : publishVehicle.sourceGroup.groupId.endsWith("@broadcast") ? "\uD83D\uDCE2"
+                            : publishVehicle.sourceGroup.groupId.endsWith("@s.whatsapp.net") ? "\uD83D\uDC64"
+                            : "\uD83D\uDC65"}
+                        </span>
+                        <span className="truncate">{publishVehicle.sourceGroup.name}</span>
+                      </span>
+                    )}
+                    {(publishVehicle.state || publishVehicle.sourceGroup?.region) && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-cugini-orange/10 border border-cugini-orange/30 px-1.5 py-0.5 text-[11px] font-semibold text-cugini-orange uppercase tracking-wide">
+                        \uD83D\uDCCD {publishVehicle.state || publishVehicle.sourceGroup?.region}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              <button onClick={handleClosePublishModal} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={handleClosePublishModal} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
                 <X className="h-5 w-5" />
               </button>
             </div>
