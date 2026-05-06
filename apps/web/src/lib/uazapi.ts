@@ -82,7 +82,12 @@ class UazapiClient {
 
       this._client = axios.create({
         baseURL,
-        timeout: 30_000,
+        // Default 90s — media uploads with base64 photos can take 30-60s
+        // depending on UAZAPI processing. Was 30s, often hit timeout.
+        timeout: 90_000,
+        // Allow large base64 payloads (~10MB worst-case for HD photos).
+        maxBodyLength: 20 * 1024 * 1024,
+        maxContentLength: 20 * 1024 * 1024,
         headers: {
           "Content-Type": "application/json",
           token,
@@ -109,13 +114,51 @@ class UazapiClient {
   }
 
   async sendText(payload: SendTextPayload): Promise<SendResult> {
-    const { data } = await this.client.post<SendResult>("/send/text", payload);
-    return data;
+    try {
+      const { data } = await this.client.post<SendResult>("/send/text", payload);
+      return data;
+    } catch (err) {
+      throw this.normalizeError(err, "sendText");
+    }
   }
 
   async sendMedia(payload: SendMediaPayload): Promise<SendResult> {
-    const { data } = await this.client.post<SendResult>("/send/media", payload);
-    return data;
+    try {
+      // Media payloads can be 5-10MB base64 — give them up to 3min.
+      const { data } = await this.client.post<SendResult>("/send/media", payload, {
+        timeout: 180_000,
+      });
+      return data;
+    } catch (err) {
+      throw this.normalizeError(err, "sendMedia");
+    }
+  }
+
+  /**
+   * Convert axios errors into Error objects whose message includes the UAZAPI
+   * response body. Without this, we just get "Request failed with status code"
+   * with no clue what UAZAPI complained about.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private normalizeError(err: any, op: string): Error {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const body = err.response?.data;
+      const apiMsg =
+        (typeof body === "string" ? body : body?.error || body?.message || body?.detail) ?? null;
+      const detail = apiMsg
+        ? `${op} HTTP ${status ?? "?"}: ${typeof apiMsg === "string" ? apiMsg : JSON.stringify(apiMsg).slice(0, 300)}`
+        : err.code === "ECONNABORTED"
+          ? `${op} timeout (${err.config?.timeout ?? "?"}ms) — payload muito grande ou UAZAPI lenta`
+          : `${op} ${err.message}`;
+      console.error(`[UAZAPI:${this.label}] ${detail}`, {
+        url: err.config?.url,
+        status,
+        bodyKeys: body && typeof body === "object" ? Object.keys(body) : undefined,
+      });
+      return new Error(detail);
+    }
+    return err instanceof Error ? err : new Error(String(err));
   }
 
   async sendPresence(payload: SendPresencePayload): Promise<void> {

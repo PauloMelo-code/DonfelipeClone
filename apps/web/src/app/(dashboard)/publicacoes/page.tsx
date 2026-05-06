@@ -278,7 +278,12 @@ export default function PublicacoesPage() {
                                 <XCircle className="h-3 w-3" />Falha
                               </Badge>
                               {post.errorMessage && (
-                                <span className="text-[10px] text-destructive/70 max-w-[120px] truncate">{post.errorMessage}</span>
+                                <span
+                                  className="text-[10px] text-destructive/70 max-w-[180px] truncate cursor-help"
+                                  title={post.errorMessage}
+                                >
+                                  {post.errorMessage}
+                                </span>
                               )}
                             </div>
                           )}
