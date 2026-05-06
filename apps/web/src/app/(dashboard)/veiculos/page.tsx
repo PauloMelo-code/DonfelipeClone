@@ -1529,31 +1529,36 @@ export default function VeiculosPage() {
                       const allSelected = selectedCount === groups.length;
                       const someSelected = selectedCount > 0 && !allSelected;
                       const expanded = expandedRegions.has(region);
+                      // Strip redundant "(SC)" / "[SC]" from group name when shown inside its region accordion
+                      const trimName = (name: string) =>
+                        name.replace(new RegExp(`\\s*[\\(\\[]${region}[\\)\\]]\\s*`, "i"), " ").replace(/\s+/g, " ").trim();
                       return (
                         <div key={region} className="border border-border rounded-xl overflow-hidden">
                           <button
                             onClick={() => toggleRegion(region)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 hover:bg-white/[0.02] transition-colors min-h-[48px] sm:min-h-0"
                           >
                             <div className={cn(
-                              "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                              "h-5 w-5 sm:h-4 sm:w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                               allSelected ? "bg-cugini-orange border-cugini-orange" : someSelected ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
                             )}>
-                              {(allSelected || someSelected) && <Check className="h-2.5 w-2.5 text-white" />}
+                              {(allSelected || someSelected) && <Check className="h-3 w-3 sm:h-2.5 sm:w-2.5 text-white" />}
                             </div>
                             <span className="text-sm font-medium flex-1 text-left">{region}</span>
                             <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
                             <button
                               onClick={(e) => { e.stopPropagation(); setExpandedRegions(prev => { const n = new Set(prev); if (n.has(region)) n.delete(region); else n.add(region); return n; }); }}
-                              className="p-1 hover:bg-white/[0.05] rounded"
+                              className="p-2 sm:p-1 hover:bg-white/[0.05] rounded -mr-1"
+                              aria-label={expanded ? "Recolher" : "Expandir"}
                             >
-                              <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                              <ChevronDown className={cn("h-4 w-4 sm:h-3.5 sm:w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
                             </button>
                           </button>
                           {expanded && (
-                            <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                            <div className="px-3 sm:px-4 pb-3 flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-1.5">
                               {groups.map(group => {
                                 const selected = selectedGroupIds.includes(group.groupId);
+                                const displayName = trimName(group.name);
                                 return (
                                   <button
                                     key={group.id}
@@ -1562,14 +1567,14 @@ export default function VeiculosPage() {
                                       else setSelectedGroupIds(p => [...p, group.groupId]);
                                     }}
                                     className={cn(
-                                      "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                                      "flex items-center gap-2 sm:gap-1.5 rounded-lg px-3 sm:px-2.5 py-2.5 sm:py-1 text-sm sm:text-xs border transition-all w-full sm:w-auto min-h-[44px] sm:min-h-0",
                                       selected ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange" : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
                                     )}
                                   >
-                                    <div className={cn("h-3 w-3 rounded border flex items-center justify-center", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
-                                      {selected && <Check className="h-2 w-2 text-white" />}
+                                    <div className={cn("h-4 w-4 sm:h-3 sm:w-3 rounded border flex items-center justify-center shrink-0", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
+                                      {selected && <Check className="h-2.5 w-2.5 sm:h-2 sm:w-2 text-white" />}
                                     </div>
-                                    {group.name}
+                                    <span className="truncate text-left flex-1">{displayName}</span>
                                   </button>
                                 );
                               })}
@@ -2027,31 +2032,35 @@ export default function VeiculosPage() {
                           const allSelected = selectedCount === groups.length;
                           const someSelected = selectedCount > 0 && !allSelected;
                           const expanded = expandedRegions.has(region);
+                          const trimName = (name: string) =>
+                            name.replace(new RegExp(`\\s*[\\(\\[]${region}[\\)\\]]\\s*`, "i"), " ").replace(/\s+/g, " ").trim();
                           return (
                             <div key={region} className="border border-border rounded-xl overflow-hidden">
                               <button
                                 onClick={() => toggleRegionById(region)}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+                                className="w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 hover:bg-white/[0.02] transition-colors min-h-[48px] sm:min-h-0"
                               >
                                 <div className={cn(
-                                  "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                                  "h-5 w-5 sm:h-4 sm:w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                                   allSelected ? "bg-cugini-orange border-cugini-orange" : someSelected ? "bg-cugini-orange/50 border-cugini-orange" : "border-muted-foreground/30"
                                 )}>
-                                  {(allSelected || someSelected) && <Check className="h-2.5 w-2.5 text-white" />}
+                                  {(allSelected || someSelected) && <Check className="h-3 w-3 sm:h-2.5 sm:w-2.5 text-white" />}
                                 </div>
                                 <span className="text-sm font-medium flex-1 text-left">{region}</span>
                                 <span className="text-xs text-muted-foreground">{selectedCount}/{groups.length}</span>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setExpandedRegions(prev => { const n = new Set(prev); if (n.has(region)) n.delete(region); else n.add(region); return n; }); }}
-                                  className="p-1 hover:bg-white/[0.05] rounded"
+                                  className="p-2 sm:p-1 hover:bg-white/[0.05] rounded -mr-1"
+                                  aria-label={expanded ? "Recolher" : "Expandir"}
                                 >
-                                  <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+                                  <ChevronDown className={cn("h-4 w-4 sm:h-3.5 sm:w-3.5 text-muted-foreground transition-transform", expanded && "rotate-180")} />
                                 </button>
                               </button>
                               {expanded && (
-                                <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+                                <div className="px-3 sm:px-4 pb-3 flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-1.5">
                                   {groups.map(group => {
                                     const selected = selectedGroupIds.includes(group.id);
+                                    const displayName = trimName(group.name);
                                     return (
                                       <button
                                         key={group.id}
@@ -2060,14 +2069,14 @@ export default function VeiculosPage() {
                                           else setSelectedGroupIds(p => [...p, group.id]);
                                         }}
                                         className={cn(
-                                          "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border transition-all",
+                                          "flex items-center gap-2 sm:gap-1.5 rounded-lg px-3 sm:px-2.5 py-2.5 sm:py-1 text-sm sm:text-xs border transition-all w-full sm:w-auto min-h-[44px] sm:min-h-0",
                                           selected ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange" : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
                                         )}
                                       >
-                                        <div className={cn("h-3 w-3 rounded border flex items-center justify-center", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
-                                          {selected && <Check className="h-2 w-2 text-white" />}
+                                        <div className={cn("h-4 w-4 sm:h-3 sm:w-3 rounded border flex items-center justify-center shrink-0", selected ? "bg-cugini-orange border-cugini-orange" : "border-muted-foreground/30")}>
+                                          {selected && <Check className="h-2.5 w-2.5 sm:h-2 sm:w-2 text-white" />}
                                         </div>
-                                        {group.name}
+                                        <span className="truncate text-left flex-1">{displayName}</span>
                                       </button>
                                     );
                                   })}
