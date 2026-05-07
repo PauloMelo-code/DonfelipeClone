@@ -613,17 +613,12 @@ export default function VeiculosPage() {
 
   const handleMarginChange = (newMargin: number) => {
     setMargin(newMargin);
-    if (!publishVehicle) return;
-    // Preserva edicoes manuais: so regenera o texto se o conteudo atual ainda
-    // for o auto-gerado (com a margem anterior). Se o operador editou
-    // manualmente, mantem o texto dele intocado -- senao perde a edicao
-    // toda vez que arrasta o slider de margem.
-    const previousAutoText = getAdText(publishVehicle, margin);
-    if (editedAd === previousAutoText) {
+    if (publishVehicle) {
+      // Margem regenera o texto inteiro (comportamento esperado, descrito no
+      // hint do modal). Se o operador quiser editar manualmente o texto, deve
+      // ajustar a margem PRIMEIRO e editar depois.
       setEditedAd(getAdText(publishVehicle, newMargin));
     }
-    // Caso contrario: texto foi editado a mao, deixa como esta. O preco final
-    // continua sendo recalculado no submit a partir da nova margem.
   };
 
   const toggleGroupSelection = (groupId: string) => {
