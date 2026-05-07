@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown } from "lucide-react";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -48,6 +49,71 @@ export default function ConfiguracoesPage() {
   const [waSendStatusLoading, setWaSendStatusLoading] = useState(true);
   const [sendQrCode, setSendQrCode] = useState<string | null>(null);
   const [sendQrLoading, setSendQrLoading] = useState(false);
+
+  // Reset vehicles state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPreview, setResetPreview] = useState<{
+    keepFrom: string;
+    wouldDelete: { vehicles: number; postHistory: number; auditLogs: number; mediaFiles: number };
+    kept: { vehicles: number };
+  } | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+
+  const handleOpenReset = async () => {
+    setResetting(true);
+    setResetPreview(null);
+    setResetConfirmText("");
+    setShowResetModal(true);
+    try {
+      const res = await fetch("/api/admin/reset-vehicles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetPreview(data);
+      } else {
+        toast.error(data.error || "Erro ao calcular preview");
+        setShowResetModal(false);
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+      setShowResetModal(false);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    if (resetConfirmText !== "RESETAR") {
+      toast.error('Digite "RESETAR" para confirmar');
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await fetch("/api/admin/reset-vehicles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(
+          `${data.deleted.vehicles} veiculos apagados. ${data.kept.vehicles} mantidos.`,
+          { duration: 8000 }
+        );
+        setShowResetModal(false);
+      } else {
+        toast.error(data.error || "Erro ao resetar");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const fetchWaStatus = useCallback(async () => {
     setWaStatusLoading(true);
@@ -651,7 +717,106 @@ export default function ConfiguracoesPage() {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar Configuracoes
         </Button>
+
+        {/* Zona perigosa */}
+        <div className="glass rounded-xl p-5 space-y-3 border border-destructive/20 mt-8">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h3 className="text-sm font-semibold text-destructive">Zona perigosa</h3>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Resetar veiculos antigos</p>
+            <p className="text-xs text-muted-foreground">
+              Apaga todos os veiculos capturados ANTES de hoje (00:00). Mantem so os carros do dia.
+              Tambem limpa historico de publicacoes, audit logs e media files orfaos relacionados.
+              Acao irreversivel.
+            </p>
+            <Button
+              variant="outline"
+              onClick={handleOpenReset}
+              disabled={resetting}
+              className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            >
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Resetar veiculos antigos
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* Modal de confirmacao do reset */}
+      <Dialog open={showResetModal} onOpenChange={(open) => { if (!resetting) setShowResetModal(open); }}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Resetar veiculos antigos
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {!resetPreview ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="rounded-lg border border-border p-3 text-xs space-y-1">
+                  <p className="text-muted-foreground">
+                    Apagando capturas ate <span className="font-mono">{new Date(resetPreview.keepFrom).toLocaleString("pt-BR")}</span>
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Sera apagado</p>
+                  <ul className="text-sm space-y-0.5 mt-2">
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.vehicles}</span> veiculos</li>
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.postHistory}</span> registros de publicacao</li>
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.auditLogs}</span> audit logs</li>
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.mediaFiles}</span> arquivos de media</li>
+                  </ul>
+                </div>
+
+                <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-success uppercase tracking-wide">Sera mantido</p>
+                  <p className="text-sm">
+                    <span className="font-bold text-success">{resetPreview.kept.vehicles}</span> veiculos (capturados hoje)
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">
+                    Pra confirmar, digite <span className="font-mono font-semibold text-destructive">RESETAR</span>:
+                  </Label>
+                  <Input
+                    value={resetConfirmText}
+                    onChange={(e) => setResetConfirmText(e.target.value)}
+                    placeholder="RESETAR"
+                    className="bg-background border-border"
+                    disabled={resetting}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowResetModal(false)}
+              disabled={resetting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmReset}
+              disabled={resetting || !resetPreview || resetConfirmText !== "RESETAR"}
+              className="gap-2 bg-destructive text-white hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Apagar definitivamente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
