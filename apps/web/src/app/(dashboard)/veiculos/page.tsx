@@ -254,16 +254,25 @@ export default function VeiculosPage() {
       publishVehicle.state ||
       publishVehicle.sourceGroup?.region ||
       null;
+
+    // Restore "Enviar para" section open/closed preference from localStorage.
+    // Default is collapsed so foto/preview fica em destaque na tela pequena.
+    let sectionOpen = false;
+    try {
+      sectionOpen = localStorage.getItem("cugini_groups_section_open") === "1";
+    } catch { /* storage unavailable */ }
+
     if (effectiveRegion) {
       const regionGroups = targetGroups.filter((g) => g.region === effectiveRegion);
-      // Even if no matching destination groups for this region, leave selection
-      // empty rather than auto-selecting all — operator must choose consciously.
       setSelectedGroupIds(regionGroups.map((g) => g.groupId));
-      setExpandedRegions(new Set([effectiveRegion]));
+      const next = new Set([effectiveRegion]);
+      if (sectionOpen) next.add("__groups_section");
+      setExpandedRegions(next);
     } else {
-      // No region detected → unmark everything, expand nothing
       setSelectedGroupIds([]);
-      setExpandedRegions(new Set());
+      const next = new Set<string>();
+      if (sectionOpen) next.add("__groups_section");
+      setExpandedRegions(next);
     }
   }, [publishVehicle?.id, publishVehicle?.state, publishVehicle?.sourceGroup?.region, targetGroups]);
 
@@ -1499,24 +1508,31 @@ export default function VeiculosPage() {
                 </div>
               </div>
 
-              {/* Group selection — collapsible on mobile */}
+              {/* Group selection — collapsible on every screen size so foto fica visivel */}
               <div className="px-5 py-3 flex-1 overflow-y-auto min-h-0">
                 <button
                   onClick={() => setExpandedRegions((prev) => {
                     const n = new Set(prev);
                     if (n.has("__groups_section")) n.delete("__groups_section");
                     else n.add("__groups_section");
+                    // Persist user preference across modals/sessions
+                    try {
+                      localStorage.setItem(
+                        "cugini_groups_section_open",
+                        n.has("__groups_section") ? "1" : "0"
+                      );
+                    } catch { /* storage unavailable */ }
                     return n;
                   })}
-                  className="w-full flex items-center gap-2 mb-2 sm:pointer-events-none"
+                  className="w-full flex items-center gap-2 mb-2 hover:bg-white/[0.02] rounded-lg -mx-1 px-1 py-1 transition-colors"
                 >
                   <Users className="h-4 w-4 text-cugini-orange flex-shrink-0" />
                   <span className="text-xs text-muted-foreground">Enviar para:</span>
                   <span className="text-xs font-medium text-cugini-orange">{selectedGroupIds.length} grupo{selectedGroupIds.length !== 1 ? "s" : ""}</span>
                   <div className="flex-1" />
-                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform sm:hidden", expandedRegions.has("__groups_section") && "rotate-180")} />
+                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expandedRegions.has("__groups_section") && "rotate-180")} />
                 </button>
-                <div className={cn("sm:block", expandedRegions.has("__groups_section") ? "block" : "hidden sm:block")}>
+                <div className={cn(expandedRegions.has("__groups_section") ? "block" : "hidden")}>
                 {targetGroups.length === 0 ? (
                   <p className="text-xs text-muted-foreground/60 pl-6">
                     Nenhum grupo destino configurado
