@@ -98,20 +98,86 @@ class UazapiClient {
   }
 
   async listGroups(force?: boolean): Promise<GroupInfo[]> {
+    // Don't pass noparticipants — some UAZAPI builds strip metadata (incl.
+    // group name) when participants are excluded.
     const { data } = await this.client.get("/group/list", {
-      params: { force: force ?? false, noparticipants: true },
+      params: { force: force ?? false },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = Array.isArray(data) ? data : data?.groups ?? [];
+
+    // Log shape of the first item once per process to help diagnose missing
+    // fields when names come back empty
+    if (raw.length > 0 && !UazapiClient.loggedShape.has(this.label)) {
+      UazapiClient.loggedShape.add(this.label);
+      const sample = raw[0];
+      console.log(
+        `[UAZAPI:${this.label}] /group/list sample fields:`,
+        Object.keys(sample || {}).join(", ")
+      );
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pick = (g: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const v = g?.[k];
+        if (v != null && v !== "") return v;
+      }
+      return undefined;
+    };
+
     return raw.map((g) => ({
-      id: g.JID || g.id || "",
-      subject: g.Name || g.subject || "",
-      size: g.Size || g.size || 0,
-      creation: g.Creation || g.creation || 0,
-      owner: g.OwnerJID || g.owner || "",
-      profilePictureUrl: g.profilePictureUrl || g.ProfilePictureUrl || undefined,
+      id: pick(g, "JID", "id", "jid", "Id", "groupId", "GroupJID") ?? "",
+      subject:
+        pick(
+          g,
+          "Name",
+          "name",
+          "subject",
+          "Subject",
+          "groupSubject",
+          "GroupSubject",
+          "groupName",
+          "GroupName",
+          "Title",
+          "title"
+        ) ?? "",
+      size: pick(g, "Size", "size", "participantCount") ?? 0,
+      creation: pick(g, "Creation", "creation", "createdAt") ?? 0,
+      owner: pick(g, "OwnerJID", "owner", "Owner") ?? "",
+      profilePictureUrl: pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl"),
     }));
   }
+
+  /** Fetch full group metadata (incl. subject) for a single JID. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getGroupInfo(groupJid: string): Promise<{ subject?: string; profilePictureUrl?: string } | null> {
+    // Try common UAZAPI endpoint shapes for group info
+    const candidates = [
+      { method: "post" as const, url: "/group/info", body: { groupjid: groupJid } },
+      { method: "post" as const, url: "/group/info", body: { jid: groupJid } },
+      { method: "get" as const, url: "/group/info", params: { groupjid: groupJid } },
+      { method: "get" as const, url: `/group/${encodeURIComponent(groupJid)}` },
+    ];
+    for (const c of candidates) {
+      try {
+        const res = c.method === "post"
+          ? await this.client.post(c.url, c.body)
+          : await this.client.get(c.url, { params: c.params });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const d: any = res.data;
+        const subject = d?.Name || d?.name || d?.subject || d?.Subject || d?.groupSubject;
+        if (subject) return { subject, profilePictureUrl: d?.profilePictureUrl };
+      } catch {
+        // try next candidate
+      }
+    }
+    return null;
+  }
+
+  // Track which instance has already logged its sample shape
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private static loggedShape = new Set<string>();
 
   async sendText(payload: SendTextPayload): Promise<SendResult> {
     try {
