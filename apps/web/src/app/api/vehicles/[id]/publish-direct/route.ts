@@ -37,6 +37,15 @@ export async function POST(
   try {
     const body = await request.json().catch(() => ({}));
     const requestedGroupIds: string[] | undefined = Array.isArray(body?.targetGroupIds) ? body.targetGroupIds : undefined;
+    // Modal envia o texto/preco editados. Se vierem, usamos eles em vez de
+    // regenerar do rawDescription -- senao a edicao manual era perdida.
+    const userEditedAd: string | undefined = typeof body?.formattedAd === "string" && body.formattedAd.trim()
+      ? body.formattedAd
+      : undefined;
+    const userEditedPrice: number | undefined = typeof body?.sellingPrice === "number" && body.sellingPrice > 0
+      ? body.sellingPrice
+      : undefined;
+
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
@@ -77,11 +86,14 @@ export async function POST(
         if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) effectiveMargin = 0;
       }
 
-      sellingPrice = vehicle.price * (1 + effectiveMargin / 100);
+      // Preco: usa o editado pelo operador no modal se vier, senao calcula da margem
+      sellingPrice = userEditedPrice ?? vehicle.price * (1 + effectiveMargin / 100);
+
       let features: string[] = [];
       try { features = JSON.parse(vehicle.features || "[]"); } catch {}
 
-      formattedAd = formatVehicleAd({
+      // Texto: usa o editado pelo operador se vier, senao gera do rawDescription
+      formattedAd = userEditedAd ?? formatVehicleAd({
         model: vehicle.model, brand: vehicle.brand, year: vehicle.year,
         yearModel: vehicle.yearModel, km: vehicle.km, price: vehicle.price,
         fipePrice, transmission: vehicle.transmission, fuel: vehicle.fuel,
@@ -93,9 +105,20 @@ export async function POST(
         data: { status: "APPROVED", sellingPrice, formattedAd, fipePrice, approvedAt: new Date() },
       });
     } else {
-      // Vehicle already APPROVED — pull existing ad/price for publishVehicle
-      formattedAd = vehicle.formattedAd ?? undefined;
-      sellingPrice = vehicle.sellingPrice ?? undefined;
+      // Vehicle already APPROVED -- usa edits do body se vieram, senao pega do DB
+      formattedAd = userEditedAd ?? vehicle.formattedAd ?? undefined;
+      sellingPrice = userEditedPrice ?? vehicle.sellingPrice ?? undefined;
+
+      // Se houve edicao no modal, persiste no DB pra ficar consistente
+      if (userEditedAd || userEditedPrice) {
+        await prisma.vehicle.update({
+          where: { id },
+          data: {
+            ...(userEditedAd ? { formattedAd: userEditedAd } : {}),
+            ...(userEditedPrice ? { sellingPrice: userEditedPrice } : {}),
+          },
+        });
+      }
     }
 
     // Selecionar grupos destino: usar requestedGroupIds se fornecido, senao auto-selecionar por estado
