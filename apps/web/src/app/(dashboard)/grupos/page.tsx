@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -221,6 +221,25 @@ export default function GruposPage() {
     }
   };
 
+  const [testingGroupId, setTestingGroupId] = useState<string | null>(null);
+
+  const handleTestSend = async (group: Group) => {
+    setTestingGroupId(group.id);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/test-send`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`✓ ${group.name}: enviou em ${data.durationMs}ms`, { duration: 6000 });
+      } else {
+        toast.error(`✗ ${group.name}: ${data.error || "erro desconhecido"}`, { duration: 12000 });
+      }
+    } catch (e) {
+      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`, { duration: 8000 });
+    } finally {
+      setTestingGroupId(null);
+    }
+  };
+
   // Convert a "phone@broadcast" entry (incorrectly constructed) into a proper
   // individual DM (@s.whatsapp.net). Recreates the entry since groupId is unique.
   const handleConvertToDM = async (group: Group) => {
@@ -381,6 +400,16 @@ export default function GruposPage() {
           checked={group.active}
           onCheckedChange={() => handleToggle(group, "active")}
         />
+        {group.role === "TARGET" && (
+          <button
+            onClick={() => handleTestSend(group)}
+            disabled={testingGroupId === group.id}
+            className="p-1 rounded text-muted-foreground/40 hover:text-cugini-orange hover:bg-cugini-orange/10 transition-colors disabled:opacity-40"
+            title="Testar envio (manda mensagem curta pra esse destino)"
+          >
+            {testingGroupId === group.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+          </button>
+        )}
         <button
           onClick={() => handleDelete(group)}
           className="p-1 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
