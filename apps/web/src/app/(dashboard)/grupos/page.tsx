@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -222,6 +222,35 @@ export default function GruposPage() {
   };
 
   const [testingGroupId, setTestingGroupId] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [membershipReport, setMembershipReport] = useState<{
+    usingSeparateInstance: boolean;
+    sendInstanceLabel: string;
+    sendInstanceTotalGroups: number;
+    totalTargetGroups: number;
+    problemCount: number;
+    groups: Array<{ id: string; groupId: string; name: string; region: string | null; problem: string | null; inSendInstance: boolean; isDM: boolean }>;
+  } | null>(null);
+  const [showMembershipModal, setShowMembershipModal] = useState(false);
+
+  const handleVerifyMembership = async () => {
+    setVerifying(true);
+    try {
+      const res = await fetch("/api/groups/verify-send-membership");
+      if (res.ok) {
+        const data = await res.json();
+        setMembershipReport(data);
+        setShowMembershipModal(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao verificar");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleTestSend = async (group: Group) => {
     setTestingGroupId(group.id);
@@ -452,6 +481,20 @@ export default function GruposPage() {
             Adicionar manual
           </Button>
           <Button
+            variant="outline"
+            onClick={handleVerifyMembership}
+            disabled={verifying}
+            className="gap-2 border-border"
+            title="Verifica se a instancia de envio e membro de cada grupo destino"
+          >
+            {verifying ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            Verificar acesso
+          </Button>
+          <Button
             onClick={handleSync}
             disabled={syncing}
             className="gap-2 gradient-orange text-white"
@@ -464,6 +507,82 @@ export default function GruposPage() {
             Sincronizar UAZAPI
           </Button>
         </div>
+
+        {/* Modal de verificação de acesso da instância de envio */}
+        <Dialog open={showMembershipModal} onOpenChange={setShowMembershipModal}>
+          <DialogContent className="sm:max-w-2xl bg-card border-border max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Verificação de acesso · envio</DialogTitle>
+            </DialogHeader>
+            {membershipReport && (
+              <div className="space-y-4 pt-2">
+                <div className="rounded-lg border border-border p-3 text-xs space-y-1">
+                  <p>
+                    Instância de envio: <span className="font-mono text-cugini-orange">{membershipReport.sendInstanceLabel}</span>
+                    {!membershipReport.usingSeparateInstance && <span className="text-muted-foreground"> (usando fallback de captura)</span>}
+                  </p>
+                  <p>
+                    Grupos visíveis pra instância de envio: <span className="font-medium">{membershipReport.sendInstanceTotalGroups}</span>
+                  </p>
+                  <p>
+                    Grupos destino cadastrados: <span className="font-medium">{membershipReport.totalTargetGroups}</span>
+                  </p>
+                  {membershipReport.problemCount > 0 ? (
+                    <p className="text-destructive font-semibold flex items-center gap-1.5 pt-1">
+                      <ShieldAlert className="h-4 w-4" />
+                      {membershipReport.problemCount} grupo(s) onde a instância de envio NÃO é membro
+                    </p>
+                  ) : (
+                    <p className="text-success font-semibold flex items-center gap-1.5 pt-1">
+                      <ShieldCheck className="h-4 w-4" />
+                      Tudo certo: instância de envio é membro de todos os destinos
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  {membershipReport.groups.map((g) => (
+                    <div
+                      key={g.id}
+                      className={cn(
+                        "rounded-lg border p-2.5 flex items-start gap-2",
+                        g.problem ? "border-destructive/30 bg-destructive/5" : "border-border bg-card/50"
+                      )}
+                    >
+                      {g.problem ? (
+                        <ShieldAlert className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4 text-success shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">
+                          {g.name}
+                          {g.region && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-cugini-orange">{g.region}</span>}
+                          {g.isDM && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">DM</span>}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 truncate font-mono">{g.groupId}</p>
+                        {g.problem && (
+                          <p className="text-xs text-destructive mt-1">{g.problem}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {membershipReport.problemCount > 0 && (
+                  <div className="rounded-lg border border-cugini-orange/30 bg-cugini-orange/5 p-3 text-xs space-y-2">
+                    <p className="font-semibold text-cugini-orange">Como resolver:</p>
+                    <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
+                      <li>Pegue o número da instância de envio (geralmente o WhatsApp Y configurado em UAZAPI_SEND).</li>
+                      <li>Adicione esse número como participante em cada grupo listado acima dentro do WhatsApp.</li>
+                      <li>Após adicionar, clique em &quot;Sincronizar UAZAPI&quot; e depois em &quot;Verificar acesso&quot; novamente.</li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Modal adicionar número manual */}
         <Dialog open={showAddModal} onOpenChange={(open) => { setShowAddModal(open); if (!open) setAddForm({ phone: "", name: "", role: "SOURCE", kind: "individual" }); }}>
