@@ -60,6 +60,32 @@ export default function ConfiguracoesPage() {
   const [resetting, setResetting] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
 
+  // Helper: parse response safely. Returns parsed JSON or a friendly error
+  // when the server returned HTML (deploy in progress, 404, login redirect, etc).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const parseJsonResponse = async (res: Response): Promise<{ ok: true; data: any } | { ok: false; error: string }> => {
+    const text = await res.text();
+    if (!text) {
+      return { ok: false, error: `Resposta vazia (HTTP ${res.status})` };
+    }
+    if (text.trim().startsWith("<")) {
+      return {
+        ok: false,
+        error:
+          res.status === 404
+            ? "Endpoint nao encontrado. O deploy talvez ainda nao tenha terminado — aguarde 1 minuto e tente de novo."
+            : res.status === 401 || res.status === 403
+              ? "Sessao expirou ou voce nao e admin. Faca logout e login de novo."
+              : `Servidor retornou HTML em vez de JSON (HTTP ${res.status}). Provavelmente o deploy esta em progresso ou houve erro 500.`,
+      };
+    }
+    try {
+      return { ok: true, data: JSON.parse(text) };
+    } catch {
+      return { ok: false, error: `Resposta invalida do servidor: ${text.slice(0, 120)}` };
+    }
+  };
+
   const handleOpenReset = async () => {
     setResetting(true);
     setResetPreview(null);
@@ -71,15 +97,20 @@ export default function ConfiguracoesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dryRun: true }),
       });
-      const data = await res.json();
+      const parsed = await parseJsonResponse(res);
+      if (!parsed.ok) {
+        toast.error(parsed.error, { duration: 12000 });
+        setShowResetModal(false);
+        return;
+      }
       if (res.ok) {
-        setResetPreview(data);
+        setResetPreview(parsed.data);
       } else {
-        toast.error(data.error || "Erro ao calcular preview");
+        toast.error(parsed.data.error || "Erro ao calcular preview");
         setShowResetModal(false);
       }
     } catch (e) {
-      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`);
       setShowResetModal(false);
     } finally {
       setResetting(false);
@@ -98,18 +129,22 @@ export default function ConfiguracoesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dryRun: false }),
       });
-      const data = await res.json();
+      const parsed = await parseJsonResponse(res);
+      if (!parsed.ok) {
+        toast.error(parsed.error, { duration: 12000 });
+        return;
+      }
       if (res.ok) {
         toast.success(
-          `${data.deleted.vehicles} veiculos apagados. ${data.kept.vehicles} mantidos.`,
+          `${parsed.data.deleted.vehicles} veiculos apagados. ${parsed.data.kept.vehicles} mantidos.`,
           { duration: 8000 }
         );
         setShowResetModal(false);
       } else {
-        toast.error(data.error || "Erro ao resetar");
+        toast.error(parsed.data.error || "Erro ao resetar");
       }
     } catch (e) {
-      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setResetting(false);
     }
