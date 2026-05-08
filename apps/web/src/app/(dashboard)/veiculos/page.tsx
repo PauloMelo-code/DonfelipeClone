@@ -1256,25 +1256,14 @@ function VeiculosPageInner() {
                               onClick={() => openPublishModal(vehicle)}
                               disabled={actionLoading === vehicle.id}
                               className="flex-1 gap-1.5 gradient-orange text-white border-0"
-                              title="Publicar agora"
+                              title="Abrir modal pra editar, preparar ou publicar"
                             >
                               {actionLoading === vehicle.id ? (
                                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               ) : (
-                                <Send className="h-3.5 w-3.5" />
+                                <Pencil className="h-3.5 w-3.5" />
                               )}
-                              Publicar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openPublishModal(vehicle)}
-                              disabled={actionLoading === vehicle.id}
-                              className="gap-1.5 border-info/30 text-info hover:bg-info/10"
-                              title="Preparar pra publicar depois"
-                            >
-                              <Clock className="h-3.5 w-3.5" />
-                              Preparar
+                              Editar
                             </Button>
                             <Button
                               size="sm"
