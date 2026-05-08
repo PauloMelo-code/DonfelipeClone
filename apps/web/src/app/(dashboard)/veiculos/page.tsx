@@ -238,12 +238,15 @@ function VeiculosPageInner() {
 
   const toggleRegionById = (region: string) => {
     const regionGroups = groupsByRegion.get(region) || [];
-    const regionIds = regionGroups.map(g => g.id);
-    const allSelected = regionIds.every(id => selectedGroupIds.includes(id));
+    // CRITICO: usa groupId (JID do WhatsApp) -- mesma chave usada por
+    // publishVehicle no backend. Estava usando g.id (CUID) por engano,
+    // o que fazia o batch publish nunca achar grupos no DB.
+    const regionGroupIds = regionGroups.map(g => g.groupId);
+    const allSelected = regionGroupIds.every(id => selectedGroupIds.includes(id));
     if (allSelected) {
-      setSelectedGroupIds(prev => prev.filter(id => !regionIds.includes(id)));
+      setSelectedGroupIds(prev => prev.filter(id => !regionGroupIds.includes(id)));
     } else {
-      setSelectedGroupIds(prev => [...new Set([...prev, ...regionIds])]);
+      setSelectedGroupIds(prev => [...new Set([...prev, ...regionGroupIds])]);
     }
   };
 
@@ -1414,8 +1417,13 @@ function VeiculosPageInner() {
                     .then((r) => r.json())
                     .then((data) => {
                       setTargetGroups(data);
-                      setSelectedGroupIds(data.map((g: WhatsAppGroup) => g.id));
+                      // Pre-selecao usa groupId (JID), mesma chave que publishVehicle
+                      // espera no backend. Estava usando g.id (CUID) por engano.
+                      setSelectedGroupIds(data.map((g: WhatsAppGroup) => g.groupId));
                     });
+                } else {
+                  // targetGroups ja carregado, popula selecao com seus groupIds
+                  setSelectedGroupIds(targetGroups.map((g) => g.groupId));
                 }
                 setShowBatchModal(true);
               }}
@@ -2303,7 +2311,8 @@ function VeiculosPageInner() {
                     ) : (
                       <div className="space-y-2">
                         {Array.from(groupsByRegion.entries()).map(([region, groups]) => {
-                          const regionIds = groups.map(g => g.id);
+                          // Usa groupId (JID) consistente com publishVehicle no backend.
+                          const regionIds = groups.map(g => g.groupId);
                           const selectedCount = regionIds.filter(id => selectedGroupIds.includes(id)).length;
                           const allSelected = selectedCount === groups.length;
                           const someSelected = selectedCount > 0 && !allSelected;
@@ -2335,14 +2344,15 @@ function VeiculosPageInner() {
                               {expanded && (
                                 <div className="px-3 sm:px-4 pb-3 flex flex-col sm:flex-row sm:flex-wrap gap-1 sm:gap-1.5">
                                   {groups.map(group => {
-                                    const selected = selectedGroupIds.includes(group.id);
+                                    // Usa group.groupId (JID) -- backend filtra por essa chave.
+                                    const selected = selectedGroupIds.includes(group.groupId);
                                     const displayName = trimName(group.name);
                                     return (
                                       <button
                                         key={group.id}
                                         onClick={() => {
-                                          if (selected) setSelectedGroupIds(p => p.filter(id => id !== group.id));
-                                          else setSelectedGroupIds(p => [...p, group.id]);
+                                          if (selected) setSelectedGroupIds(p => p.filter(id => id !== group.groupId));
+                                          else setSelectedGroupIds(p => [...p, group.groupId]);
                                         }}
                                         className={cn(
                                           "flex items-center gap-2 sm:gap-1.5 rounded-lg px-3 sm:px-2.5 py-2.5 sm:py-1 text-sm sm:text-xs border transition-all w-full sm:w-auto min-h-[44px] sm:min-h-0",
