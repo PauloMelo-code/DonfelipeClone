@@ -772,11 +772,16 @@ function VeiculosPageInner() {
     const vehicleStatus = publishVehicle.status;
     const sellingPrice = publishVehicle.price * (1 + margin / 100);
 
-    const updateData: Record<string, unknown> = { formattedAd: editedAd, sellingPrice };
+    // Computa as fotos finais (mistura editadas + originais nao tocadas).
+    // CRITICAL: tem que enviar pro POST, nao so pro PUT, pra evitar race condition
+    // onde o publish em background le do DB antes do PUT terminar.
+    let finalPhotos: string[] | undefined;
     if (Object.keys(editedPhotos).length > 0) {
       const photos = parseArray(publishVehicle.photos);
-      updateData.photos = photos.map((p, i) => editedPhotos[i] || p);
+      finalPhotos = photos.map((p, i) => editedPhotos[i] || p);
     }
+    const updateData: Record<string, unknown> = { formattedAd: editedAd, sellingPrice };
+    if (finalPhotos) updateData.photos = finalPhotos;
 
     let endpoint: string;
     if (republishMode) {
@@ -812,11 +817,15 @@ function VeiculosPageInner() {
         targetGroupIds: selectedGroupIds,
         formattedAd: editedAd,
         sellingPrice,
+        // Envia as fotos editadas tambem -- o backend persiste sincrono
+        // antes do publish em background, garantindo que NUNCA va a foto
+        // original quando o operador editou.
+        ...(finalPhotos ? { photos: finalPhotos } : {}),
       }),
     });
 
-    // Don't await PUT — it doesn't block the publish endpoint (which reads
-    // formattedAd from the request body).
+    // Don't await PUT — the POST endpoint already includes photos no body
+    // e persiste sincrono. PUT virou redundante mas mantemos pra back-compat.
     void putPromise;
 
     try {

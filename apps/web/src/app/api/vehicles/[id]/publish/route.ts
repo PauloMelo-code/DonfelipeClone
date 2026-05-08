@@ -61,11 +61,22 @@ export async function POST(
     let targetGroupIds: string[] | undefined;
     let formattedAd: string | undefined;
     let sellingPrice: number | undefined;
+    let photos: string[] | undefined;
     try {
       const body = await request.json();
       targetGroupIds = body.targetGroupIds;
       formattedAd = body.formattedAd;
       sellingPrice = body.sellingPrice;
+      if (Array.isArray(body.photos) && body.photos.length > 0) {
+        photos = body.photos;
+        // Persist as ja, sincrono, antes do publish em background.
+        // Isso garante que o "Publicados" mostra a foto editada e que
+        // futuras republicacoes/visualizacoes peguem o estado correto.
+        await prisma.vehicle.update({
+          where: { id },
+          data: { photos: JSON.stringify(photos) },
+        }).catch(() => {});
+      }
     } catch {
       // Body is optional
     }
@@ -80,6 +91,7 @@ export async function POST(
           targetGroupIds,
           formattedAd,
           sellingPrice,
+          photos,
           userId,
           quickPublish: true,
         });

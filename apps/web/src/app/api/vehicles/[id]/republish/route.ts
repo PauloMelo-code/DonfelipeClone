@@ -47,11 +47,20 @@ export async function POST(
     let targetGroupIds: string[] | undefined;
     let formattedAd: string | undefined;
     let sellingPrice: number | undefined;
+    let photos: string[] | undefined;
     try {
       const body = await request.json();
       targetGroupIds = body.targetGroupIds;
       formattedAd = body.formattedAd;
       sellingPrice = body.sellingPrice;
+      if (Array.isArray(body.photos) && body.photos.length > 0) {
+        photos = body.photos;
+        // Persist edited photos sync antes do publish em background
+        await prisma.vehicle.update({
+          where: { id },
+          data: { photos: JSON.stringify(photos) },
+        }).catch(() => {});
+      }
     } catch {
       // Body is optional
     }
@@ -66,6 +75,7 @@ export async function POST(
     const userId = auth.user.id;
     const adForBg = formattedAd || vehicle.formattedAd || undefined;
     const priceForBg = sellingPrice || vehicle.sellingPrice || undefined;
+    const photosForBg = photos;
     const ids = targetGroupIds;
 
     after(async () => {
@@ -74,6 +84,7 @@ export async function POST(
           targetGroupIds: ids,
           formattedAd: adForBg,
           sellingPrice: priceForBg,
+          photos: photosForBg,
           userId,
           quickPublish: true,
         });

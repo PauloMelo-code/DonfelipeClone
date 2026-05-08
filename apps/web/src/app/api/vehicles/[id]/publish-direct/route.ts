@@ -45,6 +45,18 @@ export async function POST(
     const userEditedPrice: number | undefined = typeof body?.sellingPrice === "number" && body.sellingPrice > 0
       ? body.sellingPrice
       : undefined;
+    // Fotos editadas pelo modal (recortadas/borradas). CRITICAL: salvamos no
+    // DB antes da publicacao em background pra evitar race condition entre
+    // o PUT do frontend e o publish, que estava fazendo as fotos originais
+    // (com placa visivel) irem pros grupos.
+    const userEditedPhotos: string[] | undefined =
+      Array.isArray(body?.photos) && body.photos.length > 0 ? body.photos : undefined;
+    if (userEditedPhotos) {
+      await prisma.vehicle.update({
+        where: { id },
+        data: { photos: JSON.stringify(userEditedPhotos) },
+      }).catch(() => {});
+    }
 
     const vehicle = await prisma.vehicle.findUnique({ where: { id } });
     if (!vehicle) {
@@ -154,6 +166,7 @@ export async function POST(
     const sourceState = vehicle.state;
     const adForBg = formattedAd;
     const priceForBg = sellingPrice;
+    const photosForBg = userEditedPhotos;
 
     after(async () => {
       try {
@@ -162,6 +175,7 @@ export async function POST(
           userId,
           formattedAd: adForBg,
           sellingPrice: priceForBg,
+          photos: photosForBg,
           quickPublish: true,
         });
 

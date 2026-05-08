@@ -72,7 +72,17 @@ async function isPublishingPaused(): Promise<boolean> {
  */
 export async function publishVehicle(
   vehicleId: string,
-  options?: { targetGroupIds?: string[]; formattedAd?: string; sellingPrice?: number; userId?: string; quickPublish?: boolean }
+  options?: {
+    targetGroupIds?: string[];
+    formattedAd?: string;
+    sellingPrice?: number;
+    /** Fotos editadas (override da DB). Use para garantir que o frontend
+     * envie as imagens recortadas/borradas em vez das originais quando o
+     * PUT de salvar nao terminou antes do POST de publicar. */
+    photos?: string[];
+    userId?: string;
+    quickPublish?: boolean;
+  }
 ): Promise<PublishResult[]> {
   // --- Kill switch: block if global publishing is paused ---
   if (await isPublishingPaused()) {
@@ -118,7 +128,11 @@ export async function publishVehicle(
     }
   })();
 
-  const photos: string[] = (() => {
+  // Prioridade: fotos passadas explicitamente (origem: modal de publish do
+  // frontend, com edicoes ja aplicadas). Se nao vierem, usa do DB.
+  const photos: string[] = options?.photos && options.photos.length > 0
+    ? options.photos
+    : (() => {
     try {
       return JSON.parse(vehicle.photos);
     } catch {
