@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +183,19 @@ export default function VeiculosPage() {
     priceRange: string;
     transmission: string;
   }>({ states: [], priceRange: "", transmission: "" });
+
+  // Pre-populate state filter from URL query param (?state=SC)
+  // Util pra navegacao vinda do dashboard (clique em "SC" no card "Capturas por estado")
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const stateParam = searchParams.get("state");
+    if (stateParam) {
+      const upper = stateParam.toUpperCase();
+      setFilters((f) => f.states.includes(upper) ? f : { ...f, states: [...f.states, upper] });
+    }
+    // run once on mount based on current URL
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -333,7 +347,18 @@ export default function VeiculosPage() {
       );
     }
     if (filters.states.length > 0) {
-      result = result.filter(v => v.sourceGroup?.name && filters.states.some(s => v.sourceGroup!.name.toLowerCase().includes(s.toLowerCase())));
+      // Filtra por estado em ordem de confiabilidade:
+      // 1. v.state (extraido pela IA do anuncio) - mais confiavel
+      // 2. v.sourceGroup.region (tag manual no grupo fonte)
+      // 3. nome do grupo contem a UF (fallback ultimo)
+      const wantedStates = filters.states.map(s => s.toUpperCase());
+      result = result.filter(v => {
+        const vState = (v.state || v.sourceGroup?.region || "").toUpperCase();
+        if (vState && wantedStates.includes(vState)) return true;
+        // Ultimo fallback: nome do grupo
+        const groupName = v.sourceGroup?.name?.toUpperCase() || "";
+        return wantedStates.some(s => groupName.includes(s));
+      });
     }
     if (filters.priceRange) {
       const [min, max] = filters.priceRange.split("-").map(Number);

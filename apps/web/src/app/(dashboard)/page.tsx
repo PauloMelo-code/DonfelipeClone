@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ActivityChart } from "@/components/dashboard/activity-chart";
+import { CapturesByState } from "@/components/dashboard/captures-by-state";
+import { useRouter } from "next/navigation";
 import { StatCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeleton-card";
 import { DateRange } from "@/components/dashboard/date-range-picker";
 import { Car, Clock, Send, TrendingUp, Crown, Users } from "lucide-react";
@@ -37,6 +39,7 @@ interface ChartPoint {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const today = new Date();
   const [data, setData] = useState<DashboardData | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
@@ -216,6 +219,11 @@ export default function DashboardPage() {
             onDateRangeChange={setChartRange}
           />
         )}
+
+        {/* Capturas por estado (com filtro de data proprio) */}
+        <CapturesByState
+          onStateClick={(state) => router.push(`/veiculos?state=${state}`)}
+        />
 
         {/* Insights row: top fornecedores + qualidade media */}
         {!loading && data && (
