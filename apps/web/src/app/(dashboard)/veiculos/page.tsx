@@ -340,13 +340,26 @@ function VeiculosPageInner() {
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(`${data.total} veiculos enfileirados — publicando em background`);
+        const publishable = data.publishable ?? data.total;
+        const skipped = data.skipped ?? 0;
+        toast.success(
+          skipped > 0
+            ? `${publishable} enfileirados (${skipped} ignorados pois ja foram publicados ou nao estao aprovados)`
+            : `${publishable} veiculos enfileirados — publicando em background`,
+          { duration: 8000 }
+        );
+        // Optimistic: remove os enfileirados da lista local pra dar feedback
+        // imediato. O background publica em paralelo; refetch em 10s pega o
+        // estado real atualizado.
+        const idSet = new Set(ids);
+        setVehicles((prev) => prev.filter((v) => !idSet.has(v.id)));
         setBatchSelected(new Set());
         setShowBatchModal(false);
-        // Don't refetch immediately — backend processes in background.
-        // List will update naturally on next refresh (user can pull-to-refresh).
+        // Atualiza a lista depois que o batch tem chance de progredir
+        setTimeout(() => fetchVehicles(), 10_000);
       } else {
-        toast.error("Erro ao publicar em lote");
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao publicar em lote");
       }
     } catch {
       toast.error("Erro de conexao");
