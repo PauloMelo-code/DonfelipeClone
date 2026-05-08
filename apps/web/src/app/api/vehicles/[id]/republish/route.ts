@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishVehicle } from "@/lib/publisher";
 import { requireAuth } from "@/lib/auth";
@@ -78,7 +78,7 @@ export async function POST(
     const photosForBg = photos;
     const ids = targetGroupIds;
 
-    after(async () => {
+    void (async () => {
       try {
         const results = await publishVehicle(id, {
           targetGroupIds: ids,
@@ -103,7 +103,7 @@ export async function POST(
           .update({ where: { id }, data: { publishingLockedAt: null } })
           .catch(() => {});
       }
-    });
+    })();
 
     return NextResponse.json({
       message: "Reenvio enfileirado",

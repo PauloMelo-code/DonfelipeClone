@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { publishVehicle } from "@/lib/publisher";
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const userId = auth.user.id;
 
     // Fire-and-forget com delays anti-ban entre veiculos
-    after(async () => {
+    void (async () => {
       const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < targets.length; i++) {
         if (i > 0) {
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
           console.error(`[BatchPublishPrepared] vehicle ${v.id} failed:`, err);
         }
       }
-    });
+    })();
 
     await prisma.auditLog.create({
       data: {

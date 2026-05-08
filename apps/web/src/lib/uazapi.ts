@@ -179,25 +179,62 @@ class UazapiClient {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private static loggedShape = new Set<string>();
 
-  async sendText(payload: SendTextPayload): Promise<SendResult> {
-    try {
-      const { data } = await this.client.post<SendResult>("/send/text", payload);
-      return data;
-    } catch (err) {
-      throw this.normalizeError(err, "sendText");
+  /**
+   * Determina se o erro é transitório (vale a pena retry) ou permanente.
+   * 502/503/504/429 = transitório (UAZAPI/WhatsApp temporariamente indisp).
+   * 400/404/422 = permanente (payload errado, JID invalido, etc).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private isTransientError(err: any): boolean {
+    if (!axios.isAxiosError(err)) return false;
+    const status = err.response?.status;
+    if (!status) {
+      // Erros sem response (timeout, network) tambem sao transitorios
+      return err.code === "ECONNABORTED" || err.code === "ECONNRESET" || err.code === "ETIMEDOUT";
     }
+    return status === 502 || status === 503 || status === 504 || status === 429;
+  }
+
+  async sendText(payload: SendTextPayload): Promise<SendResult> {
+    let lastErr: unknown;
+    // 2 tentativas (1 inicial + 1 retry em caso de erro transitorio)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const { data } = await this.client.post<SendResult>("/send/text", payload);
+        return data;
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 0 && this.isTransientError(err)) {
+          await new Promise((r) => setTimeout(r, 3000)); // 3s antes do retry
+          console.log(`[UAZAPI:${this.label}] sendText transient error, retrying in 3s`);
+          continue;
+        }
+        throw this.normalizeError(err, "sendText");
+      }
+    }
+    throw this.normalizeError(lastErr, "sendText");
   }
 
   async sendMedia(payload: SendMediaPayload): Promise<SendResult> {
-    try {
-      // Media payloads can be 5-10MB base64 — give them up to 3min.
-      const { data } = await this.client.post<SendResult>("/send/media", payload, {
-        timeout: 180_000,
-      });
-      return data;
-    } catch (err) {
-      throw this.normalizeError(err, "sendMedia");
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        // Media payloads can be 5-10MB base64 — give them up to 3min.
+        const { data } = await this.client.post<SendResult>("/send/media", payload, {
+          timeout: 180_000,
+        });
+        return data;
+      } catch (err) {
+        lastErr = err;
+        if (attempt === 0 && this.isTransientError(err)) {
+          await new Promise((r) => setTimeout(r, 5000)); // 5s antes (media e mais pesado)
+          console.log(`[UAZAPI:${this.label}] sendMedia transient error, retrying in 5s`);
+          continue;
+        }
+        throw this.normalizeError(err, "sendMedia");
+      }
     }
+    throw this.normalizeError(lastErr, "sendMedia");
   }
 
   /**

@@ -1,7 +1,22 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { publishVehicle } from "@/lib/publisher";
+
+// Marca pra diagnostico -- registra que o batch ENTROU em execucao em background.
+// Se isso nao aparecer no AuditLog mas a request retornou 200, sabemos que o
+// after() nao esta sendo invocado no ambiente deles.
+async function logBatchStart(userId: string | undefined, total: number) {
+  await prisma.auditLog
+    .create({
+      data: {
+        action: "BATCH_PUBLISH_STARTED",
+        userId,
+        details: JSON.stringify({ total, startedAt: new Date().toISOString() }),
+      },
+    })
+    .catch((err) => console.error("[BatchPublish] failed to log start:", err));
+}
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth("ADMIN");
@@ -34,9 +49,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fire-and-forget: respond immediately. Frontend shows "publicando em lote"
-    // and polls vehicle list naturally for status updates.
-    after(async () => {
+    // Fire-and-forget direto via Promise (NAO usa after()).
+    // Em alguns deploys self-hosted (Docker/Easypanel/proxies), after() pode
+    // nao executar -- a request retorna 200 e o callback eh descartado.
+    // Promise solto eh menos elegante mas funciona em qualquer ambiente Node.
+    void (async () => {
+      // Loga inicio no banco pra rastreabilidade -- se BATCH_PUBLISH_STARTED
+      // existir mas BATCH_PUBLISH_COMPLETED nao, sabemos que algo no meio
+      // matou o processo.
+      await logBatchStart(userId, vehicleIds.length);
+
       const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
       let succeeded = 0;
       let failed = 0;
@@ -95,7 +117,7 @@ export async function POST(request: NextRequest) {
       console.log(
         `[BatchPublish] DONE total=${vehicleIds.length} succeeded=${succeeded} failed=${failed} skipped=${skipped}`
       );
-    });
+    })();
 
     return NextResponse.json({
       status: "queued",

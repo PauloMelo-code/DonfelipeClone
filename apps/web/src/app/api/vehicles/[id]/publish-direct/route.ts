@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -171,7 +171,7 @@ export async function POST(
     const priceForBg = sellingPrice;
     const photosForBg = userEditedPhotos;
 
-    after(async () => {
+    void (async () => {
       try {
         const results = await publishVehicle(id, {
           targetGroupIds: groupIds,
@@ -210,7 +210,7 @@ export async function POST(
           .update({ where: { id }, data: { publishingLockedAt: null } })
           .catch(() => {});
       }
-    });
+    })();
 
     return NextResponse.json({
       status: "publishing",

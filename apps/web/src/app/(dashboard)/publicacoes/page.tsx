@@ -97,6 +97,34 @@ export default function PublicacoesPage() {
     fetchPosts(1);
   }, [fetchPosts]);
 
+  // Auto-refresh: pega novas publicacoes em background a cada 15s.
+  // So roda quando esta na pagina 1 sem busca -- evita rebobinar a paginacao.
+  // Pausa quando a aba esta oculta pra economizar.
+  useEffect(() => {
+    if (pagination.page !== 1 || searchDebounced) return;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => fetchPosts(1), 15_000);
+    };
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    };
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [pagination.page, searchDebounced, fetchPosts]);
+
   const formatPrice = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 

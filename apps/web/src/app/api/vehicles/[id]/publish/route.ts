@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishVehicle } from "@/lib/publisher";
 import { requireAuth } from "@/lib/auth";
@@ -84,11 +84,11 @@ export async function POST(
       // Body is optional
     }
 
-    // Fire-and-forget: respond immediately, run publish in background.
-    // Next.js `after()` keeps the function alive until the work finishes,
-    // even after the response is flushed.
+    // Fire-and-forget direto via Promise. Em deploys Docker/Easypanel o
+    // after() do next/server pode nao executar -- a request retorna 200 mas
+    // o callback eh descartado. Promise solta funciona em qualquer Node.
     const userId = auth.user.id;
-    after(async () => {
+    void (async () => {
       try {
         await publishVehicle(id, {
           targetGroupIds,
@@ -105,7 +105,7 @@ export async function POST(
           .update({ where: { id }, data: { publishingLockedAt: null } })
           .catch(() => {});
       }
-    });
+    })();
 
     return NextResponse.json({
       message: "Publicacao enfileirada",
