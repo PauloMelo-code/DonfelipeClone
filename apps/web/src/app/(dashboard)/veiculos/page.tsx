@@ -523,10 +523,19 @@ function VeiculosPageInner() {
     const id = quickPublishVehicle.id;
     setPublishingDirectId(id);
     try {
+      // CRITICAL: envia as fotos atuais do veiculo no body. Se o operador
+      // editou alguma foto via "Editar foto" no card antes de "Publicar Direto",
+      // essas edicoes ja estao em vehicle.photos[] (persistidas no DB pelo
+      // photo-editor). Mandando explicito no body, garantimos que mesmo se
+      // houver delay no PUT da edicao, o publish usa o estado correto.
+      const photos = parseArray(quickPublishVehicle.photos);
       const res = await fetch(`/api/vehicles/${id}/publish-direct`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetGroupIds: quickPublishGroups }),
+        body: JSON.stringify({
+          targetGroupIds: quickPublishGroups,
+          ...(photos.length > 0 ? { photos } : {}),
+        }),
       });
       if (res.ok) {
         const data = await res.json();

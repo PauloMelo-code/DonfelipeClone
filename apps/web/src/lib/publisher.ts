@@ -136,9 +136,24 @@ export async function publishVehicle(
     try {
       return JSON.parse(vehicle.photos);
     } catch {
-      return [];
+      return [] as string[];
     }
   })();
+
+  // Diagnostic logging: confirma o que chegou (tira duvida sobre race condition)
+  if (photos.length > 0) {
+    const first = photos[0];
+    const kind = first?.startsWith("data:")
+      ? "data-uri-edited"
+      : first?.startsWith("/api/media/")
+        ? "db-media-id"
+        : first?.startsWith("http")
+          ? "external-url"
+          : "unknown";
+    console.log(
+      `[publisher] vehicle=${vehicleId} source=${options?.photos?.length ? "OPTION" : "DB"} kind=${kind} count=${photos.length} firstSize=${first?.length ?? 0}`
+    );
+  }
 
   // Auto-extract FIPE if missing
   let fipePrice = vehicle.fipePrice;

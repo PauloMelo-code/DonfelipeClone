@@ -77,6 +77,9 @@ export async function POST(
           data: { photos: JSON.stringify(photos) },
         }).catch(() => {});
       }
+      console.log(
+        `[publish] vehicle=${id} body.photos=${photos ? `[${photos.length}, first=${photos[0]?.slice(0, 30)}...]` : "MISSING"} ad=${formattedAd ? "yes" : "no"} price=${sellingPrice ?? "no"} groups=${targetGroupIds?.length ?? 0}`
+      );
     } catch {
       // Body is optional
     }

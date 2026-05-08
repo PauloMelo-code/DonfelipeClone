@@ -51,6 +51,9 @@ export async function POST(
     // (com placa visivel) irem pros grupos.
     const userEditedPhotos: string[] | undefined =
       Array.isArray(body?.photos) && body.photos.length > 0 ? body.photos : undefined;
+    console.log(
+      `[publish-direct] vehicle=${id} body.photos=${userEditedPhotos ? `[${userEditedPhotos.length}, first=${userEditedPhotos[0]?.slice(0, 30)}...]` : "MISSING"} ad=${userEditedAd ? "yes" : "no"} price=${userEditedPrice ?? "no"} groups=${requestedGroupIds?.length ?? 0}`
+    );
     if (userEditedPhotos) {
       await prisma.vehicle.update({
         where: { id },
