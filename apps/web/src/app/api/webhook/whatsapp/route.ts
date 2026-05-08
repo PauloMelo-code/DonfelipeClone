@@ -393,6 +393,64 @@ export async function POST(request: NextRequest) {
       console.log("[Webhook] IGNORED: no_photo for", groupJid);
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
+
+    // === Multi-foto: anexa fotos extras a anuncios recentes (sem custo de GPT) ===
+    // Se chegou foto sem texto, e a ultima mensagem do mesmo remetente no mesmo
+    // grupo gerou um Vehicle nos ultimos 90s, anexamos a foto ao array .photos
+    // desse Vehicle e retornamos. Nada de OpenAI -- a extracao ja foi feita.
+    if (!textContent && imageUrl && senderJid) {
+      const ninetySecondsAgo = new Date(Date.now() - 90_000);
+      // Normaliza sellerPhone pra comparar com varios formatos possiveis
+      const senderDigits = senderJid.replace(/\D/g, "");
+      const recentVehicle = await prisma.vehicle.findFirst({
+        where: {
+          sourceGroupId: group.groupId,
+          capturedAt: { gte: ninetySecondsAgo },
+          OR: [
+            { sellerPhone: senderJid },
+            { sellerPhone: senderDigits },
+            { sellerPhone: { contains: senderDigits } },
+          ],
+        },
+        orderBy: { capturedAt: "desc" },
+        select: { id: true, photos: true },
+      });
+
+      if (recentVehicle) {
+        // Parse, append, save -- sem chamar GPT
+        let currentPhotos: string[] = [];
+        try {
+          const parsed = JSON.parse(recentVehicle.photos);
+          if (Array.isArray(parsed)) currentPhotos = parsed.filter((p) => typeof p === "string");
+        } catch { /* ignore */ }
+
+        // Limit razoavel: maximo 12 fotos por anuncio
+        if (currentPhotos.length >= 12) {
+          console.log(`[Webhook] Multi-photo: vehicle ${recentVehicle.id} ja tem 12 fotos, ignorando extra`);
+          return NextResponse.json({ status: "ignored", reason: "multi_photo_limit" });
+        }
+
+        // Evita duplicar a mesma foto
+        if (!currentPhotos.includes(imageUrl)) {
+          currentPhotos.push(imageUrl);
+          await prisma.vehicle.update({
+            where: { id: recentVehicle.id },
+            data: { photos: JSON.stringify(currentPhotos) },
+          });
+          console.log(`[Webhook] Multi-photo: foto extra anexada ao vehicle ${recentVehicle.id} (total agora: ${currentPhotos.length})`);
+        }
+
+        return NextResponse.json({
+          status: "multi_photo_appended",
+          vehicleId: recentVehicle.id,
+          totalPhotos: currentPhotos.length,
+        });
+      }
+
+      // Sem Vehicle recente do mesmo remetente -> rejeita como antes
+      return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
+    }
+
     if (!textContent) {
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }

@@ -1118,6 +1118,30 @@ function VeiculosPageInner() {
                 toast.error("Erro de conexao");
               }
             }}
+            onSetMainPhoto={async (vehicleId, photoIndex) => {
+              const v = vehicles.find((x) => x.id === vehicleId);
+              if (!v) return;
+              const photos = parseArray(v.photos);
+              if (photoIndex <= 0 || photoIndex >= photos.length) return;
+              // Move photoIndex pra posicao 0
+              const reordered = [photos[photoIndex], ...photos.filter((_, i) => i !== photoIndex)];
+              // Optimistic
+              setVehicles((prev) => prev.map((vh) => vh.id === vehicleId ? { ...vh, photos: reordered } : vh));
+              try {
+                const res = await fetch(`/api/vehicles/${vehicleId}`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ photos: reordered }),
+                });
+                if (!res.ok) {
+                  toast.error("Erro ao definir foto principal");
+                  fetchVehicles();
+                }
+              } catch {
+                toast.error("Erro de conexao");
+                fetchVehicles();
+              }
+            }}
             actionLoading={actionLoading}
             onPublishDirect={handlePublishDirect}
             onUpdateField={handleUpdateField}

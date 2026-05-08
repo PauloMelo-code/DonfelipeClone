@@ -49,6 +49,7 @@ interface SwipeStackProps {
   onReject: (id: string) => void;
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
   onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
+  onSetMainPhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
   onPublishDirect?: (id: string) => void;
   onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
@@ -84,6 +85,7 @@ function SwipeCard({
   onReject,
   onPhotoClick,
   onDeletePhoto,
+  onSetMainPhoto,
   actionLoading,
   exitDir,
   onPublishDirect,
@@ -97,6 +99,7 @@ function SwipeCard({
   onReject: (id: string) => void;
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
   onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
+  onSetMainPhoto?: (vehicleId: string, photoIndex: number) => void;
   actionLoading: string | null;
   exitDir: "left" | "right" | null;
   onPublishDirect?: (id: string) => void;
@@ -185,6 +188,57 @@ function SwipeCard({
           )}
           {/* Gradient overlay */}
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+
+          {/* Thumbnail strip — apenas se houver mais de 1 foto */}
+          {isTop && vehicle.photos.length > 1 && (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute bottom-2 left-2 right-2 z-30 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin"
+            >
+              {vehicle.photos.map((photo, idx) => (
+                <div
+                  key={`${photo}-${idx}`}
+                  className={cn(
+                    "relative shrink-0 rounded-md overflow-hidden border-2 transition-all group/thumb",
+                    idx === 0
+                      ? "border-cugini-orange ring-1 ring-cugini-orange/40"
+                      : "border-white/30 hover:border-white"
+                  )}
+                  style={{ width: 44, height: 44 }}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (idx !== 0 && onSetMainPhoto) onSetMainPhoto(vehicle.id, idx);
+                    }}
+                    className="block w-full h-full"
+                    title={idx === 0 ? "Foto principal" : "Tornar foto principal"}
+                  >
+                    <img
+                      src={photo}
+                      alt={`Foto ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                      draggable={false}
+                    />
+                  </button>
+                  {onDeletePhoto && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(idx === 0 ? "Excluir foto principal? A 2a foto vira a principal." : "Excluir esta foto?")) {
+                          onDeletePhoto(vehicle.id, idx);
+                        }
+                      }}
+                      className="absolute top-0 right-0 bg-destructive text-white rounded-bl-md w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover/thumb:opacity-100 hover:bg-destructive/80 transition-opacity"
+                      title="Excluir foto"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {/* Click to preview */}
           {isTop && onPhotoClick && (
             <button
@@ -421,6 +475,7 @@ export function SwipeStack({
   onReject,
   onPhotoClick,
   onDeletePhoto,
+  onSetMainPhoto,
   actionLoading,
   onPublishDirect,
   onUpdateField,
@@ -487,6 +542,7 @@ export function SwipeStack({
               onReject={handleReject}
               onPhotoClick={onPhotoClick}
               onDeletePhoto={onDeletePhoto}
+              onSetMainPhoto={onSetMainPhoto}
               actionLoading={actionLoading}
               exitDir={exitDirection}
               onPublishDirect={onPublishDirect}
