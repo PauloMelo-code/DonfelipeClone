@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/header";
@@ -151,7 +151,17 @@ function WhatsAppBubble({ text, photo, photoCount }: { text: string; photo?: str
   );
 }
 
+// Wrapper exporta a pagina dentro de <Suspense> -- requerido pelo Next.js
+// quando algum filho usa useSearchParams() (CSR bailout durante prerender).
 export default function VeiculosPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-cugini-orange" /></div>}>
+      <VeiculosPageInner />
+    </Suspense>
+  );
+}
+
+function VeiculosPageInner() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("PENDING");
