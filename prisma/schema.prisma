@@ -54,6 +54,12 @@ model Vehicle {
   approvedAt      DateTime?
   publishedAt     DateTime?
   rejectedAt      DateTime?
+  /// Marca que o veiculo foi preparado pra publicar depois (texto, fotos
+  /// e grupos destino salvos). Quando != null, aparece na aba "Prontos".
+  preparedAt      DateTime?
+  /// JSON array de groupIds (whatsappgroup.groupId) escolhidos no momento
+  /// do "preparar". Usado quando publicar em batch.
+  preparedTargetGroupIds String?
   soldAt          DateTime?
   soldPrice       Float?
   soldNotes       String?
@@ -76,6 +82,7 @@ model Vehicle {
   @@index([sourceGroupId])
   @@index([state])
   @@index([photoHash])
+  @@index([preparedAt])
   @@map("vehicles")
 }
 

@@ -14,6 +14,7 @@ const ALLOWED_SORT_FIELDS = [
   "status",
   "approvedAt",
   "publishedAt",
+  "preparedAt",
 ];
 
 export async function GET(request: NextRequest) {
@@ -24,6 +25,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+    // prepared filter:
+    //   "true"  -> apenas veiculos com preparedAt != null (aba "Prontos")
+    //   "false" -> apenas com preparedAt == null (aba "Aprovados" sem os prontos)
+    //   absent  -> sem filtro
+    const preparedParam = searchParams.get("prepared");
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
     const sortBy = ALLOWED_SORT_FIELDS.includes(searchParams.get("sortBy") || "")
@@ -35,6 +41,12 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== "ALL") {
       where.status = status;
+    }
+
+    if (preparedParam === "true") {
+      where.preparedAt = { not: null };
+    } else if (preparedParam === "false") {
+      where.preparedAt = null;
     }
 
     if (search) {

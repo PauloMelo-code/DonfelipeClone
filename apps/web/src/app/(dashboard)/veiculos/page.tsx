@@ -44,6 +44,7 @@ import {
   Building2,
   Megaphone,
   User,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -85,6 +86,8 @@ interface Vehicle {
   qualityScore?: number | null;
   isVip?: boolean;
   autoRejectedReason?: string | null;
+  preparedAt?: string | null;
+  preparedTargetGroupIds?: string | null;
 }
 
 const REJECTION_OPTIONS = [
@@ -236,7 +239,15 @@ export default function VeiculosPage() {
 
   const fetchVehicles = useCallback(async () => {
     try {
-      const res = await fetch(`/api/vehicles?status=${activeTab}&page=${page}&limit=${PAGE_SIZE}`);
+      // "PREPARED" eh uma aba virtual: status=APPROVED + prepared=true
+      // Aba APPROVED real exclui os preparados (prepared=false)
+      let url = `/api/vehicles?status=${activeTab}&page=${page}&limit=${PAGE_SIZE}`;
+      if (activeTab === "PREPARED") {
+        url = `/api/vehicles?status=APPROVED&prepared=true&page=${page}&limit=${PAGE_SIZE}`;
+      } else if (activeTab === "APPROVED") {
+        url = `/api/vehicles?status=APPROVED&prepared=false&page=${page}&limit=${PAGE_SIZE}`;
+      }
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setVehicles(data.vehicles || []);
@@ -652,6 +663,93 @@ export default function VeiculosPage() {
     );
   };
 
+  /**
+   * Publica em batch todos os veiculos com preparedAt != null.
+   * Se passar `state`, filtra so daquele estado. Senao publica todos os prontos.
+   */
+  const handlePublishPrepared = async (state?: string) => {
+    const targetCount = state
+      ? filtered.filter(v => ((v.state || v.sourceGroup?.region || "").toUpperCase() === state)).length
+      : filtered.length;
+    const label = state ? `Publicar ${targetCount} veiculos de ${state}?` : `Publicar todos os ${targetCount} prontos?`;
+    if (!confirm(label + "\n\nEles serao postados em background com delays anti-ban.")) return;
+
+    setBatchPublishing(true);
+    try {
+      const res = await fetch("/api/vehicles/batch-publish-prepared", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state ? { state } : {}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`${data.queued} veiculos enfileirados`, { duration: 6000 });
+        // Optimistic: remove os enfileirados da lista
+        setVehicles(prev => state
+          ? prev.filter(v => ((v.state || v.sourceGroup?.region || "").toUpperCase() !== state))
+          : []
+        );
+      } else {
+        toast.error(data.error || "Erro ao enfileirar");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBatchPublishing(false);
+    }
+  };
+
+  /**
+   * Salva o veiculo como "preparado pra postar depois". Mesmo body do publish
+   * mas chama /prepare em vez do publish-direct/publish. Fecha modal otimisticamente.
+   */
+  const handlePrepare = async () => {
+    if (!publishVehicle) return;
+    if (selectedGroupIds.length === 0) {
+      toast.error("Selecione pelo menos um grupo destino antes de preparar");
+      return;
+    }
+    const vehicleId = publishVehicle.id;
+    const sellingPrice = publishVehicle.price * (1 + margin / 100);
+    const photos = parseArray(publishVehicle.photos);
+    const updatedPhotos = Object.keys(editedPhotos).length > 0
+      ? photos.map((p, i) => editedPhotos[i] || p)
+      : undefined;
+
+    // Optimistic close
+    setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
+    setPublishVehicle(null);
+    setEditedAd("");
+    setEditedPhotos({});
+    toast.loading("Salvando como pronto...", { id: `prepare-${vehicleId}` });
+
+    try {
+      const res = await fetch(`/api/vehicles/${vehicleId}/prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formattedAd: editedAd,
+          sellingPrice,
+          targetGroupIds: selectedGroupIds,
+          ...(updatedPhotos ? { photos: updatedPhotos } : {}),
+        }),
+      });
+      if (res.ok) {
+        toast.success(`Pronto pra postar depois (${selectedGroupIds.length} grupos)`, {
+          id: `prepare-${vehicleId}`,
+          duration: 5000,
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao preparar", { id: `prepare-${vehicleId}` });
+        fetchVehicles();
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`, { id: `prepare-${vehicleId}` });
+      fetchVehicles();
+    }
+  };
+
   const handlePublish = async () => {
     if (!publishVehicle) return;
     if (selectedGroupIds.length === 0) {
@@ -821,6 +919,9 @@ export default function VeiculosPage() {
               <TabsTrigger value="APPROVED" className="data-[state=active]:bg-success/10 data-[state=active]:text-success">
                 Aprovados
               </TabsTrigger>
+              <TabsTrigger value="PREPARED" className="data-[state=active]:bg-info/10 data-[state=active]:text-info">
+                Prontos
+              </TabsTrigger>
               <TabsTrigger value="PUBLISHED" className="data-[state=active]:bg-cugini-orange/10 data-[state=active]:text-cugini-orange">
                 Publicados
               </TabsTrigger>
@@ -914,6 +1015,54 @@ export default function VeiculosPage() {
             </div>
           )}
         </div>
+
+        {/* Banner de "Prontos" — botoes pra publicar em massa por estado */}
+        {activeTab === "PREPARED" && !loading && filtered.length > 0 && (() => {
+          const byState = new Map<string, number>();
+          for (const v of filtered) {
+            const s = (v.state || v.sourceGroup?.region || "?").toUpperCase();
+            byState.set(s, (byState.get(s) ?? 0) + 1);
+          }
+          const states = Array.from(byState.entries()).sort((a, b) => b[1] - a[1]);
+          return (
+            <div className="glass rounded-2xl p-4 border border-info/20">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-info" />
+                    <h3 className="text-sm font-semibold">Prontos pra postar</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {filtered.length} veiculo{filtered.length !== 1 ? "s" : ""} preparado{filtered.length !== 1 ? "s" : ""} -
+                    publique todos de uma vez por estado
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handlePublishPrepared()}
+                  className="gap-1.5 gradient-orange text-white border-0 shrink-0"
+                  disabled={batchPublishing}
+                >
+                  {batchPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Publicar todos ({filtered.length})
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {states.map(([state, count]) => (
+                  <button
+                    key={state}
+                    onClick={() => handlePublishPrepared(state)}
+                    disabled={batchPublishing}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium border border-info/30 bg-info/5 text-info hover:bg-info/15 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                  >
+                    <Send className="h-3 w-3" />
+                    {state} ({count})
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Content */}
         {loading ? (
@@ -1634,15 +1783,32 @@ export default function VeiculosPage() {
             </div>
 
             {/* Footer actions */}
-            <div className="px-5 py-3 border-t border-white/10 flex items-center gap-3">
+            <div className="px-5 py-3 border-t border-white/10 flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 border-border"
+                className="gap-1.5 border-border shrink-0"
                 onClick={handleClosePublishModal}
               >
                 Cancelar
               </Button>
+              {!republishMode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrepare}
+                  disabled={
+                    actionLoading === publishVehicle?.id ||
+                    !editedAd.trim() ||
+                    selectedGroupIds.length === 0
+                  }
+                  className="gap-1.5 border-info/30 text-info hover:bg-info/10 shrink-0"
+                  title="Salva texto, fotos e grupos pra publicar depois (em massa por estado)"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Salvar pronto
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={handlePublish}
