@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ActivityChart } from "@/components/dashboard/activity-chart";
 import { CapturesByState } from "@/components/dashboard/captures-by-state";
+import { RejectionsRanking } from "@/components/dashboard/rejections-ranking";
 import { useRouter } from "next/navigation";
 import { StatCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeleton-card";
 import { DateRange } from "@/components/dashboard/date-range-picker";
@@ -220,10 +221,13 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Capturas por estado (com filtro de data proprio) */}
-        <CapturesByState
-          onStateClick={(state) => router.push(`/veiculos?state=${state}`)}
-        />
+        {/* Capturas por estado + Ranking de rejeitados (lado a lado em desktop) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <CapturesByState
+            onStateClick={(state) => router.push(`/veiculos?state=${state}`)}
+          />
+          <RejectionsRanking />
+        </div>
 
         {/* Insights row: top fornecedores + qualidade media */}
         {!loading && data && (

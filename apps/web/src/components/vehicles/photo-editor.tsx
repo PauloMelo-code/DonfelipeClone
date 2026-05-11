@@ -134,7 +134,7 @@ export function PhotoEditor({
     ctx.putImageData(imageData, 0, 0);
 
     try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       setCropBox(null);
       setTool("blur");
@@ -174,7 +174,7 @@ export function PhotoEditor({
       ctx.drawImage(img, 0, 0);
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       try {
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
         onPhotoEdited(selectedIndex, dataUrl);
       } catch {
         // CORS tainted canvas
@@ -203,11 +203,17 @@ export function PhotoEditor({
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      const maxW = 480;
-      const maxH = 360;
+      // Canvas processa em alta resolucao (1280x960 max). CSS escala o display
+      // pro tamanho que cabe na tela. Antes era 480x360 -- fotos HD perdiam
+      // muito detalhe ao serem cortadas/borradas e iam pixeladas pro WhatsApp.
+      const maxW = 1280;
+      const maxH = 960;
       const scale = Math.min(maxW / img.width, maxH / img.height, 1);
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
+      // Habilita filtro de qualidade alta no resize do drawImage
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       setImageLoaded(true);
@@ -302,7 +308,7 @@ export function PhotoEditor({
     if (!ctx) return;
     try {
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
       onPhotoEdited(selectedIndex, dataUrl);
     } catch {
       // CORS tainted canvas
@@ -413,7 +419,7 @@ export function PhotoEditor({
     ctx.drawImage(blurCanvas, x, y);
 
     try {
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
       cleanImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       setCurrentRect(null);
       onPhotoEdited(selectedIndex, dataUrl);

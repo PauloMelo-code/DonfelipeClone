@@ -98,6 +98,9 @@ const REJECTION_OPTIONS = [
   { id: "km_alta", label: "Km alta com pouca margem" },
   { id: "modelo_mais_margem", label: "Esse modelo precisa de mais margem" },
   { id: "sem_foto", label: "Anúncio sem foto / foto errada" },
+  { id: "leilao_pouca_margem", label: "Leilão com pouca margem" },
+  { id: "sem_valor_oferta", label: "Sem valor da oferta" },
+  { id: "muitos_reparos_pouca_margem", label: "Muitos reparos e pouca margem" },
 ] as const;
 
 const statusConfig: Record<string, { label: string; color: string }> = {

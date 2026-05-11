@@ -106,7 +106,8 @@ export const rejectVehicleSchema = z.object({
   rejectionReason: z.string().max(1000).optional(),
   rejectionTags: z.array(z.enum([
     "fora_padrao", "sem_margem", "fora_sul", "repetido",
-    "km_alta", "modelo_mais_margem", "sem_foto"
+    "km_alta", "modelo_mais_margem", "sem_foto",
+    "leilao_pouca_margem", "sem_valor_oferta", "muitos_reparos_pouca_margem"
   ])).optional(),
 }).optional();
 
