@@ -252,6 +252,37 @@ export default function GruposPage() {
     }
   };
 
+  const [repairing, setRepairing] = useState(false);
+  const handleRepairNames = async () => {
+    setRepairing(true);
+    try {
+      const res = await fetch("/api/groups/repair-names", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.repaired > 0) {
+          toast.success(
+            `${data.repaired} grupos reparados${data.stillBroken > 0 ? ` (${data.stillBroken} sem retorno da UAZAPI)` : ""}`,
+            { duration: 8000 }
+          );
+          fetchGroups();
+        } else if (data.total === 0) {
+          toast.success("Todos os grupos ja tem nome correto");
+        } else {
+          toast.error(
+            `Nenhum dos ${data.stillBroken} grupos quebrados retornou nome — UAZAPI nao expoe metadata pra esses (provavelmente o numero nao eh membro ou grupo foi deletado)`,
+            { duration: 12000 }
+          );
+        }
+      } else {
+        toast.error(data.error || "Erro ao reparar nomes");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const handleTestSend = async (group: Group) => {
     setTestingGroupId(group.id);
     try {
@@ -493,6 +524,20 @@ export default function GruposPage() {
               <ShieldCheck className="h-4 w-4" />
             )}
             Verificar acesso
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleRepairNames}
+            disabled={repairing}
+            className="gap-2 border-border"
+            title="Tenta resolver nomes de grupos que ficaram so com o JID"
+          >
+            {repairing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Reparar nomes
           </Button>
           <Button
             onClick={handleSync}

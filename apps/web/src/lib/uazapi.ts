@@ -152,27 +152,80 @@ class UazapiClient {
   /** Fetch full group metadata (incl. subject) for a single JID. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async getGroupInfo(groupJid: string): Promise<{ subject?: string; profilePictureUrl?: string } | null> {
-    // Try common UAZAPI endpoint shapes for group info
+    // Helper: extract subject from any of the known field shapes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extractSubject = (d: any): string | undefined => {
+      if (!d) return undefined;
+      // Pode vir como array (alguns endpoints retornam {results: [...]} ou direto array)
+      const obj = Array.isArray(d) ? d[0] : Array.isArray(d?.results) ? d.results[0] : Array.isArray(d?.groups) ? d.groups[0] : d;
+      if (!obj) return undefined;
+      // Tenta nivel principal
+      const direct = obj.Name || obj.name || obj.subject || obj.Subject || obj.groupSubject
+        || obj.GroupSubject || obj.groupName || obj.GroupName || obj.Title || obj.title
+        || obj.pushname || obj.pushName || obj.displayName || obj.chatName;
+      if (direct) return direct;
+      // Tenta dentro de .group ou .info ou .data (alguns endpoints envelopam)
+      const nested = obj.group?.subject || obj.group?.name || obj.group?.Subject
+        || obj.info?.subject || obj.info?.name
+        || obj.data?.subject || obj.data?.name
+        || obj.chat?.name || obj.chat?.subject;
+      return nested;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extractPic = (d: any): string | undefined => {
+      if (!d) return undefined;
+      const obj = Array.isArray(d) ? d[0] : Array.isArray(d?.results) ? d.results[0] : d;
+      return obj?.profilePictureUrl || obj?.ProfilePictureUrl || obj?.PicUrl || obj?.imageUrl;
+    };
+
+    // Try many endpoint shapes UAZAPI builds use
     const candidates = [
+      // Variants of /group/info
       { method: "post" as const, url: "/group/info", body: { groupjid: groupJid } },
       { method: "post" as const, url: "/group/info", body: { jid: groupJid } },
+      { method: "post" as const, url: "/group/info", body: { id: groupJid } },
+      { method: "post" as const, url: "/group/info", body: { number: groupJid } },
       { method: "get" as const, url: "/group/info", params: { groupjid: groupJid } },
+      { method: "get" as const, url: "/group/info", params: { jid: groupJid } },
+      // /chat/find or /chat/info (some builds)
+      { method: "post" as const, url: "/chat/find", body: { jid: groupJid } },
+      { method: "post" as const, url: "/chat/find", body: { number: groupJid } },
+      { method: "get" as const, url: "/chat/find", params: { number: groupJid } },
+      // /group/list with forceInfo or filter
+      { method: "post" as const, url: "/group/metadata", body: { groupjid: groupJid } },
+      { method: "post" as const, url: "/group/metadata", body: { jid: groupJid } },
+      // RESTful path style
       { method: "get" as const, url: `/group/${encodeURIComponent(groupJid)}` },
+      { method: "get" as const, url: `/groups/${encodeURIComponent(groupJid)}` },
+      { method: "get" as const, url: `/chat/${encodeURIComponent(groupJid)}` },
     ];
+
     for (const c of candidates) {
       try {
         const res = c.method === "post"
           ? await this.client.post(c.url, c.body)
           : await this.client.get(c.url, { params: c.params });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const d: any = res.data;
-        const subject = d?.Name || d?.name || d?.subject || d?.Subject || d?.groupSubject;
-        if (subject) return { subject, profilePictureUrl: d?.profilePictureUrl };
+        const subject = extractSubject(res.data);
+        if (subject) {
+          return { subject, profilePictureUrl: extractPic(res.data) };
+        }
       } catch {
         // try next candidate
       }
     }
     return null;
+  }
+
+  /** Force resync from /group/list with force=true. Some UAZAPI builds cache
+   * subject and only refresh on force. */
+  async refreshGroupSubject(groupJid: string): Promise<string | null> {
+    try {
+      const groups = await this.listGroups(true);
+      const found = groups.find((g) => g.id === groupJid);
+      return found?.subject || null;
+    } catch {
+      return null;
+    }
   }
 
   // Track which instance has already logged its sample shape
