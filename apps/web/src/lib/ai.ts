@@ -221,17 +221,69 @@ function extractWithRegex(text: string): VehicleData | null {
   if (plateMatch) plate = plateMatch[1].replace(/\s/g, "").toUpperCase();
 
   // --- State ---
+  // Deteccao em camadas (do mais confiavel ao menos):
+  //  1. Nome do estado por extenso ("Santa Catarina")
+  //  2. Cidade conhecida -> estado
+  //  3. "emplacado SC" / "placa SC"
+  //  4. Sigla isolada (RS/SC/PR/SP) -- ultimo recurso
   let state: string | undefined;
-  const stateMatch = clean.match(/\b(emplacad[oa])\s+(RS|SC|PR|SP|RJ|MG|BA|GO|DF|MT|MS|ES|PE|CE|MA|PA|AM|RN|PB|AL|SE|PI|RO|AC|AP|RR|TO)\b/i)
-    || clean.match(/\b(RS|SC|PR|SP)\b/);
-  if (stateMatch) {
-    state = (stateMatch[2] || stateMatch[1]).toUpperCase();
+  const lowerClean = clean.toLowerCase();
+
+  const STATE_NAMES: Record<string, RegExp> = {
+    SC: /\bsanta\s*catarina\b/i,
+    RS: /\brio\s*grande\s*do\s*sul\b/i,
+    PR: /\bparan[aá]\b/i,
+    SP: /\bs[ãa]o\s*paulo\b/i,
+  };
+  // Cidades -> estado (as mais comuns nos anuncios de repasse do Sul)
+  const CITY_STATE: Record<string, string> = {
+    "florianopolis": "SC", "florianópolis": "SC", "joinville": "SC",
+    "blumenau": "SC", "itajai": "SC", "itajaí": "SC", "chapeco": "SC",
+    "chapecó": "SC", "criciuma": "SC", "criciúma": "SC", "lages": "SC",
+    "balneario camboriu": "SC", "balneário camboriú": "SC", "camboriu": "SC",
+    "jaragua do sul": "SC", "jaraguá do sul": "SC", "brusque": "SC",
+    "tubarao": "SC", "tubarão": "SC", "palhoca": "SC", "palhoça": "SC",
+    "sao bento do sul": "SC", "navegantes": "SC", "itapema": "SC",
+    "concordia": "SC", "concórdia": "SC", "indaial": "SC", "gaspar": "SC",
+    "porto alegre": "RS", "caxias do sul": "RS", "pelotas": "RS",
+    "canoas": "RS", "santa maria": "RS", "gravatai": "RS", "gravataí": "RS",
+    "novo hamburgo": "RS", "passo fundo": "RS", "rio grande": "RS",
+    "curitiba": "PR", "londrina": "PR", "maringa": "PR", "maringá": "PR",
+    "ponta grossa": "PR", "cascavel": "PR", "foz do iguacu": "PR",
+    "foz do iguaçu": "PR", "guarapuava": "PR", "sao jose dos pinhais": "PR",
+  };
+
+  // 1. Nome por extenso
+  for (const [uf, rx] of Object.entries(STATE_NAMES)) {
+    if (rx.test(clean)) { state = uf; break; }
+  }
+  // 2. Cidade
+  let location: string | undefined;
+  if (!state) {
+    for (const [city, uf] of Object.entries(CITY_STATE)) {
+      if (lowerClean.includes(city)) {
+        state = uf;
+        location = city.replace(/\b\w/g, (c) => c.toUpperCase());
+        break;
+      }
+    }
+  }
+  // 3. "emplacado SC" / "placa de SC"
+  if (!state) {
+    const placaMatch = clean.match(/\b(?:emplacad[oa]|placa\s*(?:de|do)?)\s+(RS|SC|PR|SP|RJ|MG|BA|GO|DF|MT|MS|ES|PE|CE|MA|PA|AM|RN|PB|AL|SE|PI|RO|AC|AP|RR|TO)\b/i);
+    if (placaMatch) state = placaMatch[1].toUpperCase();
+  }
+  // 4. Sigla isolada (case-insensitive) -- ultimo recurso
+  if (!state) {
+    const sigla = clean.match(/\b(RS|SC|PR|SP)\b/i);
+    if (sigla) state = sigla[1].toUpperCase();
   }
 
-  // --- Location ---
-  let location: string | undefined;
-  const locMatch = clean.match(/\b(florian[oó]polis|porto\s*alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|londrina|guarapuava)\b/i);
-  if (locMatch) location = locMatch[1];
+  // --- Location (fallback se nao veio da cidade acima) ---
+  if (!location) {
+    const locMatch = clean.match(/\b(florian[oó]polis|porto\s*alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|londrina|guarapuava)\b/i);
+    if (locMatch) location = locMatch[1];
+  }
 
   // --- Phone ---
   let sellerPhone: string | undefined;

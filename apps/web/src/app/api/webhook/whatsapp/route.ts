@@ -591,10 +591,10 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Filtro automatico de GRUPOS NACIONAIS ---
-    // Grupos marcados como regiao "Nacional" recebem carros do Brasil inteiro.
-    // So aceitamos os da regiao que atendemos (configuravel via setting
-    // `served_states`, default RS,SC,PR,SP). Carros de fora sao descartados
-    // automaticamente sem encher a fila de revisao.
+    // Grupos "Nacional" recebem carros do Brasil inteiro. Muitos anuncios de
+    // FORA da regiao atendida nao mencionam o estado. Regra do cliente:
+    // "se nao colocar nada, esta fora". Entao em grupo nacional EXIGIMOS
+    // mencao explicita de um estado atendido -- sem isso, descarta.
     const groupRegion = (group.region || "").toUpperCase();
     if (groupRegion === "NACIONAL") {
       const servedSetting = await prisma.setting.findUnique({
@@ -604,18 +604,24 @@ export async function POST(request: NextRequest) {
         .split(",")
         .map((s) => s.trim().toUpperCase())
         .filter(Boolean);
-      if (state && !servedStates.includes(state.toUpperCase())) {
+
+      const detectedState = state ? state.toUpperCase() : null;
+
+      // Estado nao detectado OU fora da regiao atendida -> descarta.
+      // Em grupo nacional, ausencia de estado = presumido fora da regiao.
+      if (!detectedState || !servedStates.includes(detectedState)) {
         console.log(
-          `[Webhook] FILTERED national group: ${state} nao esta em ${servedStates.join(",")}`
+          `[Webhook] FILTERED national group: estado=${detectedState ?? "NAO_DETECTADO"} (atendidos: ${servedStates.join(",")})`
         );
         return NextResponse.json({
           status: "filtered",
-          reason: "national_group_state_not_served",
-          state,
+          reason: detectedState
+            ? "national_group_state_not_served"
+            : "national_group_no_state_mentioned",
+          state: detectedState ?? "nao_detectado",
           servedStates,
         });
       }
-      // Se o estado nao foi detectado, deixa passar -- operador revisa na fila.
     }
 
     let groupFilters = null;
