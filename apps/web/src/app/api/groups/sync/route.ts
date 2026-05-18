@@ -81,7 +81,7 @@ export async function GET() {
       (
         await prisma.whatsAppGroup.findMany({
           where: { groupId: { in: remoteGroups.map((g) => g.id).filter(Boolean) } },
-          select: { groupId: true, name: true, role: true },
+          select: { groupId: true, name: true, role: true, nameLocked: true },
         })
       ).map((g) => [g.groupId, g])
     );
@@ -109,8 +109,13 @@ export async function GET() {
       const photoUrl = group.profilePictureUrl || null;
 
       if (existing) {
-        // Preserva role escolhida pelo operador. Nome bom no DB nao volta pra JID.
-        const safeName = name === groupId && existing.name !== groupId ? existing.name : name;
+        // nameLocked = nome editado manualmente pelo operador. NUNCA sobrescreve.
+        // Senao: preserva role escolhida. Nome bom no DB nao volta pra JID.
+        const safeName = existing.nameLocked
+          ? existing.name
+          : name === groupId && existing.name !== groupId
+            ? existing.name
+            : name;
         await prisma.whatsAppGroup.update({
           where: { groupId },
           data: {

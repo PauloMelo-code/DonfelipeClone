@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send, ShieldAlert, ShieldCheck } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send, ShieldAlert, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ interface Group {
   id: string;
   groupId: string;
   name: string;
+  nameLocked?: boolean;
   role: string;
   active: boolean;
   filters: string | null;
@@ -222,6 +223,44 @@ export default function GruposPage() {
   };
 
   const [testingGroupId, setTestingGroupId] = useState<string | null>(null);
+
+  // Renomear grupo manualmente
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
+
+  const startRename = (group: Group) => {
+    setRenamingId(group.id);
+    setRenameValue(group.name);
+  };
+
+  const handleSaveRename = async (group: Group) => {
+    const newName = renameValue.trim();
+    if (!newName || newName === group.name) {
+      setRenamingId(null);
+      return;
+    }
+    setSavingRename(true);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+      if (res.ok) {
+        toast.success("Nome salvo — não será sobrescrito ao sincronizar");
+        setRenamingId(null);
+        fetchGroups();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao renomear");
+      }
+    } catch {
+      toast.error("Erro de conexão");
+    } finally {
+      setSavingRename(false);
+    }
+  };
   const [verifying, setVerifying] = useState(false);
   const [membershipReport, setMembershipReport] = useState<{
     usingSeparateInstance: boolean;
@@ -434,10 +473,51 @@ export default function GruposPage() {
     >
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto auto", gap: "6px", alignItems: "center" }}>
         <div style={{ overflow: "hidden", minWidth: 0 }}>
-          <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }}>
-            <span style={{ marginRight: "6px" }}>{getGroupTypeIcon(getGroupType(group))}</span>
-            {group.name}
-          </p>
+          {renamingId === group.id ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveRename(group);
+                  if (e.key === "Escape") setRenamingId(null);
+                }}
+                disabled={savingRename}
+                className="flex-1 min-w-0 bg-background border border-cugini-orange/40 rounded px-1.5 py-0.5 text-[13px] outline-none focus:border-cugini-orange"
+              />
+              <button
+                onClick={() => handleSaveRename(group)}
+                disabled={savingRename}
+                className="p-1 rounded text-success hover:bg-success/10 shrink-0"
+                title="Salvar"
+              >
+                {savingRename ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                onClick={() => setRenamingId(null)}
+                className="p-1 rounded text-muted-foreground hover:bg-white/[0.05] shrink-0"
+                title="Cancelar"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }} className="flex items-center gap-1.5 group/name">
+              <span style={{ marginRight: "2px" }}>{getGroupTypeIcon(getGroupType(group))}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{group.name}</span>
+              {group.nameLocked && (
+                <span title="Nome fixado manualmente" className="text-[9px] text-cugini-orange shrink-0">📌</span>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); startRename(group); }}
+                className="p-0.5 rounded text-muted-foreground/40 hover:text-cugini-orange shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity"
+                title="Renomear grupo"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </p>
+          )}
           <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", opacity: 0.5 }}>{group.groupId}</p>
           {/^\d{8,15}@broadcast$/.test(group.groupId) && (
             <button

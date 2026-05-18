@@ -394,19 +394,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
 
-    // === Multi-foto: anexa fotos extras a anuncios recentes (sem custo de GPT) ===
-    // Se chegou foto sem texto, e a ultima mensagem do mesmo remetente no mesmo
-    // grupo gerou um Vehicle nos ultimos 90s, anexamos a foto ao array .photos
-    // desse Vehicle e retornamos. Nada de OpenAI -- a extracao ja foi feita.
+    // === Multi-foto (album): anexa fotos extras a anuncios recentes ===
+    // Se chegou foto sem texto, e o mesmo remetente gerou um Vehicle nos
+    // ultimos 5 min no mesmo grupo, anexamos a foto ao array .photos.
+    // Match primario por sourceSenderJid (JID confiavel de quem postou);
+    // fallback por sellerPhone pra anuncios antigos sem o campo novo.
     if (!textContent && imageUrl && senderJid) {
-      const ninetySecondsAgo = new Date(Date.now() - 90_000);
-      // Normaliza sellerPhone pra comparar com varios formatos possiveis
+      const fiveMinAgo = new Date(Date.now() - 5 * 60_000);
       const senderDigits = senderJid.replace(/\D/g, "");
-      const recentVehicle = await prisma.vehicle.findFirst({
+      let target = await prisma.vehicle.findFirst({
         where: {
           sourceGroupId: group.groupId,
-          capturedAt: { gte: ninetySecondsAgo },
+          capturedAt: { gte: fiveMinAgo },
           OR: [
+            { sourceSenderJid: senderJid },
             { sellerPhone: senderJid },
             { sellerPhone: senderDigits },
             { sellerPhone: { contains: senderDigits } },
@@ -416,38 +417,53 @@ export async function POST(request: NextRequest) {
         select: { id: true, photos: true },
       });
 
-      if (recentVehicle) {
+      // Fallback: se nada casou por remetente mas existe UM unico anuncio
+      // recentissimo (<=90s) no grupo, provavelmente eh o mesmo anuncio
+      // (vendedor mandando fotos em sequencia).
+      if (!target) {
+        const ninetySecAgo = new Date(Date.now() - 90_000);
+        const recentInGroup = await prisma.vehicle.findMany({
+          where: { sourceGroupId: group.groupId, capturedAt: { gte: ninetySecAgo } },
+          orderBy: { capturedAt: "desc" },
+          select: { id: true, photos: true },
+          take: 2,
+        });
+        if (recentInGroup.length === 1) {
+          target = recentInGroup[0];
+          console.log("[Webhook] Multi-photo: fallback -- unico anuncio recente no grupo");
+        }
+      }
+
+      if (target) {
         // Parse, append, save -- sem chamar GPT
         let currentPhotos: string[] = [];
         try {
-          const parsed = JSON.parse(recentVehicle.photos);
+          const parsed = JSON.parse(target.photos);
           if (Array.isArray(parsed)) currentPhotos = parsed.filter((p) => typeof p === "string");
         } catch { /* ignore */ }
 
-        // Limit razoavel: maximo 12 fotos por anuncio
         if (currentPhotos.length >= 12) {
-          console.log(`[Webhook] Multi-photo: vehicle ${recentVehicle.id} ja tem 12 fotos, ignorando extra`);
+          console.log(`[Webhook] Multi-photo: vehicle ${target.id} ja tem 12 fotos, ignorando extra`);
           return NextResponse.json({ status: "ignored", reason: "multi_photo_limit" });
         }
 
-        // Evita duplicar a mesma foto
         if (!currentPhotos.includes(imageUrl)) {
           currentPhotos.push(imageUrl);
           await prisma.vehicle.update({
-            where: { id: recentVehicle.id },
+            where: { id: target.id },
             data: { photos: JSON.stringify(currentPhotos) },
           });
-          console.log(`[Webhook] Multi-photo: foto extra anexada ao vehicle ${recentVehicle.id} (total agora: ${currentPhotos.length})`);
+          console.log(`[Webhook] Multi-photo: foto anexada ao vehicle ${target.id} (total: ${currentPhotos.length})`);
         }
 
         return NextResponse.json({
           status: "multi_photo_appended",
-          vehicleId: recentVehicle.id,
+          vehicleId: target.id,
           totalPhotos: currentPhotos.length,
         });
       }
 
-      // Sem Vehicle recente do mesmo remetente -> rejeita como antes
+      // Sem anuncio recente -> rejeita como antes
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
@@ -713,6 +729,7 @@ export async function POST(request: NextRequest) {
         sourceGroupId: groupJid,
         sourceMessageId: messageId,
         sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
+        sourceSenderJid: senderJid, // JID de quem postou -- usado pra agrupar fotos extras
         vehicleHash,
         photoHash,
         qualityScore,

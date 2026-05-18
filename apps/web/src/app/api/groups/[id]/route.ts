@@ -48,7 +48,11 @@ export async function PUT(
 
     const { name, role, active, filters, photoUrl, region } = validation.data;
     const data: Record<string, unknown> = {};
-    if (name !== undefined) data.name = name;
+    if (name !== undefined) {
+      data.name = name;
+      // Edicao manual de nome trava contra sobrescrita do sync
+      data.nameLocked = true;
+    }
     if (role !== undefined) data.role = role;
     if (active !== undefined) data.active = active;
     if (filters !== undefined) data.filters = filters;

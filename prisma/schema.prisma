@@ -44,6 +44,9 @@ model Vehicle {
   sourceGroupId   String?
   sourceMessageId String?   @unique
   sellerPhone     String?
+  /// JID de quem postou no grupo fonte (ex: 5511...@s.whatsapp.net).
+  /// Usado pra agrupar fotos extras do mesmo anuncio (album).
+  sourceSenderJid String?
   vehicleHash     String
   status          String    @default("PENDING")
   formattedAd     String?
@@ -83,6 +86,7 @@ model Vehicle {
   @@index([state])
   @@index([photoHash])
   @@index([preparedAt])
+  @@index([sourceSenderJid])
   @@map("vehicles")
 }
 
@@ -121,6 +125,8 @@ model WhatsAppGroup {
   id        String   @id @default(cuid())
   groupId   String   @unique
   name      String
+  /// Quando true, o nome foi editado manualmente -- o sync NUNCA sobrescreve.
+  nameLocked Boolean @default(false)
   role      String
   active    Boolean  @default(true)
   filters   String?
