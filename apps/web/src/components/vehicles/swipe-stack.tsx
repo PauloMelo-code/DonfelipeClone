@@ -59,7 +59,24 @@ interface SwipeStackProps {
 
 function MarginBadge({ price, fipePrice }: { price: number; fipePrice?: number | null }) {
   if (!fipePrice || fipePrice <= 0) return null;
+  // Blindagem: price invalido (0, NaN, negativo) ou identico a FIPE = anuncio
+  // sem valor de oferta real. Mostra aviso em vez de "-0% FIPE" enganoso.
+  if (!price || !Number.isFinite(price) || price <= 0) {
+    return (
+      <span className="rounded-full border px-2 py-0.5 text-xs whitespace-nowrap bg-warning/10 border-warning/30 text-warning">
+        Sem oferta
+      </span>
+    );
+  }
+  if (price === fipePrice) {
+    return (
+      <span className="rounded-full border px-2 py-0.5 text-xs whitespace-nowrap bg-warning/10 border-warning/30 text-warning">
+        = FIPE (s/ oferta?)
+      </span>
+    );
+  }
   const discount = Math.round((1 - price / fipePrice) * 100);
+  if (!Number.isFinite(discount)) return null;
   let style: string;
   let label: string;
   if (discount >= 15) {

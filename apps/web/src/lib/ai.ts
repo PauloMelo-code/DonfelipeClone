@@ -122,15 +122,26 @@ function extractWithRegex(text: string): VehicleData | null {
     }
   }
 
+  // --- FIPE (extrai PRIMEIRO pra poder excluir essa linha do preco) ---
+  let fipePrice: number | null = null;
+  const fipeMatch = clean.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i);
+  if (fipeMatch) {
+    fipePrice = parseBrazilianNumber(fipeMatch[1]);
+  }
+
   // --- Price ---
+  // CRITICAL: nunca usar uma linha que menciona "fipe" como preco de venda.
+  // O vendedor as vezes posta SO a FIPE (sem o valor da oferta) e o sistema
+  // copiava a FIPE como price -> dava "-0% FIPE" e score errado.
   let price: number | null = null;
+  const priceText = lines.filter((l) => !/fipe/i.test(l)).join("\n");
   const pricePatterns = [
-    /(?:pedid[ao]|faço|valor|vendo|preço|preco)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
+    /(?:pedid[ao]|faço|faco|valor|vendo|preço|preco|por)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
     /r\$\s*([\d.,]+\s*(?:mil)?)/i,
     /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m,
   ];
   for (const p of pricePatterns) {
-    const m = clean.match(p);
+    const m = priceText.match(p);
     if (m) {
       price = parseBrazilianNumber(m[1]);
       if (price !== null && price >= 10000) break;
@@ -138,11 +149,12 @@ function extractWithRegex(text: string): VehicleData | null {
     }
   }
 
-  // --- FIPE ---
-  let fipePrice: number | null = null;
-  const fipeMatch = clean.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i);
-  if (fipeMatch) {
-    fipePrice = parseBrazilianNumber(fipeMatch[1]);
+  // Salvaguarda: se o preco extraido eh identico a FIPE, quase certamente
+  // foi a FIPE copiada por engano (anuncio sem valor de oferta real).
+  // Zera o price -> regex falha (price obrigatorio) -> cai pro GPT que decide.
+  if (price !== null && fipePrice !== null && price === fipePrice) {
+    console.log("[regex] price == fipePrice, descartando price (anuncio provavelmente sem oferta)");
+    price = null;
   }
 
   // --- Transmission ---
@@ -314,7 +326,7 @@ function setCache(text: string, data: VehicleData | null): void {
 // GPT Extraction (fallback)
 // ---------------------------------------------------------------------------
 
-const EXTRACTION_SYSTEM_PROMPT = `Voce e um assistente especializado em extrair dados de veiculos a partir de anuncios brasileiros.
+const EXTRACTION_SYSTEM_PROMPT = `Voce e um especialista em extrair dados de veiculos de anuncios brasileiros de repasse.
 
 Extraia os seguintes campos do texto ou imagem fornecida:
 - model: nome do modelo (ex: "CIVIC EXL 2.0")
@@ -322,8 +334,8 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 - year: ano de fabricacao (numero inteiro)
 - yearModel: ano do modelo (numero inteiro, pode ser diferente do ano de fabricacao)
 - km: quilometragem (numero inteiro)
-- price: preco de venda em reais (numero decimal)
-- fipePrice: preco FIPE em reais se mencionado (numero decimal ou null)
+- price: PRECO DE VENDA / OFERTA em reais (numero decimal) -- ver regras criticas abaixo
+- fipePrice: preco da TABELA FIPE em reais se mencionado (numero decimal ou null)
 - transmission: tipo de cambio - "AUTOMATICO", "MANUAL" ou "CVT"
 - fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO"
 - color: cor do veiculo
@@ -333,12 +345,30 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 - features: lista de opcionais/caracteristicas como array de strings
 - sellerPhone: telefone do vendedor se mencionado
 
+=== REGRAS CRITICAS SOBRE PRECO vs FIPE ===
+1. "price" e "fipePrice" sao DUAS COISAS DIFERENTES e quase nunca iguais.
+   - fipePrice = valor da tabela FIPE (referencia de mercado).
+   - price = o que o vendedor esta PEDINDO pelo carro (a oferta real).
+2. A FIPE aparece SEMPRE perto da palavra "FIPE". O preco de venda aparece
+   perto de "por", "valor", "pedido", "vendo", "R$" SEM a palavra fipe.
+3. NUNCA copie o valor da FIPE para o campo price. Se a unica cifra do
+   anuncio estiver na linha da FIPE (ex: "Fipe R$ 169.302" e nada mais),
+   entao o anuncio NAO TEM preco de venda -> retorne price = null.
+4. Em repasse o preco de venda quase sempre eh MENOR que a FIPE. Se voce
+   extrair um price IGUAL ou MAIOR que a fipePrice, releia: provavelmente
+   confundiu os dois. Na duvida, deixe price = null.
+5. Exemplos:
+   - "Fipe R$ 169.302" (so isso)        -> fipePrice=169302, price=null
+   - "Fipe 80mil / Por 72mil"           -> fipePrice=80000, price=72000
+   - "Valor 65.000 - Fipe da 71.000"    -> price=65000, fipePrice=71000
+   - "Vendo por 90 mil"                 -> price=90000, fipePrice=null
+
 REGRAS DE FORMATO BRASILEIRO:
 - "127.000" ou "127 mil" = 127000
 - "R$ 85.000" ou "85mil" = 85000
 - Ano: "2020/2021" significa year=2020, yearModel=2021
 
-Se um campo nao puder ser extraido, use null.
+Se um campo nao puder ser extraido com certeza, use null.
 Retorne APENAS o JSON valido.`;
 
 const VEHICLE_JSON_SCHEMA = {
@@ -371,6 +401,16 @@ const VEHICLE_JSON_SCHEMA = {
 function parseGptResponse(raw: string): VehicleData | null {
   try {
     const parsed = JSON.parse(raw);
+    // Salvaguarda dupla: se o GPT extraiu price igual a fipePrice, ele
+    // confundiu os dois campos. Descarta o price (anuncio sem oferta real).
+    if (
+      parsed.price != null &&
+      parsed.fipePrice != null &&
+      parsed.price === parsed.fipePrice
+    ) {
+      console.log("[ai] GPT: price == fipePrice, descartando price");
+      parsed.price = null;
+    }
     if (!parsed.model || parsed.year == null || parsed.km == null || !parsed.price) return null;
     return {
       model: parsed.model, brand: parsed.brand ?? undefined,
