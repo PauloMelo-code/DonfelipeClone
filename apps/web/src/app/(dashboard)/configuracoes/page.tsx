@@ -13,6 +13,8 @@ import { toast } from "sonner";
 
 interface Settings {
   profit_margin_percent: string;
+  min_profit_margin: string;
+  served_states: string;
   delay_min_seconds: string;
   delay_max_seconds: string;
   filter_min_year: string;
@@ -26,6 +28,8 @@ type WaState = "open" | "connecting" | "close" | "error" | "unknown" | "not_conf
 export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings>({
     profit_margin_percent: "10",
+    min_profit_margin: "9",
+    served_states: "RS,SC,PR,SP",
     delay_min_seconds: "3",
     delay_max_seconds: "8",
     filter_min_year: "2018",
@@ -252,7 +256,8 @@ export default function ConfiguracoesPage() {
     try {
       // Only send the whitelisted keys
       const allowedKeys: (keyof Settings)[] = [
-        "profit_margin_percent", "delay_min_seconds", "delay_max_seconds",
+        "profit_margin_percent", "min_profit_margin", "served_states",
+        "delay_min_seconds", "delay_max_seconds",
         "filter_min_year", "filter_min_price",
         "blocklist_keywords", "vip_keywords",
       ];
@@ -548,9 +553,9 @@ export default function ConfiguracoesPage() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Margem de Lucro
           </h3>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Margem sobre o preco captado (%)</Label>
+              <Label>Margem padrão sobre o preço captado (%)</Label>
               <Input
                 type="number"
                 value={settings.profit_margin_percent}
@@ -558,6 +563,38 @@ export default function ConfiguracoesPage() {
                 className="bg-card border-border"
               />
             </div>
+            <div className="space-y-2">
+              <Label>Margem mínima de lucro (%)</Label>
+              <Input
+                type="number"
+                value={settings.min_profit_margin}
+                onChange={(e) => update("min_profit_margin", e.target.value)}
+                className="bg-card border-border"
+              />
+              <p className="text-[11px] text-muted-foreground/60">
+                A IA nunca vende abaixo disso, mesmo no smart pricing. Padrão 9%.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Região atendida */}
+        <div className="glass rounded-2xl p-6 space-y-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Região atendida
+          </h3>
+          <div className="space-y-2">
+            <Label>Estados atendidos (separados por vírgula)</Label>
+            <Input
+              value={settings.served_states}
+              onChange={(e) => update("served_states", e.target.value)}
+              placeholder="RS,SC,PR,SP"
+              className="bg-card border-border"
+            />
+            <p className="text-[11px] text-muted-foreground/60">
+              Grupos marcados como &quot;Nacional&quot; só aceitam carros destes estados.
+              Carros de fora são descartados automaticamente.
+            </p>
           </div>
         </div>
 

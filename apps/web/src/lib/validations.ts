@@ -74,6 +74,8 @@ export const updateGroupSchema = z.object({
 export const ALLOWED_SETTING_KEYS = [
   "profit_margin",
   "profit_margin_percent",
+  "min_profit_margin",
+  "served_states",
   "delay_min_seconds",
   "delay_max_seconds",
   "filter_min_year",
