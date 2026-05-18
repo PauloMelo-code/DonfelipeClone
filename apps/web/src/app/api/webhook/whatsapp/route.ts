@@ -574,6 +574,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // --- Filtro automatico de GRUPOS NACIONAIS ---
+    // Grupos marcados como regiao "Nacional" recebem carros do Brasil inteiro.
+    // So aceitamos os da regiao que atendemos (configuravel via setting
+    // `served_states`, default RS,SC,PR,SP). Carros de fora sao descartados
+    // automaticamente sem encher a fila de revisao.
+    const groupRegion = (group.region || "").toUpperCase();
+    if (groupRegion === "NACIONAL") {
+      const servedSetting = await prisma.setting.findUnique({
+        where: { key: "served_states" },
+      });
+      const servedStates = (servedSetting?.value || "RS,SC,PR,SP")
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+      if (state && !servedStates.includes(state.toUpperCase())) {
+        console.log(
+          `[Webhook] FILTERED national group: ${state} nao esta em ${servedStates.join(",")}`
+        );
+        return NextResponse.json({
+          status: "filtered",
+          reason: "national_group_state_not_served",
+          state,
+          servedStates,
+        });
+      }
+      // Se o estado nao foi detectado, deixa passar -- operador revisa na fila.
+    }
+
     let groupFilters = null;
     try {
       groupFilters = group.filters ? JSON.parse(group.filters) : null;

@@ -73,9 +73,14 @@ function extractWithRegex(text: string): VehicleData | null {
   const lines = clean.split("\n").map((l) => l.trim()).filter(Boolean);
 
   // --- Year ---
+  // CRITICAL: ignorar linhas de IPVA/licenciamento. "IPVA 2026 pago" NAO eh
+  // o ano do carro -- o regex pegava 2026 e o anuncio saia com ano errado.
+  const isIpvaLine = (l: string) =>
+    /\b(ipva|licenciamento|licenciad[oa]|seguro|multa|placa)\b/i.test(l);
   let year: number | null = null;
   let yearModel: number | null = null;
   for (const line of lines) {
+    if (isIpvaLine(line)) continue; // pula linha de IPVA/licenciamento
     // "2022/2023" or "22/23" or "2022/23"
     const ym = line.match(/\b(20\d{2})\s*[\/]\s*(20\d{2}|\d{2})\b/);
     if (ym) {
@@ -363,6 +368,19 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    - "Valor 65.000 - Fipe da 71.000"    -> price=65000, fipePrice=71000
    - "Vendo por 90 mil"                 -> price=90000, fipePrice=null
 
+=== REGRAS CRITICAS SOBRE O ANO ===
+1. "year" e "yearModel" sao o ano de FABRICACAO e MODELO do veiculo.
+2. NUNCA confunda com o ano do IPVA/licenciamento. Frases como
+   "IPVA 2026 pago", "IPVA 26 PG", "licenciado 2025", "seguro ate 2026"
+   referem-se a documentos, NAO ao ano do carro.
+3. O ano do carro costuma aparecer sozinho ("2019"), apos "Ano:", ou no
+   formato fabricacao/modelo ("2019/2020"). Geralmente perto do modelo
+   ou da quilometragem.
+4. Exemplos:
+   - "Compass 2019 / IPVA 2026 pago"     -> year=2019 (NAO 2026)
+   - "Civic 2020/2021 - Licenciado 2025" -> year=2020, yearModel=2021
+   - "Onix 2022 IPVA 25 PG"              -> year=2022 (NAO 2025)
+
 REGRAS DE FORMATO BRASILEIRO:
 - "127.000" ou "127 mil" = 127000
 - "R$ 85.000" ou "85mil" = 85000
@@ -429,7 +447,7 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
   if (!process.env.OPENAI_API_KEY) return null;
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o-mini", temperature: 0.1,
+      model: "gpt-4.1-mini", temperature: 0.1,
       response_format: { type: "json_schema", json_schema: VEHICLE_JSON_SCHEMA },
       messages: [
         { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
@@ -521,7 +539,7 @@ export async function extractVehicleFromImage(
     }
 
     const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o-mini", temperature: 0.1,
+      model: "gpt-4.1-mini", temperature: 0.1,
       response_format: { type: "json_schema", json_schema: VEHICLE_JSON_SCHEMA },
       messages: [
         { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
