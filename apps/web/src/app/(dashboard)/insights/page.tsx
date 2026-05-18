@@ -36,7 +36,7 @@ export default function InsightsPage() {
   if (loading) {
     return (
       <>
-        <Header title="Insights" subtitle="Analise dos ultimos 30 dias" />
+        <Header title="Insights" subtitle="Análise dos últimos 30 dias" />
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
         </div>

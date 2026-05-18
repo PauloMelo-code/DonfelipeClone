@@ -305,10 +305,10 @@ export default function GruposPage() {
           );
           fetchGroups();
         } else if (data.total === 0) {
-          toast.success("Todos os grupos ja tem nome correto");
+          toast.success("Todos os grupos já têm nome correto");
         } else {
           toast.error(
-            `Nenhum dos ${data.stillBroken} grupos quebrados retornou nome — UAZAPI nao expoe metadata pra esses (provavelmente o numero nao eh membro ou grupo foi deletado)`,
+            `Nenhum dos ${data.stillBroken} grupos quebrados retornou nome — UAZAPI não expõe metadata pra esses (provavelmente o número não é membro ou grupo foi deletado)`,
             { duration: 12000 }
           );
         }
@@ -333,7 +333,7 @@ export default function GruposPage() {
         toast.error(`✗ ${group.name}: ${data.error || "erro desconhecido"}`, { duration: 12000 });
       }
     } catch (e) {
-      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`, { duration: 8000 });
+      toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`, { duration: 8000 });
     } finally {
       setTestingGroupId(null);
     }
@@ -344,7 +344,7 @@ export default function GruposPage() {
   const handleConvertToDM = async (group: Group) => {
     const phone = group.groupId.replace(/@broadcast$/, "");
     if (!/^\d+$/.test(phone)) {
-      toast.error("Esta entrada nao parece um numero de telefone");
+      toast.error("Esta entrada não parece um número de telefone");
       return;
     }
     const newJid = `${phone}@s.whatsapp.net`;
@@ -440,7 +440,7 @@ export default function GruposPage() {
     return (
       <div className="flex items-center justify-between gap-2 pt-3 border-t border-border/50">
         <span className="text-[11px] text-muted-foreground">
-          {total} grupos · pag {page} de {totalPages}
+          {total} grupos · pág {page} de {totalPages}
         </span>
         <div className="flex gap-1">
           <button
@@ -579,7 +579,7 @@ export default function GruposPage() {
 
   return (
     <>
-      <Header title="Grupos" subtitle="Gerencie grupos de monitoramento e publicacao" />
+      <Header title="Grupos" subtitle="Gerencie grupos de monitoramento e publicação" />
 
       <div className="p-6 space-y-6">
         <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
@@ -596,7 +596,7 @@ export default function GruposPage() {
             onClick={handleVerifyMembership}
             disabled={verifying}
             className="gap-2 border-border"
-            title="Verifica se a instancia de envio e membro de cada grupo destino"
+            title="Verifica se a instância de envio é membro de cada grupo destino"
           >
             {verifying ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -610,7 +610,7 @@ export default function GruposPage() {
             onClick={handleRepairNames}
             disabled={repairing}
             className="gap-2 border-border"
-            title="Tenta resolver nomes de grupos que ficaram so com o JID"
+            title="Tenta resolver nomes de grupos que ficaram só com o JID"
           >
             {repairing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -927,7 +927,7 @@ export default function GruposPage() {
                 {sourceGroups.map((group) => renderGroupCard(group))}
                 {sourceGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo fonte nesta pagina
+                    Nenhum grupo fonte nesta página
                   </p>
                 )}
               </div>
@@ -973,7 +973,7 @@ export default function GruposPage() {
                 {targetGroups.map((group) => renderGroupCard(group))}
                 {targetGroups.length === 0 && (
                   <p className="text-sm text-muted-foreground py-4 text-center">
-                    Nenhum grupo destino nesta pagina
+                    Nenhum grupo destino nesta página
                   </p>
                 )}
               </div>
@@ -1020,7 +1020,7 @@ export default function GruposPage() {
                     {groupList.map((group) => renderGroupCard(group))}
                     {groupList.length === 0 && (
                       <p className="text-sm text-muted-foreground py-4 text-center">
-                        Nenhum grupo {isSource ? "fonte" : "destino"} nesta pagina
+                        Nenhum grupo {isSource ? "fonte" : "destino"} nesta página
                       </p>
                     )}
                   </div>

@@ -99,7 +99,7 @@ export default function TemplatesPage() {
 
   const handleSubmit = async () => {
     if (!formName.trim() || !formContent.trim()) {
-      toast.error("Nome e conteudo sao obrigatorios");
+      toast.error("Nome e conteúdo são obrigatórios");
       return;
     }
     setSaving(true);
@@ -126,7 +126,7 @@ export default function TemplatesPage() {
         toast.error(err.error || "Erro ao salvar");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setSaving(false);
     }
@@ -143,7 +143,7 @@ export default function TemplatesPage() {
         toast.error("Erro ao excluir");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     }
   };
 
@@ -301,19 +301,19 @@ export default function TemplatesPage() {
               <Input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="Saudacao inicial"
+                placeholder="Saudação inicial"
                 maxLength={100}
                 className="bg-card border-border"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Conteudo
+                Conteúdo
               </label>
               <Textarea
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
-                placeholder="Ola! Como posso ajudar?"
+                placeholder="Olá! Como posso ajudar?"
                 maxLength={2000}
                 className="bg-card border-border min-h-[120px]"
               />

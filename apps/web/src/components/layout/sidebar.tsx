@@ -27,17 +27,17 @@ import {
 
 const navigation = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Veiculos", href: "/veiculos", icon: Car },
-  { label: "Publicacoes", href: "/publicacoes", icon: Send },
+  { label: "Veículos", href: "/veiculos", icon: Car },
+  { label: "Publicações", href: "/publicacoes", icon: Send },
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Grupos", href: "/grupos", icon: Users },
   { label: "Templates", href: "/templates", icon: MessageSquare },
-  { label: "Usuarios", href: "/usuarios", icon: UserCog },
+  { label: "Usuários", href: "/usuarios", icon: UserCog },
   { label: "Auditoria", href: "/auditoria", icon: Shield },
 ];
 
 const bottomNavigation = [
-  { label: "Configuracoes", href: "/configuracoes", icon: Settings },
+  { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 interface SidebarProps {

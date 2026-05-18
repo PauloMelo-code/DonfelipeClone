@@ -38,7 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
             Algo deu errado
           </h2>
           <p className="text-sm text-muted-foreground mb-4 max-w-md">
-            Ocorreu um erro inesperado. Tente recarregar a pagina.
+            Ocorreu um erro inesperado. Tente recarregar a página.
           </p>
           {this.state.error && (
             <pre className="text-xs text-muted-foreground bg-card rounded-lg p-3 mb-4 max-w-md overflow-auto">

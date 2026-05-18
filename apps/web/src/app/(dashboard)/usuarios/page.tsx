@@ -88,11 +88,11 @@ export default function UsuariosPage() {
 
   const handleSubmit = async () => {
     if (!formName.trim() || !formEmail.trim()) {
-      toast.error("Nome e email sao obrigatorios");
+      toast.error("Nome e email são obrigatórios");
       return;
     }
     if (!editingUser && !formPassword.trim()) {
-      toast.error("Senha e obrigatoria para novos usuarios");
+      toast.error("Senha é obrigatória para novos usuários");
       return;
     }
 
@@ -107,7 +107,7 @@ export default function UsuariosPage() {
           body: JSON.stringify(body),
         });
         if (res.ok) {
-          toast.success("Usuario atualizado!");
+          toast.success("Usuário atualizado!");
           setShowForm(false);
           fetchUsers();
         } else {
@@ -126,16 +126,16 @@ export default function UsuariosPage() {
           }),
         });
         if (res.ok) {
-          toast.success("Usuario criado!");
+          toast.success("Usuário criado!");
           setShowForm(false);
           fetchUsers();
         } else {
           const err = await res.json();
-          toast.error(err.error || "Erro ao criar usuario");
+          toast.error(err.error || "Erro ao criar usuário");
         }
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setSaving(false);
     }
@@ -149,14 +149,14 @@ export default function UsuariosPage() {
         body: JSON.stringify({ active: !user.active }),
       });
       if (res.ok) {
-        toast.success(user.active ? "Usuario desativado" : "Usuario ativado");
+        toast.success(user.active ? "Usuário desativado" : "Usuário ativado");
         fetchUsers();
       } else {
         const err = await res.json();
         toast.error(err.error || "Erro ao alterar status");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     }
   };
 
@@ -169,12 +169,12 @@ export default function UsuariosPage() {
 
   return (
     <>
-      <Header title="Usuarios" subtitle="Gerenciamento de usuarios do sistema" />
+      <Header title="Usuários" subtitle="Gerenciamento de usuários do sistema" />
 
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            {users.length} usuario(s)
+            {users.length} usuário(s)
           </p>
           <Button
             size="sm"
@@ -182,7 +182,7 @@ export default function UsuariosPage() {
             className="gap-1.5 gradient-orange text-white border-0"
           >
             <Plus className="h-4 w-4" />
-            Novo usuario
+            Novo usuário
           </Button>
         </div>
 
@@ -193,7 +193,7 @@ export default function UsuariosPage() {
         ) : users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <UserCog className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">Nenhum usuario cadastrado</p>
+            <p className="text-sm">Nenhum usuário cadastrado</p>
           </div>
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
@@ -256,10 +256,10 @@ export default function UsuariosPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Usuario</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Usuário</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Role</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Status</th>
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Acoes</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Ações</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Criado em</th>
                     <th className="px-5 py-3.5 w-20"></th>
                   </tr>
@@ -299,7 +299,7 @@ export default function UsuariosPage() {
                             {user.active ? "Ativo" : "Inativo"}
                           </Badge>
                         </td>
-                        <td className="px-5 py-3.5 text-muted-foreground">{user._count.auditLogs} acoes</td>
+                        <td className="px-5 py-3.5 text-muted-foreground">{user._count.auditLogs} ações</td>
                         <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(user.createdAt)}</td>
                         <td className="px-5 py-3.5">
                           <div className="flex gap-1">
@@ -332,7 +332,7 @@ export default function UsuariosPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {editingUser ? "Editar usuario" : "Novo usuario"}
+              {editingUser ? "Editar usuário" : "Novo usuário"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">

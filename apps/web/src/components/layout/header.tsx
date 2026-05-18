@@ -65,7 +65,7 @@ export function Header({ title, subtitle, live }: HeaderProps) {
         toast.error(err?.error || "Erro ao alternar pausa");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setPauseLoading(false);
     }

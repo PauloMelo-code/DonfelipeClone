@@ -77,16 +77,16 @@ export default function ConfiguracoesPage() {
         ok: false,
         error:
           res.status === 404
-            ? "Endpoint nao encontrado. O deploy talvez ainda nao tenha terminado — aguarde 1 minuto e tente de novo."
+            ? "Endpoint não encontrado. O deploy talvez ainda não tenha terminado — aguarde 1 minuto e tente de novo."
             : res.status === 401 || res.status === 403
-              ? "Sessao expirou ou voce nao e admin. Faca logout e login de novo."
-              : `Servidor retornou HTML em vez de JSON (HTTP ${res.status}). Provavelmente o deploy esta em progresso ou houve erro 500.`,
+              ? "Sessão expirou ou você não é admin. Faça logout e login de novo."
+              : `Servidor retornou HTML em vez de JSON (HTTP ${res.status}). Provavelmente o deploy está em progresso ou houve erro 500.`,
       };
     }
     try {
       return { ok: true, data: JSON.parse(text) };
     } catch {
-      return { ok: false, error: `Resposta invalida do servidor: ${text.slice(0, 120)}` };
+      return { ok: false, error: `Resposta inválida do servidor: ${text.slice(0, 120)}` };
     }
   };
 
@@ -114,7 +114,7 @@ export default function ConfiguracoesPage() {
         setShowResetModal(false);
       }
     } catch (e) {
-      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`);
       setShowResetModal(false);
     } finally {
       setResetting(false);
@@ -140,7 +140,7 @@ export default function ConfiguracoesPage() {
       }
       if (res.ok) {
         toast.success(
-          `${parsed.data.deleted.vehicles} veiculos apagados. ${parsed.data.kept.vehicles} mantidos.`,
+          `${parsed.data.deleted.vehicles} veículos apagados. ${parsed.data.kept.vehicles} mantidos.`,
           { duration: 8000 }
         );
         setShowResetModal(false);
@@ -148,7 +148,7 @@ export default function ConfiguracoesPage() {
         toast.error(parsed.data.error || "Erro ao resetar");
       }
     } catch (e) {
-      toast.error(`Erro de conexao: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setResetting(false);
     }
@@ -185,7 +185,7 @@ export default function ConfiguracoesPage() {
         toast.error("Erro ao buscar QR code");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setQrLoading(false);
     }
@@ -222,7 +222,7 @@ export default function ConfiguracoesPage() {
         toast.error("Erro ao buscar QR code de envio");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setSendQrLoading(false);
     }
@@ -271,7 +271,7 @@ export default function ConfiguracoesPage() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        toast.success("Configuracoes salvas!");
+        toast.success("Configurações salvas!");
       } else {
         const err = await res.json().catch(() => ({ error: "Erro ao salvar" }));
         toast.error(err.error || "Erro ao salvar");
@@ -326,21 +326,21 @@ export default function ConfiguracoesPage() {
   const handleCleanup = async (mode: string) => {
     const labels: Record<string, string> = {
       no_photo: "sem foto",
-      bad_margin: "com margem ruim (preco >= FIPE)",
+      bad_margin: "com margem ruim (preço >= FIPE)",
       all: "sem foto + margem ruim",
     };
-    if (!confirm(`Remover veiculos ${labels[mode]}? Esta acao nao pode ser desfeita.`)) return;
+    if (!confirm(`Remover veículos ${labels[mode]}? Esta ação não pode ser desfeita.`)) return;
     setCleaning(true);
     try {
       const res = await fetch(`/api/vehicles/cleanup?mode=${mode}`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
-        toast.success(data.message || `${data.removed} veiculos removidos`);
+        toast.success(data.message || `${data.removed} veículos removidos`);
       } else {
         toast.error("Erro ao limpar");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setCleaning(false);
     }
@@ -352,12 +352,12 @@ export default function ConfiguracoesPage() {
     close:      { label: "Desconectado", color: "text-destructive border-destructive/20 bg-destructive/10", icon: WifiOff },
     error:      { label: "Erro",         color: "text-destructive border-destructive/20 bg-destructive/10", icon: WifiOff },
     unknown:        { label: "Verificando...",   color: "text-muted-foreground border-border bg-card",          icon: Loader2 },
-    not_configured: { label: "Nao configurado", color: "text-muted-foreground border-border bg-card",          icon: WifiOff },
+    not_configured: { label: "Não configurado", color: "text-muted-foreground border-border bg-card",          icon: WifiOff },
   };
 
   return (
     <>
-      <Header title="Configuracoes" subtitle="Parametros do sistema" />
+      <Header title="Configurações" subtitle="Parâmetros do sistema" />
 
       <div className="p-6 max-w-2xl space-y-6">
         {/* WhatsApp Connection */}
@@ -400,7 +400,7 @@ export default function ConfiguracoesPage() {
           {waState !== "open" && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Para conectar, clique em &quot;Gerar QR Code&quot;, abra o WhatsApp no celular e escaneie o codigo.
+                Para conectar, clique em &quot;Gerar QR Code&quot;, abra o WhatsApp no celular e escaneie o código.
               </p>
               <Button
                 size="sm"
@@ -437,7 +437,7 @@ export default function ConfiguracoesPage() {
                     className="gap-1.5 text-xs border-border"
                   >
                     <RefreshCw className="h-3 w-3" />
-                    Ja escaniei — verificar status
+                    Já escaneei — verificar status
                   </Button>
                 </div>
               )}
@@ -446,7 +446,7 @@ export default function ConfiguracoesPage() {
 
           {waState === "open" && (
             <p className="text-xs text-muted-foreground">
-              O celular esta conectado e monitorando os grupos de captura.
+              O celular está conectado e monitorando os grupos de captura.
             </p>
           )}
         </div>
@@ -497,7 +497,7 @@ export default function ConfiguracoesPage() {
           {waSendState !== "open" && waSendState !== "not_configured" && !(waSendState === "unknown" && !waSendStatusLoading) && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Para conectar, clique em &quot;Gerar QR Code&quot;, abra o WhatsApp no celular e escaneie o codigo.
+                Para conectar, clique em &quot;Gerar QR Code&quot;, abra o WhatsApp no celular e escaneie o código.
               </p>
               <Button
                 size="sm"
@@ -534,7 +534,7 @@ export default function ConfiguracoesPage() {
                     className="gap-1.5 text-xs border-border"
                   >
                     <RefreshCw className="h-3 w-3" />
-                    Ja escaniei — verificar status
+                    Já escaneei — verificar status
                   </Button>
                 </div>
               )}
@@ -543,7 +543,7 @@ export default function ConfiguracoesPage() {
 
           {waSendState === "open" && (
             <p className="text-xs text-muted-foreground">
-              O celular de envio esta conectado e publicando nos grupos de destino.
+              O celular de envio está conectado e publicando nos grupos de destino.
             </p>
           )}
         </div>
@@ -605,7 +605,7 @@ export default function ConfiguracoesPage() {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Delay minimo (segundos)</Label>
+              <Label>Delay mínimo (segundos)</Label>
               <Input
                 type="number"
                 value={settings.delay_min_seconds}
@@ -614,7 +614,7 @@ export default function ConfiguracoesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Delay maximo (segundos)</Label>
+              <Label>Delay máximo (segundos)</Label>
               <Input
                 type="number"
                 value={settings.delay_max_seconds}
@@ -628,11 +628,11 @@ export default function ConfiguracoesPage() {
         {/* Filtros */}
         <div className="glass rounded-2xl p-6 space-y-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Filtros Padrao
+            Filtros Padrão
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Ano minimo</Label>
+              <Label>Ano mínimo</Label>
               <Input
                 type="number"
                 value={settings.filter_min_year}
@@ -641,7 +641,7 @@ export default function ConfiguracoesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Preco minimo (R$)</Label>
+              <Label>Preço mínimo (R$)</Label>
               <Input
                 type="number"
                 value={settings.filter_min_price}
@@ -663,7 +663,7 @@ export default function ConfiguracoesPage() {
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Ban className="h-3.5 w-3.5 text-destructive" />
-              Blocklist (rejeicao automatica)
+              Blocklist (rejeição automática)
             </Label>
             <Textarea
               value={settings.blocklist_keywords}
@@ -672,7 +672,7 @@ export default function ConfiguracoesPage() {
               className="bg-card border-border min-h-[80px]"
             />
             <p className="text-xs text-muted-foreground">
-              Separe por virgula. Veiculos com essas palavras serao rejeitados automaticamente.
+              Separe por vírgula. Veículos com essas palavras serão rejeitados automaticamente.
             </p>
           </div>
           <div className="space-y-2">
@@ -687,7 +687,7 @@ export default function ConfiguracoesPage() {
               className="bg-card border-border min-h-[80px]"
             />
             <p className="text-xs text-muted-foreground">
-              Separe por virgula. Veiculos com essas palavras recebem prioridade.
+              Separe por vírgula. Veículos com essas palavras recebem prioridade.
             </p>
           </div>
         </div>
@@ -734,8 +734,8 @@ export default function ConfiguracoesPage() {
           </div>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <p className="text-sm font-medium">Limpar veiculos sem foto</p>
-              <p className="text-xs text-muted-foreground">Remove veiculos com foto quebrada, expirada ou ausente</p>
+              <p className="text-sm font-medium">Limpar veículos sem foto</p>
+              <p className="text-xs text-muted-foreground">Remove veículos com foto quebrada, expirada ou ausente</p>
             </div>
             <Button
               variant="outline"
@@ -750,8 +750,8 @@ export default function ConfiguracoesPage() {
           </div>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <p className="text-sm font-medium">Limpar veiculos sem margem</p>
-              <p className="text-xs text-muted-foreground">Remove pendentes onde preco &gt;= FIPE (margem negativa)</p>
+              <p className="text-sm font-medium">Limpar veículos sem margem</p>
+              <p className="text-xs text-muted-foreground">Remove pendentes onde preço &gt;= FIPE (margem negativa)</p>
             </div>
             <Button
               variant="outline"
@@ -769,14 +769,14 @@ export default function ConfiguracoesPage() {
           <div className="space-y-2 pt-3 border-t border-border">
             <p className="text-sm font-medium">Alertas Telegram</p>
             <p className="text-xs text-muted-foreground">
-              Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID nas variaveis de ambiente.
-              Voce recebera alertas quando:
+              Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID nas variáveis de ambiente.
+              Você receberá alertas quando:
             </p>
             <ul className="text-xs text-muted-foreground space-y-1 ml-4 list-disc">
               <li>Carro VIP capturado</li>
               <li>Oportunidade com score &gt;= 8</li>
               <li>WhatsApp desconectado</li>
-              <li>Erros criticos do sistema</li>
+              <li>Erros críticos do sistema</li>
             </ul>
           </div>
         </div>
@@ -787,7 +787,7 @@ export default function ConfiguracoesPage() {
           className="gap-2 gradient-orange text-white"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salvar Configuracoes
+          Salvar Configurações
         </Button>
 
         {/* Zona perigosa */}
@@ -797,11 +797,11 @@ export default function ConfiguracoesPage() {
             <h3 className="text-sm font-semibold text-destructive">Zona perigosa</h3>
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium">Resetar veiculos antigos</p>
+            <p className="text-sm font-medium">Resetar veículos antigos</p>
             <p className="text-xs text-muted-foreground">
-              Apaga todos os veiculos capturados ANTES de hoje (00:00). Mantem so os carros do dia.
-              Tambem limpa historico de publicacoes, audit logs e media files orfaos relacionados.
-              Acao irreversivel.
+              Apaga todos os veículos capturados ANTES de hoje (00:00). Mantém só os carros do dia.
+              Também limpa histórico de publicações, audit logs e media files órfãos relacionados.
+              Ação irreversível.
             </p>
             <Button
               variant="outline"
@@ -810,7 +810,7 @@ export default function ConfiguracoesPage() {
               className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Resetar veiculos antigos
+              Resetar veículos antigos
             </Button>
           </div>
         </div>
@@ -822,7 +822,7 @@ export default function ConfiguracoesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              Resetar veiculos antigos
+              Resetar veículos antigos
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -834,24 +834,24 @@ export default function ConfiguracoesPage() {
               <>
                 <div className="rounded-lg border border-border p-3 text-xs space-y-1">
                   <p className="text-muted-foreground">
-                    Apagando capturas ate <span className="font-mono">{new Date(resetPreview.keepFrom).toLocaleString("pt-BR")}</span>
+                    Apagando capturas até <span className="font-mono">{new Date(resetPreview.keepFrom).toLocaleString("pt-BR")}</span>
                   </p>
                 </div>
 
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Sera apagado</p>
+                  <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Será apagado</p>
                   <ul className="text-sm space-y-0.5 mt-2">
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.vehicles}</span> veiculos</li>
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.postHistory}</span> registros de publicacao</li>
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.vehicles}</span> veículos</li>
+                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.postHistory}</span> registros de publicação</li>
                     <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.auditLogs}</span> audit logs</li>
                     <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.mediaFiles}</span> arquivos de media</li>
                   </ul>
                 </div>
 
                 <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-success uppercase tracking-wide">Sera mantido</p>
+                  <p className="text-xs font-semibold text-success uppercase tracking-wide">Será mantido</p>
                   <p className="text-sm">
-                    <span className="font-bold text-success">{resetPreview.kept.vehicles}</span> veiculos (capturados hoje)
+                    <span className="font-bold text-success">{resetPreview.kept.vehicles}</span> veículos (capturados hoje)
                   </p>
                 </div>
 

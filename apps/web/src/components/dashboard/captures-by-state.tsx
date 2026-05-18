@@ -68,14 +68,14 @@ export function CapturesByState({ onStateClick }: CapturesByStateProps) {
         </div>
       ) : !data || data.total === 0 ? (
         <p className="text-sm text-muted-foreground/60 text-center py-8">
-          Nenhuma captura no periodo
+          Nenhuma captura no período
         </p>
       ) : (
         <>
           <p className="text-2xl font-bold mb-3">
             {data.total}
             <span className="text-sm font-normal text-muted-foreground ml-1">
-              {data.total === 1 ? "captura" : "capturas"} no periodo
+              {data.total === 1 ? "captura" : "capturas"} no período
             </span>
           </p>
 

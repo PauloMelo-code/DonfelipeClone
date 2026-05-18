@@ -129,7 +129,7 @@ export default function DashboardPage() {
     <>
       <Header
         title={`${greeting()}!`}
-        subtitle="Visao geral do sistema Cugini Repasses"
+        subtitle="Visão geral do sistema Cugini Repasses"
         live
       />
 
@@ -186,7 +186,7 @@ export default function DashboardPage() {
               variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
             >
               <StatCard
-                title="Veiculos Pendentes"
+                title="Veículos Pendentes"
                 value={data?.vehicles.pending ?? 0}
                 icon={<Clock className="h-5 w-5" />}
               />
@@ -196,12 +196,12 @@ export default function DashboardPage() {
                 icon={<Car className="h-5 w-5" />}
               />
               <StatCard
-                title="Publicacoes Hoje"
+                title="Publicações Hoje"
                 value={data?.publications.today ?? 0}
                 icon={<Send className="h-5 w-5" />}
               />
               <StatCard
-                title="Taxa de Aprovacao"
+                title="Taxa de Aprovação"
                 value={data ? parseFloat(data.rates.approval) : 0}
                 suffix="%"
                 icon={<TrendingUp className="h-5 w-5" />}
@@ -287,7 +287,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="glass rounded-2xl p-6">
               <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                Resumo de Veiculos
+                Resumo de Veículos
               </h3>
               <div className="space-y-3">
                 {[
@@ -308,13 +308,13 @@ export default function DashboardPage() {
 
             <div className="glass rounded-2xl p-6">
               <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                Capturas por Periodo
+                Capturas por Período
               </h3>
               <div className="space-y-3">
                 {[
                   { label: "Hoje", value: data?.captures.today ?? 0 },
                   { label: "Esta semana", value: data?.captures.week ?? 0 },
-                  { label: "Este mes", value: data?.captures.month ?? 0 },
+                  { label: "Este mês", value: data?.captures.month ?? 0 },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">{item.label}</span>

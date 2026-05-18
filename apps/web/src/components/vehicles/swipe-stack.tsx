@@ -335,7 +335,7 @@ function SwipeCard({
             let sourceIcon: string;
             if (sg.isAnnounce || isNewsletter) { sourceLabel = "Canal"; sourceIcon = "📡"; }
             else if (sg.isCommunity) { sourceLabel = "Comunidade"; sourceIcon = "🏘️"; }
-            else if (isBroadcast) { sourceLabel = "Lista de transmissao"; sourceIcon = "📢"; }
+            else if (isBroadcast) { sourceLabel = "Lista de transmissão"; sourceIcon = "📢"; }
             else if (isPrivate) { sourceLabel = "Contato"; sourceIcon = "👤"; }
             else { sourceLabel = "Grupo"; sourceIcon = "👥"; }
 
@@ -523,7 +523,7 @@ export function SwipeStack({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
         <Car className="mb-3 h-12 w-12 opacity-30" />
-        <p className="text-sm">Nenhum veiculo pendente</p>
+        <p className="text-sm">Nenhum veículo pendente</p>
       </div>
     );
   }
@@ -573,7 +573,7 @@ export function SwipeStack({
 
       {/* Counter */}
       <p className="text-sm text-muted-foreground">
-        {vehicles.length} veiculo(s) pendente(s)
+        {vehicles.length} veículo(s) pendente(s)
       </p>
     </div>
   );

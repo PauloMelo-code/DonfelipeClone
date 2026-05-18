@@ -48,8 +48,8 @@ const actionConfig: Record<string, { label: string; color: string; icon: React.E
   VEHICLE_PUBLISH: { label: "Publicado", color: "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20", icon: Send },
   VEHICLE_PUBLISHED: { label: "Publicado", color: "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20", icon: Send },
   SETTINGS_UPDATED: { label: "Config", color: "bg-warning/10 text-warning border-warning/20", icon: Settings },
-  USER_CREATED: { label: "Novo Usuario", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
-  USER_UPDATED: { label: "Usuario Editado", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
+  USER_CREATED: { label: "Novo Usuário", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
+  USER_UPDATED: { label: "Usuário Editado", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
 };
 
 export default function AuditoriaPage() {
@@ -112,7 +112,7 @@ export default function AuditoriaPage() {
 
   return (
     <>
-      <Header title="Auditoria" subtitle="Registro de todas as acoes do sistema" />
+      <Header title="Auditoria" subtitle="Registro de todas as ações do sistema" />
 
       <div className="p-6 space-y-4">
         {/* Filters */}
@@ -221,8 +221,8 @@ export default function AuditoriaPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Acao</th>
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Usuario</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Ação</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Usuário</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Entidade</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Data</th>
                     <th className="px-5 py-3.5 w-8"></th>
@@ -292,7 +292,7 @@ export default function AuditoriaPage() {
             {/* Pagination */}
             {pagination.totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3.5">
-                <span className="text-xs text-muted-foreground">Pagina {pagination.page} de {pagination.totalPages}</span>
+                <span className="text-xs text-muted-foreground">Página {pagination.page} de {pagination.totalPages}</span>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" disabled={pagination.page <= 1}
                     onClick={() => fetchLogs(pagination.page - 1)} className="h-8 w-8 p-0 border-border">

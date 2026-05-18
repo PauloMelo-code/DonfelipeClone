@@ -50,7 +50,7 @@ export function InlineEdit({
     setSaving(true);
     try {
       if (type === "number" && (draft.trim() === "" || isNaN(Number(draft)))) {
-        toast.error("Valor invalido");
+        toast.error("Valor inválido");
         setDraft(stringValue);
         setEditing(false);
         return;

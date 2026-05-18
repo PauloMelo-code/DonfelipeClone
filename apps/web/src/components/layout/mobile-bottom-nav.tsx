@@ -21,17 +21,17 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const PRIMARY_NAV = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Veiculos", href: "/veiculos", icon: Car },
-  { label: "Publicacoes", href: "/publicacoes", icon: Send },
+  { label: "Veículos", href: "/veiculos", icon: Car },
+  { label: "Publicações", href: "/publicacoes", icon: Send },
   { label: "Grupos", href: "/grupos", icon: Users },
 ];
 
 const MORE_NAV = [
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Templates", href: "/templates", icon: MessageSquare },
-  { label: "Usuarios", href: "/usuarios", icon: UserCog },
+  { label: "Usuários", href: "/usuarios", icon: UserCog },
   { label: "Auditoria", href: "/auditoria", icon: Shield },
-  { label: "Configuracoes", href: "/configuracoes", icon: Settings },
+  { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 export function MobileBottomNav() {

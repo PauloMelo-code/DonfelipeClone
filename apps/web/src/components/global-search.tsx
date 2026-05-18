@@ -65,7 +65,7 @@ export function GlobalSearch() {
           <input
             autoFocus
             type="text"
-            placeholder="Buscar veiculo, grupo, modelo..."
+            placeholder="Buscar veículo, grupo, modelo..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
@@ -79,7 +79,7 @@ export function GlobalSearch() {
           )}
           {results.vehicles.length > 0 && (
             <div className="p-2">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 px-3 py-1">Veiculos</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60 px-3 py-1">Veículos</p>
               {results.vehicles.map((v) => (
                 <button
                   key={v.id}

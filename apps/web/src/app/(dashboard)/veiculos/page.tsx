@@ -350,8 +350,8 @@ function VeiculosPageInner() {
         const skipped = data.skipped ?? 0;
         toast.success(
           skipped > 0
-            ? `${publishable} enfileirados (${skipped} ignorados pois ja foram publicados ou nao estao aprovados)`
-            : `${publishable} veiculos enfileirados — publicando em background`,
+            ? `${publishable} enfileirados (${skipped} ignorados pois já foram publicados ou não estão aprovados)`
+            : `${publishable} veículos enfileirados — publicando em background`,
           { duration: 8000 }
         );
         // Optimistic: remove os enfileirados da lista local pra dar feedback
@@ -422,13 +422,13 @@ function VeiculosPageInner() {
       if (res.ok) {
         const data = await res.json();
         if (data.status === "APPROVED" || action === "approve") {
-          toast.success("Veiculo aprovado!", {
+          toast.success("Veículo aprovado!", {
             action: {
               label: "Desfazer",
               onClick: async () => {
                 const r = await fetch(`/api/vehicles/${id}/undo`, { method: "POST" });
                 if (r.ok) {
-                  toast.success("Acao desfeita");
+                  toast.success("Ação desfeita");
                   fetchVehicles();
                 } else {
                   const err = await r.json().catch(() => ({}));
@@ -440,7 +440,7 @@ function VeiculosPageInner() {
           });
           setVehicles((prev) => prev.filter((v) => v.id !== id));
         } else {
-          toast.success("Publicacao iniciada!");
+          toast.success("Publicação iniciada!");
           setVehicles((prev) => prev.filter((v) => v.id !== id));
         }
       } else {
@@ -450,7 +450,7 @@ function VeiculosPageInner() {
         fetchVehicles();
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
       fetchVehicles();
     } finally {
       setActionLoading(null);
@@ -471,13 +471,13 @@ function VeiculosPageInner() {
       });
       if (res.ok) {
         const rejectedId = rejectVehicleId;
-        toast.success("Veiculo rejeitado.", {
+        toast.success("Veículo rejeitado.", {
           action: {
             label: "Desfazer",
             onClick: async () => {
               const r = await fetch(`/api/vehicles/${rejectedId}/undo`, { method: "POST" });
               if (r.ok) {
-                toast.success("Acao desfeita");
+                toast.success("Ação desfeita");
                 fetchVehicles();
               } else {
                 const err = await r.json().catch(() => ({}));
@@ -495,7 +495,7 @@ function VeiculosPageInner() {
         toast.error(err.error || "Erro ao rejeitar");
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
     } finally {
       setActionLoading(null);
     }
@@ -568,7 +568,7 @@ function VeiculosPageInner() {
         fetchVehicles();
       }
     } catch {
-      toast.error("Erro de conexao");
+      toast.error("Erro de conexão");
       fetchVehicles();
     } finally {
       setPublishingDirectId(null);
@@ -709,8 +709,8 @@ function VeiculosPageInner() {
     const targetCount = state
       ? filtered.filter(v => ((v.state || v.sourceGroup?.region || "").toUpperCase() === state)).length
       : filtered.length;
-    const label = state ? `Publicar ${targetCount} veiculos de ${state}?` : `Publicar todos os ${targetCount} prontos?`;
-    if (!confirm(label + "\n\nEles serao postados em background com delays anti-ban.")) return;
+    const label = state ? `Publicar ${targetCount} veículos de ${state}?` : `Publicar todos os ${targetCount} prontos?`;
+    if (!confirm(label + "\n\nEles serão postados em background com delays anti-ban.")) return;
 
     setBatchPublishing(true);
     try {
@@ -721,7 +721,7 @@ function VeiculosPageInner() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast.success(`${data.queued} veiculos enfileirados`, { duration: 6000 });
+        toast.success(`${data.queued} veículos enfileirados`, { duration: 6000 });
         // Optimistic: remove os enfileirados da lista
         setVehicles(prev => state
           ? prev.filter(v => ((v.state || v.sourceGroup?.region || "").toUpperCase() !== state))
@@ -859,7 +859,7 @@ function VeiculosPageInner() {
     try {
       const res = await postPromise;
       if (res.ok) {
-        toast.success(republishMode ? "Reenvio iniciado!" : "Publicacao iniciada!", {
+        toast.success(republishMode ? "Reenvio iniciado!" : "Publicação iniciada!", {
           id: `publish-${vehicleId}`,
         });
       } else {
@@ -869,7 +869,7 @@ function VeiculosPageInner() {
         fetchVehicles();
       }
     } catch {
-      toast.error("Erro de conexao", { id: `publish-${vehicleId}` });
+      toast.error("Erro de conexão", { id: `publish-${vehicleId}` });
       fetchVehicles();
     }
   };
@@ -892,9 +892,9 @@ function VeiculosPageInner() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updateData),
         });
-        toast.success("Edicoes salvas");
+        toast.success("Edições salvas");
       } catch {
-        toast.error("Erro ao salvar edicoes");
+        toast.error("Erro ao salvar edições");
       }
     }
     setPublishVehicle(null);
@@ -953,7 +953,7 @@ function VeiculosPageInner() {
 
   return (
     <>
-      <Header title="Veiculos" subtitle="Fila de revisao e publicacao" />
+      <Header title="Veículos" subtitle="Fila de revisão e publicação" />
 
       <div className="p-6 space-y-4">
         {/* Filters */}
@@ -1053,7 +1053,7 @@ function VeiculosPageInner() {
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar veiculo..."
+                  placeholder="Buscar veículo..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9 bg-card border-border"
@@ -1080,7 +1080,7 @@ function VeiculosPageInner() {
                     <h3 className="text-sm font-semibold">Prontos pra postar</h3>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {filtered.length} veiculo{filtered.length !== 1 ? "s" : ""} preparado{filtered.length !== 1 ? "s" : ""} -
+                    {filtered.length} veículo{filtered.length !== 1 ? "s" : ""} preparado{filtered.length !== 1 ? "s" : ""} -
                     publique todos de uma vez por estado
                   </p>
                 </div>
@@ -1146,13 +1146,13 @@ function VeiculosPageInner() {
               try {
                 const res = await fetch(`/api/vehicles/${vehicleId}/delete-photo?index=${photoIndex}`, { method: "DELETE" });
                 if (res.ok) {
-                  toast.success("Foto excluida");
+                  toast.success("Foto excluída");
                   fetchVehicles();
                 } else {
                   toast.error("Erro ao excluir foto");
                 }
               } catch {
-                toast.error("Erro de conexao");
+                toast.error("Erro de conexão");
               }
             }}
             onSetMainPhoto={async (vehicleId, photoIndex) => {
@@ -1175,7 +1175,7 @@ function VeiculosPageInner() {
                   fetchVehicles();
                 }
               } catch {
-                toast.error("Erro de conexao");
+                toast.error("Erro de conexão");
                 fetchVehicles();
               }
             }}
@@ -1198,7 +1198,7 @@ function VeiculosPageInner() {
               <Car className="h-10 w-10 text-cugini-orange/40" />
             </div>
             <p className="text-base font-medium text-foreground/70">Fila vazia</p>
-            <p className="mt-1 text-sm text-muted-foreground/50">Nenhum veiculo nesta categoria no momento</p>
+            <p className="mt-1 text-sm text-muted-foreground/50">Nenhum veículo nesta categoria no momento</p>
           </div>
         ) : (
           /* Grid for APPROVED / PUBLISHED / REJECTED */
@@ -1384,14 +1384,14 @@ function VeiculosPageInner() {
               Anterior
             </button>
             <span className="text-xs text-muted-foreground">
-              {page} / {totalPages} ({totalCount} veiculos)
+              {page} / {totalPages} ({totalCount} veículos)
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
               className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
             >
-              Proximo
+              Próximo
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1404,7 +1404,7 @@ function VeiculosPageInner() {
           <div className="max-w-2xl mx-auto glass border border-cugini-orange/20 rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
             <Layers className="h-5 w-5 text-cugini-orange shrink-0" />
             <span className="text-sm font-medium flex-1">
-              {batchSelected.size} veiculo{batchSelected.size > 1 ? "s" : ""} selecionado{batchSelected.size > 1 ? "s" : ""}
+              {batchSelected.size} veículo{batchSelected.size > 1 ? "s" : ""} selecionado{batchSelected.size > 1 ? "s" : ""}
             </span>
             <button
               onClick={() => setBatchSelected(new Set())}
@@ -1485,7 +1485,7 @@ function VeiculosPageInner() {
             {/* Header */}
             <div className="px-5 py-3.5 border-b border-white/10 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <h3 className="text-base font-semibold text-foreground">{republishMode ? "Reenviar veiculo" : "Publicar veiculo"}</h3>
+                <h3 className="text-base font-semibold text-foreground">{republishMode ? "Reenviar veículo" : "Publicar veículo"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
                   {publishVehicle?.brand && `${publishVehicle.brand} `}{publishVehicle?.model}
                   {publishVehicle && ` \u00B7 ${formatPrice(publishVehicle.price)} (custo)`}
@@ -1692,7 +1692,7 @@ function VeiculosPageInner() {
                             )}
                             <div className="px-2.5 py-1.5">
                               <p className="text-[13px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
-                                {publishVehicle.rawDescription || "Sem descricao original"}
+                                {publishVehicle.rawDescription || "Sem descrição original"}
                               </p>
                               <div className="flex items-center justify-end gap-1 mt-0.5 -mb-0.5">
                                 <span className="text-[10px] text-[#8696A0]">
@@ -1755,7 +1755,7 @@ function VeiculosPageInner() {
                 </div>
                 <div className="flex-1" />
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Preco venda</p>
+                  <p className="text-xs text-muted-foreground">Preço venda</p>
                   <p className="text-sm font-bold text-cugini-orange">
                     {publishVehicle && formatPrice(publishVehicle.price * (1 + margin / 100))}
                   </p>
@@ -2025,7 +2025,7 @@ function VeiculosPageInner() {
                       <div className="bg-[#1F2C34] rounded-lg overflow-hidden shadow-lg">
                         <div className="px-2.5 py-1.5">
                           <p className="text-[13px] text-[#E9EDEF] whitespace-pre-wrap leading-[18px]">
-                            {galleryVehicle.rawDescription || "Sem descricao original disponivel"}
+                            {galleryVehicle.rawDescription || "Sem descrição original disponível"}
                           </p>
                           <div className="flex items-center justify-end gap-1 mt-0.5 -mb-0.5">
                             <span className="text-[10px] text-[#8696A0]">
@@ -2058,7 +2058,7 @@ function VeiculosPageInner() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              Rejeitar veiculo
+              Rejeitar veículo
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
@@ -2275,7 +2275,7 @@ function VeiculosPageInner() {
               <kbd className="rounded bg-card border border-border px-2 py-1 text-xs">?</kbd>
             </div>
             <p className="text-xs text-muted-foreground/60 pt-2 border-t border-border">
-              Atalhos funcionam apenas na aba Pendentes, quando nao ha modais abertos e voce nao esta digitando.
+              Atalhos funcionam apenas na aba Pendentes, quando não há modais abertos e você não está digitando.
             </p>
           </div>
         </DialogContent>
@@ -2289,7 +2289,7 @@ function VeiculosPageInner() {
               <div>
                 <h3 className="text-base font-semibold">Publicar em lote</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {batchSelected.size} veiculo{batchSelected.size !== 1 ? "s" : ""} selecionado{batchSelected.size !== 1 ? "s" : ""}
+                  {batchSelected.size} veículo{batchSelected.size !== 1 ? "s" : ""} selecionado{batchSelected.size !== 1 ? "s" : ""}
                 </p>
               </div>
               <button onClick={() => setShowBatchModal(false)} className="text-muted-foreground hover:text-foreground">
@@ -2300,7 +2300,7 @@ function VeiculosPageInner() {
               {batchPublishing ? (
                 <div className="flex flex-col items-center gap-4 py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
-                  <p className="text-sm text-muted-foreground">Publicando veiculos...</p>
+                  <p className="text-sm text-muted-foreground">Publicando veículos...</p>
                 </div>
               ) : (
                 <>

@@ -50,7 +50,7 @@ function CustomTooltip({
               }}
             />
             <span className="text-xs text-muted-foreground">
-              {entry.dataKey === "capturas" ? "Capturas" : "Publicacoes"}
+              {entry.dataKey === "capturas" ? "Capturas" : "Publicações"}
             </span>
             <span className="ml-auto text-sm font-semibold tabular-nums text-foreground">
               {entry.value}
@@ -109,7 +109,7 @@ export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityCh
                   boxShadow: "0 0 8px rgba(99,102,241,0.5)",
                 }}
               />
-              <span className="text-muted-foreground">Publicacoes</span>
+              <span className="text-muted-foreground">Publicações</span>
             </div>
           </div>
         </div>

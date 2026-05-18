@@ -141,7 +141,7 @@ export default function PublicacoesPage() {
 
   return (
     <>
-      <Header title="Publicacoes" subtitle="Historico de publicacoes realizadas" />
+      <Header title="Publicações" subtitle="Histórico de publicações realizadas" />
 
       <div className="p-6 space-y-4">
         {/* Filters */}
@@ -163,7 +163,7 @@ export default function PublicacoesPage() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar veiculo..."
+              placeholder="Buscar veículo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-card border-border"
@@ -173,7 +173,7 @@ export default function PublicacoesPage() {
 
         {/* Summary */}
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span>{pagination.total} publicacao(oes) encontrada(s)</span>
+          <span>{pagination.total} publicação(ões) encontrada(s)</span>
         </div>
 
         {/* Content */}
@@ -184,7 +184,7 @@ export default function PublicacoesPage() {
         ) : posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <Send className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">Nenhuma publicacao encontrada</p>
+            <p className="text-sm">Nenhuma publicação encontrada</p>
           </div>
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
@@ -244,10 +244,10 @@ export default function PublicacoesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/[0.04] text-left">
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Veiculo</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Veículo</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Grupo Destino</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Data</th>
-                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Preco</th>
+                    <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50">Preço</th>
                     <th className="px-5 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50 text-center">Status</th>
                   </tr>
                 </thead>
@@ -327,7 +327,7 @@ export default function PublicacoesPage() {
             {pagination.totalPages > 1 && (
               <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3.5">
                 <span className="text-xs text-muted-foreground">
-                  Pagina {pagination.page} de {pagination.totalPages}
+                  Página {pagination.page} de {pagination.totalPages}
                 </span>
                 <div className="flex gap-1">
                   <Button variant="outline" size="sm" disabled={pagination.page <= 1}

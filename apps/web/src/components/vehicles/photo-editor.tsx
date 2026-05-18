@@ -440,7 +440,7 @@ export function PhotoEditor({
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <ImageIcon className="h-10 w-10 opacity-30 mb-2" />
-        <p className="text-sm">Nenhuma foto disponivel</p>
+        <p className="text-sm">Nenhuma foto disponível</p>
       </div>
     );
   }
@@ -695,9 +695,9 @@ export function PhotoEditor({
         ) : (
           <p className="text-[11px] text-center text-muted-foreground">
             {tool === "crop" ? "Arraste as bordas/cantos pra redimensionar · arraste o meio pra mover"
-              : tool === "blur" ? "Arraste para borrar a area selecionada"
-              : tool === "pencil" ? "Pinte sobre a area que deseja cobrir"
-              : "Pinte sobre o fundo para apaga-lo (branco)"}
+              : tool === "blur" ? "Arraste para borrar a área selecionada"
+              : tool === "pencil" ? "Pinte sobre a área que deseja cobrir"
+              : "Pinte sobre o fundo para apagá-lo (branco)"}
           </p>
         )}
       </div>
