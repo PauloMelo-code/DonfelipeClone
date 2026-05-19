@@ -170,8 +170,13 @@ export function formatVehicleAd(
         lower.includes(modelFirstWord) && lower.length < 60 && bodyLines.length < 3 ||
         // Year line: "Ano 2025" or "2025" or "2024/2025"
         /^(ano\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
-        // KM line: "KM 35.000" or "35.000 km" or "35mil km"
+        // KM line: "KM 35.000" or "35.000 km" or "35mil km" (linha inteira)
         /^(km\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
+        // Linha que COMECA repetindo o KM, mesmo com texto depois.
+        // Ex: "153.000KM rev ate 90 manual" -- o KM ja esta no cabecalho.
+        /^[\d.,]+\s*(mil\s*)?km\b/i.test(l) ||
+        // "KM 153.000 ..." (prefixo KM + numero + texto)
+        /^km\s*:?\s*[\d.,]+/i.test(l) ||
         // Price lines: "R$ 360.900" "Pedida R$ 360.900" "Fipe R$ 381.000"
         // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998"
         // O sistema gera a propria secao Fipe/Por -- nada de preco vaza pro corpo.
