@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 interface Settings {
   profit_margin_percent: string;
-  min_profit_margin: string;
+  min_fipe_discount: string;
   served_states: string;
   delay_min_seconds: string;
   delay_max_seconds: string;
@@ -28,7 +28,7 @@ type WaState = "open" | "connecting" | "close" | "error" | "unknown" | "not_conf
 export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings>({
     profit_margin_percent: "10",
-    min_profit_margin: "9",
+    min_fipe_discount: "10",
     served_states: "RS,SC,PR,SP",
     delay_min_seconds: "3",
     delay_max_seconds: "8",
@@ -256,7 +256,7 @@ export default function ConfiguracoesPage() {
     try {
       // Only send the whitelisted keys
       const allowedKeys: (keyof Settings)[] = [
-        "profit_margin_percent", "min_profit_margin", "served_states",
+        "profit_margin_percent", "min_fipe_discount", "served_states",
         "delay_min_seconds", "delay_max_seconds",
         "filter_min_year", "filter_min_price",
         "blocklist_keywords", "vip_keywords",
@@ -564,15 +564,16 @@ export default function ConfiguracoesPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Margem mínima de lucro (%)</Label>
+              <Label>Desconto mínimo da FIPE (%)</Label>
               <Input
                 type="number"
-                value={settings.min_profit_margin}
-                onChange={(e) => update("min_profit_margin", e.target.value)}
+                value={settings.min_fipe_discount}
+                onChange={(e) => update("min_fipe_discount", e.target.value)}
                 className="bg-card border-border"
               />
               <p className="text-[11px] text-muted-foreground/60">
-                A IA nunca vende abaixo disso, mesmo no smart pricing. Padrão 9%.
+                Quanto o preço de compra precisa estar abaixo da tabela FIPE pra
+                o carro valer a pena. Abaixo disso entra como &quot;sem margem&quot;. Padrão 10%.
               </p>
             </div>
           </div>

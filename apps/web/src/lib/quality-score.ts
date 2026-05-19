@@ -26,12 +26,13 @@ export function calculateQualityScore(v: QualityInput): { score: number; reasons
   if (age <= 2) { score += 1; reasons.push("Carro novo"); }
   else if (age >= 8) { score -= 1; reasons.push("Carro antigo"); }
 
-  // Desconto FIPE (peso 3)
+  // Desconto FIPE (peso 3). Minimo esperado: 10% abaixo da tabela.
   if (v.fipePrice && v.fipePrice > 0) {
     const discount = (1 - v.price / v.fipePrice) * 100;
     if (discount >= 15) { score += 3; reasons.push(`Desconto excelente (${Math.round(discount)}%)`); }
-    else if (discount >= 8) { score += 2; reasons.push(`Bom desconto FIPE`); }
-    else if (discount < 0) { score -= 3; reasons.push("Acima da FIPE"); }
+    else if (discount >= 10) { score += 2; reasons.push(`Bom desconto FIPE`); }
+    else if (discount >= 0) { score -= 1; reasons.push(`Pouco desconto FIPE (${Math.round(discount)}%)`); }
+    else { score -= 3; reasons.push("Acima da FIPE"); }
   }
 
   // Bandeiras vermelhas no texto (peso -3)

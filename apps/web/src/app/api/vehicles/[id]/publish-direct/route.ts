@@ -90,20 +90,17 @@ export async function POST(
 
       const marginSetting = await prisma.setting.findUnique({ where: { key: "profit_margin_percent" } });
       const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
-      const minMarginSetting = await prisma.setting.findUnique({ where: { key: "min_profit_margin" } });
-      const minMargin = minMarginSetting ? parseFloat(minMarginSetting.value) : 9;
 
-      // Smart pricing -- reduz a margem mas nunca abaixo do minimo de lucro
+      // Smart pricing -- carro bom perto da FIPE vende sem margem; a margem
+      // de fato eh escolhida pelo operador no modal.
       let effectiveMargin = margin;
       if (fipePrice && vehicle.rawDescription) {
         const discount = 1 - (vehicle.price / fipePrice);
         const desc = vehicle.rawDescription.toLowerCase();
         const hasGoodIndicators = vehicle.km < 60000 || /\b(unico\s*dono|único\s*dono|procedencia|sem\s*detalhes|revisado|revisões|revisoes)\b/i.test(desc);
         const hasNoRedFlags = !/\b(leil[aã]o|sinistro|batido|enchente|recuperado)\b/i.test(desc);
-        if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) effectiveMargin = minMargin;
+        if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) effectiveMargin = 0;
       }
-      // Piso de seguranca: nunca abaixo da margem minima de lucro
-      if (effectiveMargin < minMargin) effectiveMargin = minMargin;
 
       // Preco: usa o editado pelo operador no modal se vier, senao calcula da margem
       sellingPrice = userEditedPrice ?? vehicle.price * (1 + effectiveMargin / 100);
