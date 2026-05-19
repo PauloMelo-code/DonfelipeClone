@@ -128,10 +128,45 @@ function extractWithRegex(text: string): VehicleData | null {
   }
 
   // --- FIPE (extrai PRIMEIRO pra poder excluir essa linha do preco) ---
+  // Anuncios trazem ate 2 FIPEs: "Fipe 0km R$180.000" e "Fipe usado
+  // R$159.000". Pra carro de repasse (usado) queremos a FIPE do USADO.
+  // Cuidado: "Fipe 0km" tem o "0" que NAO eh o valor.
   let fipePrice: number | null = null;
-  const fipeMatch = clean.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i);
-  if (fipeMatch) {
-    fipePrice = parseBrazilianNumber(fipeMatch[1]);
+  {
+    // Extrai o valor de uma linha de fipe: prioriza valor apos "R$";
+    // senao pega o primeiro numero >= 1000 (ignora "0" de "0km").
+    const extractFipeValue = (line: string): number | null => {
+      const afterRS = line.match(/r\$\s*([\d.,]+)/i);
+      if (afterRS) {
+        const n = parseBrazilianNumber(afterRS[1]);
+        if (n !== null && n >= 1000) return n;
+      }
+      const nums = line.match(/[\d][\d.,]*/g) || [];
+      for (const raw of nums) {
+        const n = parseBrazilianNumber(raw);
+        if (n !== null && n >= 1000) return n;
+      }
+      // "fipe 180 mil"
+      const milM = line.match(/([\d.,]+)\s*mil/i);
+      if (milM) {
+        const n = parseFloat(milM[1].replace(",", ".")) * 1000;
+        if (!isNaN(n) && n >= 1000) return n;
+      }
+      return null;
+    };
+    let fipeUsado: number | null = null;
+    let fipeZeroKm: number | null = null;
+    let fipeOutra: number | null = null;
+    for (const fl of lines) {
+      if (!/\bfipe\b/i.test(fl)) continue;
+      const val = extractFipeValue(fl);
+      if (val === null) continue;
+      if (/\b(usad[oa]|seminov[oa]?)\b/i.test(fl)) fipeUsado = val;
+      else if (/\b(0\s*km|zero\s*km|nov[oa])\b/i.test(fl)) fipeZeroKm = val;
+      else fipeOutra = val;
+    }
+    // Carro de repasse eh usado -> prioriza a FIPE do usado.
+    fipePrice = fipeUsado ?? fipeOutra ?? fipeZeroKm;
   }
 
   // --- Price ---
@@ -414,11 +449,17 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 4. Em repasse o preco de venda quase sempre eh MENOR que a FIPE. Se voce
    extrair um price IGUAL ou MAIOR que a fipePrice, releia: provavelmente
    confundiu os dois. Na duvida, deixe price = null.
-5. Exemplos:
+5. DUAS FIPES: as vezes o anuncio traz "Fipe 0km" (do carro novo) e "Fipe
+   usado" (do usado). Como o carro de repasse eh USADO, fipePrice deve ser
+   a "Fipe usado". Ignore a "Fipe 0km". E cuidado: "Fipe 0km" tem o "0"
+   que NAO eh o valor -- o valor vem depois do R$.
+6. Exemplos:
    - "Fipe R$ 169.302" (so isso)        -> fipePrice=169302, price=null
    - "Fipe 80mil / Por 72mil"           -> fipePrice=80000, price=72000
    - "Valor 65.000 - Fipe da 71.000"    -> price=65000, fipePrice=71000
    - "Vendo por 90 mil"                 -> price=90000, fipePrice=null
+   - "Fipe 0km R$180.000 / Fipe usado R$159.000 / Por R$149.000"
+        -> fipePrice=159000 (a do usado), price=149000
 
 === REGRAS CRITICAS SOBRE O ANO ===
 1. "year" e "yearModel" sao o ano de FABRICACAO e MODELO do veiculo.
