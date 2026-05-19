@@ -149,7 +149,8 @@ export function formatVehicleAd(
     // - Keep only the "features / description" lines
 
     const cleaned = vehicle.rawDescription.trim()
-      .replace(/\*/g, "")
+      // Remove marcadores de formatacao do WhatsApp: *negrito*, ~tachado~, _italico_
+      .replace(/[*~_]/g, "")
       // Remove all emojis and special unicode symbols
       .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
 
@@ -178,14 +179,22 @@ export function formatVehicleAd(
         // "KM 153.000 ..." (prefixo KM + numero + texto)
         /^km\s*:?\s*[\d.,]+/i.test(l) ||
         // Price lines: "R$ 360.900" "Pedida R$ 360.900" "Fipe R$ 381.000"
-        // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998"
+        // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998" "Faz 127.000"
+        // "Pra hj 122.000" "Tabela 138.000" "Sinal 5.000" "Entrada 20.000"
         // O sistema gera a propria secao Fipe/Por -- nada de preco vaza pro corpo.
-        /^(fipe|pedida|faço|faco|valor|preco|preço|por|custo|à\s*vista|a\s*vista)\s*:?\s*r?\$?\s*[\d.,]+/i.test(l) ||
+        /^(fipe|pedida|faço|faco|faz|valor|preco|preço|por|custo|tabela|sinal|entrada|à\s*vista|a\s*vista|pra\s*(hoje|hj))\s*:?\s*r?\$?\s*~?\s*[\d.,]+/i.test(l) ||
         // Bare price: "R$ 360.900" or just "360.900"
         /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
         // Frases de marketing/chamada do vendedor da fonte -- nao entram no
         // anuncio da Cugini ("Oportunidade menor valor Brasil", etc).
         /\b(oportunidade|menor\s*(valor|pre[çc]o)|melhor\s*(valor|pre[çc]o|oferta)|imperd[ií]vel|aproveite|n[ãa]o\s*perc|super\s*oferta|abaixo\s*da\s*(tabela|fipe)|baita\s*(neg[óo]cio|oferta)|promo[çc][ãa]o|ultim[ao]s?\s*(unidade|dia))\b/i.test(l) ||
+        // Frases de NEGOCIACAO do vendedor da fonte -- nao entram no anuncio
+        // ("Analisa proposta", "Aceito troca", "Comigo", "Negociavel"...).
+        /\b(analis[ao]|aceito|estudo|fa[çc]o|escuto|ou[çv]o)\s+(proposta|oferta|troca)/i.test(l) ||
+        /\bproposta\s*(coerente|justa|s[ée]ria|real)/i.test(l) ||
+        /\b(neg[oó]ci[aá]vel|aceito\s*troca|estudo\s*troca|aceita\s*troca|sem\s*troca)\b/i.test(l) ||
+        /^(comigo|chama|chame|fale|falar|tratar|direto\s*comigo)[\s.!]*$/i.test(l) ||
+        /^pra?\s*(hoje|hj|fechar|negociar)\b/i.test(l) ||
         // Location pin: "SP" or "📍 SP" (emoji already stripped, so just "SP")
         /^[A-Z]{2}$/i.test(l) && l.length === 2 ||
         // Transmission/fuel already in title
