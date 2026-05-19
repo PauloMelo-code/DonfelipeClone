@@ -590,6 +590,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // --- Filtro de DESCONTO MINIMO DA FIPE ---
+    // Carro de repasse precisa estar pelo menos X% abaixo da tabela FIPE
+    // (configuravel via setting `min_fipe_discount`, padrao 10%). Abaixo
+    // disso nao tem margem -- descarta na captura, nao enche a fila.
+    // Se a FIPE nao foi detectada, deixa passar (operador revisa).
+    {
+      const fipeFromAi = typeof vehicleData.fipePrice === "number" ? vehicleData.fipePrice : null;
+      if (fipeFromAi && fipeFromAi > 0) {
+        const minDiscSetting = await prisma.setting.findUnique({
+          where: { key: "min_fipe_discount" },
+        });
+        const minDiscount = minDiscSetting ? parseFloat(minDiscSetting.value) : 10;
+        const discountPct = (1 - price / fipeFromAi) * 100;
+        if (discountPct < minDiscount) {
+          console.log(
+            `[Webhook] FILTERED low FIPE discount: ${discountPct.toFixed(1)}% < ${minDiscount}% (price ${price} / fipe ${fipeFromAi})`
+          );
+          return NextResponse.json({
+            status: "filtered",
+            reason: "fipe_discount_too_low",
+            discountPct: Math.round(discountPct * 10) / 10,
+            minDiscount,
+          });
+        }
+      }
+    }
+
     // --- Filtro automatico de GRUPOS NACIONAIS ---
     // Grupos "Nacional" recebem carros do Brasil inteiro. Muitos anuncios de
     // FORA da regiao atendida nao mencionam o estado. Regra do cliente:
