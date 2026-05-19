@@ -172,10 +172,15 @@ export function formatVehicleAd(
         /^(ano\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
         // KM line: "KM 35.000" or "35.000 km" or "35mil km"
         /^(km\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
-        // Price lines: "R$ 360.900" "Pedida R$ 360.900" "Fipe R$ 381.000" "Faço R$ 65.900"
-        /^(fipe|pedida|faço|valor|preco|preço|por)\s*:?\s*r?\$?\s*[\d.,]+/i.test(l) ||
+        // Price lines: "R$ 360.900" "Pedida R$ 360.900" "Fipe R$ 381.000"
+        // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998"
+        // O sistema gera a propria secao Fipe/Por -- nada de preco vaza pro corpo.
+        /^(fipe|pedida|faço|faco|valor|preco|preço|por|custo|à\s*vista|a\s*vista)\s*:?\s*r?\$?\s*[\d.,]+/i.test(l) ||
         // Bare price: "R$ 360.900" or just "360.900"
         /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
+        // Frases de marketing/chamada do vendedor da fonte -- nao entram no
+        // anuncio da Cugini ("Oportunidade menor valor Brasil", etc).
+        /\b(oportunidade|menor\s*(valor|pre[çc]o)|melhor\s*(valor|pre[çc]o|oferta)|imperd[ií]vel|aproveite|n[ãa]o\s*perc|super\s*oferta|abaixo\s*da\s*(tabela|fipe)|baita\s*(neg[óo]cio|oferta)|promo[çc][ãa]o|ultim[ao]s?\s*(unidade|dia))\b/i.test(l) ||
         // Location pin: "SP" or "📍 SP" (emoji already stripped, so just "SP")
         /^[A-Z]{2}$/i.test(l) && l.length === 2 ||
         // Transmission/fuel already in title
