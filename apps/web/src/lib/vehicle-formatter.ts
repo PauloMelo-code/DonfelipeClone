@@ -227,6 +227,12 @@ export function formatVehicleAd(
     if (bodyLines.length > 0) {
       lines.push("");
       lines.push(...bodyLines);
+    } else if (featuresList.length > 0) {
+      // A limpeza removeu TODAS as linhas do anuncio original (anuncio era
+      // so preco/negociacao/contato). Usa as features extraidas pela IA pra
+      // o anuncio nao sair vazio.
+      lines.push("");
+      featuresList.forEach((f) => lines.push(f));
     }
   } else if (featuresList.length > 0) {
     // Fallback: if no rawDescription, use AI-extracted features
