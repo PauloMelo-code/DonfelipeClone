@@ -17,8 +17,15 @@ export async function GET() {
   if (!auth.success) return auth.response;
 
   try {
-    type RemoteWithRole = { id: string; subject: string; profilePictureUrl?: string; defaultRole: "SOURCE" | "TARGET" };
+    type RemoteWithRole = {
+      id: string;
+      subject: string;
+      profilePictureUrl?: string;
+      defaultRole: "SOURCE" | "TARGET";
+      isAnnounce?: boolean;
+    };
 
+    // ── 1. Grupos da instancia de CAPTURA ──────────────────────────────────
     const captureGroups = await uazapi.listGroups(true);
     const captureMapped: RemoteWithRole[] = captureGroups.map((g) => ({
       id: g.id,
@@ -27,7 +34,25 @@ export async function GET() {
       defaultRole: "SOURCE",
     }));
 
+    // ── 2. Canais (newsletters) da instancia de CAPTURA ────────────────────
+    // Canais ficam fora do /group/list -- precisam de chamada separada.
+    let captureNewsletters: RemoteWithRole[] = [];
+    try {
+      const newsletters = await uazapi.listNewsletters();
+      captureNewsletters = newsletters.map((n) => ({
+        id: n.id,
+        subject: n.subject,
+        profilePictureUrl: n.profilePictureUrl,
+        defaultRole: "SOURCE" as const,
+        isAnnounce: true,
+      }));
+    } catch (err) {
+      console.error("[Groups Sync] listNewsletters (capture) failed:", err);
+    }
+
+    // ── 3. Grupos + canais da instancia de ENVIO (se configurada) ─────────
     let sendMapped: RemoteWithRole[] = [];
+    let sendNewsletters: RemoteWithRole[] = [];
     let sendError: string | null = null;
     if (uazapiSend.isConfigured) {
       try {
@@ -40,9 +65,48 @@ export async function GET() {
         }));
       } catch (err) {
         sendError = err instanceof Error ? err.message : String(err);
-        console.error("[Groups Sync] sendInstance failed:", err);
+        console.error("[Groups Sync] sendInstance groups failed:", err);
+      }
+      try {
+        const sendNews = await uazapiSend.listNewsletters();
+        sendNewsletters = sendNews.map((n) => ({
+          id: n.id,
+          subject: n.subject,
+          profilePictureUrl: n.profilePictureUrl,
+          defaultRole: "TARGET" as const,
+          isAnnounce: true,
+        }));
+      } catch (err) {
+        console.error("[Groups Sync] listNewsletters (send) failed:", err);
       }
     }
+
+    // ── 4. Listas de transmissao (@broadcast) via /chat/list ──────────────
+    // Listas nao aparecem em /group/list. Aparecem em chats. Pode falhar
+    // silencioso se a build da UAZAPI nao expor.
+    type BroadcastInfo = { id: string; name: string };
+    const captureBroadcasts: BroadcastInfo[] = (await uazapi.listChats().catch(() => []))
+      .filter((c) => c.kind === "broadcast" && c.id);
+    const captureBroadcastMapped: RemoteWithRole[] = captureBroadcasts.map((b) => ({
+      id: b.id,
+      subject: b.name,
+      defaultRole: "SOURCE" as const,
+    }));
+
+    let sendBroadcastMapped: RemoteWithRole[] = [];
+    if (uazapiSend.isConfigured) {
+      const sendBroadcasts = (await uazapiSend.listChats().catch(() => []))
+        .filter((c) => c.kind === "broadcast" && c.id);
+      sendBroadcastMapped = sendBroadcasts.map((b) => ({
+        id: b.id,
+        subject: b.name,
+        defaultRole: "TARGET" as const,
+      }));
+    }
+
+    // Junta tudo (grupos + canais + broadcasts, captura + envio)
+    captureMapped.push(...captureNewsletters, ...captureBroadcastMapped);
+    sendMapped.push(...sendNewsletters, ...sendBroadcastMapped);
 
     // Merge: prefer entries from send instance for groups that appear in both
     // (those are likely TARGET-relevant). De-dupe by groupId.
@@ -92,11 +156,13 @@ export async function GET() {
 
       // Resolve name with fallbacks
       let name: string = group.subject || "";
+      const isNewsletter = groupId.endsWith("@newsletter") || group.isAnnounce === true;
       if (!name) {
-        // Use the right client to fetch info: if this group came from the send
-        // instance only, the capture client may not know about it
         const client = group.defaultRole === "TARGET" && uazapiSend.isConfigured ? uazapiSend : uazapi;
-        const info = await client.getGroupInfo(groupId).catch(() => null);
+        // Canais usam endpoint diferente pra info
+        const info = isNewsletter
+          ? await client.getNewsletterInfo(groupId).catch(() => null)
+          : await client.getGroupInfo(groupId).catch(() => null);
         if (info?.subject) {
           name = info.subject;
           nameFallbackCount++;
@@ -109,8 +175,9 @@ export async function GET() {
       const photoUrl = group.profilePictureUrl || null;
 
       if (existing) {
-        // nameLocked = nome editado manualmente pelo operador. NUNCA sobrescreve.
-        // Senao: preserva role escolhida. Nome bom no DB nao volta pra JID.
+        // Sync PRESERVA: active, role, region, filters, nameLocked.
+        // Atualiza SO name (se nao travado) e photoUrl. Tambem garante a
+        // flag isAnnounce pra canais (newsletters).
         const safeName = existing.nameLocked
           ? existing.name
           : name === groupId && existing.name !== groupId
@@ -121,6 +188,7 @@ export async function GET() {
           data: {
             name: safeName,
             photoUrl,
+            ...(isNewsletter ? { isAnnounce: true } : {}),
           },
         });
         updatedCount++;
@@ -132,6 +200,7 @@ export async function GET() {
             role: group.defaultRole, // SOURCE se veio da captura, TARGET se veio do envio
             active: false,
             photoUrl,
+            isAnnounce: isNewsletter,
           },
         });
         createdCount++;
@@ -151,6 +220,10 @@ export async function GET() {
       nameFallbackCount,
       captureGroupCount: captureMapped.length,
       sendGroupCount: sendMapped.length,
+      captureNewsletterCount: captureNewsletters.length,
+      sendNewsletterCount: sendNewsletters.length,
+      captureBroadcastCount: captureBroadcastMapped.length,
+      sendBroadcastCount: sendBroadcastMapped.length,
       sendInstanceConfigured: uazapiSend.isConfigured,
       sendError,
     });

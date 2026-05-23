@@ -98,10 +98,12 @@ class UazapiClient {
   }
 
   async listGroups(force?: boolean): Promise<GroupInfo[]> {
-    // Don't pass noparticipants — some UAZAPI builds strip metadata (incl.
-    // group name) when participants are excluded.
+    // Cliente confirmou via curl: a chamada correta eh com noparticipants=true.
+    // Resposta vem mais leve E com os nomes (a UAZAPI dele retorna os nomes
+    // mesmo sem participantes). Antes nao passavamos esse param e payload
+    // ficava enorme em listas grandes.
     const { data } = await this.client.get("/group/list", {
-      params: { force: force ?? false },
+      params: { force: force ?? false, noparticipants: true },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = Array.isArray(data) ? data : data?.groups ?? [];
@@ -223,6 +225,108 @@ class UazapiClient {
       const groups = await this.listGroups(true);
       const found = groups.find((g) => g.id === groupJid);
       return found?.subject || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Chats (inclui listas de transmissao @broadcast)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Lista TODOS os chats conhecidos pela instancia (grupos, contatos, listas
+   * de transmissao, canais). Usado pra descobrir broadcasts que nunca
+   * apareceram em /group/list. Falha silenciosa em builds que nao tem isso. */
+  async listChats(): Promise<{ id: string; name: string; kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" }[]> {
+    const endpoints = [
+      { method: "get" as const, url: "/chat/list" },
+      { method: "get" as const, url: "/chat/find" },
+      { method: "post" as const, url: "/chat/find", body: {} },
+      { method: "post" as const, url: "/chat/list", body: {} },
+    ];
+    for (const e of endpoints) {
+      try {
+        const res = e.method === "get"
+          ? await this.client.get(e.url)
+          : await this.client.post(e.url, e.body);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const raw: any[] = Array.isArray(res.data)
+          ? res.data
+          : res.data?.chats ?? res.data?.results ?? res.data?.items ?? [];
+        if (raw.length === 0) continue;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pick = (g: any, ...keys: string[]) => {
+          for (const k of keys) {
+            const v = g?.[k];
+            if (v != null && v !== "") return v;
+          }
+          return undefined;
+        };
+        return raw.map((c) => {
+          const id: string = pick(c, "JID", "jid", "id", "Id", "chatId") ?? "";
+          const name: string =
+            pick(c, "Name", "name", "subject", "pushname", "pushName", "displayName", "chatName") ?? "";
+          let kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" = "unknown";
+          if (id.endsWith("@broadcast")) kind = "broadcast";
+          else if (id.endsWith("@g.us")) kind = "group";
+          else if (id.endsWith("@newsletter")) kind = "newsletter";
+          else if (id.endsWith("@s.whatsapp.net")) kind = "user";
+          return { id, name, kind };
+        });
+      } catch {
+        // try next endpoint
+      }
+    }
+    return [];
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Newsletters / Canais
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Lista canais (newsletters) que o numero acompanha.
+   * `GET /newsletter/list` */
+  async listNewsletters(): Promise<GroupInfo[]> {
+    try {
+      const { data } = await this.client.get("/newsletter/list");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw: any[] = Array.isArray(data) ? data : data?.newsletters ?? data?.channels ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pick = (g: any, ...keys: string[]) => {
+        for (const k of keys) {
+          const v = g?.[k];
+          if (v != null && v !== "") return v;
+        }
+        return undefined;
+      };
+      return raw.map((g) => ({
+        id: pick(g, "JID", "jid", "id", "Id") ?? "",
+        subject:
+          pick(g, "Name", "name", "subject", "Subject", "title", "Title", "newsletterName") ?? "",
+        size: pick(g, "subscribers", "Size", "size") ?? 0,
+        creation: pick(g, "Creation", "creation", "createdAt") ?? 0,
+        owner: pick(g, "OwnerJID", "owner") ?? "",
+        profilePictureUrl: pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl"),
+      }));
+    } catch (err) {
+      console.error(`[UAZAPI:${this.label}] listNewsletters failed:`, err);
+      return [];
+    }
+  }
+
+  /** Info detalhada de um canal (puxa o nome quando o list nao traz).
+   * `POST /newsletter/info {id, jid}` */
+  async getNewsletterInfo(jid: string): Promise<{ subject?: string; profilePictureUrl?: string } | null> {
+    try {
+      // Normaliza id (parte numerica) e jid (com @newsletter)
+      const id = jid.replace(/@newsletter$/i, "");
+      const fullJid = jid.includes("@") ? jid : `${jid}@newsletter`;
+      const { data } = await this.client.post("/newsletter/info", { id, jid: fullJid });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d: any = data;
+      const subject = d?.Name || d?.name || d?.subject || d?.Subject || d?.title;
+      if (!subject) return null;
+      return { subject, profilePictureUrl: d?.profilePictureUrl };
     } catch {
       return null;
     }
