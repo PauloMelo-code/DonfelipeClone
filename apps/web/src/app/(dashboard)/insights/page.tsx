@@ -2,13 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/header";
-import { Loader2, TrendingUp, Users, Tag } from "lucide-react";
+import { Loader2, TrendingUp, Users, Tag, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface InsightsData {
   funnel: { captured: number; approved: number; published: number; sold: number };
   topGroups: Array<{ name: string; groupId: string; captured: number; approved: number; sold: number; approvalRate: number; conversionRate: number }>;
   topRejectionTags: Array<{ tag: string; count: number }>;
+}
+
+// Defaults seguros para quando a API falhar ou retornar payload parcial.
+// Evita o ErrorBoundary global quebrar todo o app por causa de Insights.
+const EMPTY_INSIGHTS: InsightsData = {
+  funnel: { captured: 0, approved: 0, published: 0, sold: 0 },
+  topGroups: [],
+  topRejectionTags: [],
+};
+
+function isValidInsights(d: unknown): d is InsightsData {
+  if (!d || typeof d !== "object") return false;
+  const obj = d as Record<string, unknown>;
+  return (
+    !!obj.funnel &&
+    typeof obj.funnel === "object" &&
+    Array.isArray(obj.topGroups) &&
+    Array.isArray(obj.topRejectionTags)
+  );
 }
 
 const REJECTION_LABELS: Record<string, string> = {
@@ -24,12 +43,25 @@ const REJECTION_LABELS: Record<string, string> = {
 export default function InsightsPage() {
   const [data, setData] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/insights")
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {})
+      .then(async (r) => {
+        const body = await r.json().catch(() => null);
+        if (!r.ok || !isValidInsights(body)) {
+          // API retornou erro ou payload incompleto -- usa defaults vazios
+          // pra nao quebrar a tela. Mostra aviso discreto.
+          setError(body?.error || `Não foi possível carregar insights (HTTP ${r.status})`);
+          setData(EMPTY_INSIGHTS);
+          return;
+        }
+        setData(body);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : "Erro de conexão");
+        setData(EMPTY_INSIGHTS);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,12 +76,29 @@ export default function InsightsPage() {
     );
   }
 
+  // Apos load: data sempre tera estrutura valida (real ou EMPTY_INSIGHTS)
   if (!data) return null;
 
   return (
     <>
       <Header title="Insights" subtitle="Análise dos últimos 30 dias" />
       <div className="p-6 space-y-6">
+        {error && (
+          <div className="rounded-2xl border border-warning/40 bg-warning/[0.05] p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-warning">Insights indisponíveis no momento</p>
+              <p className="text-xs text-warning/70 truncate">{error}</p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-warning/15 border border-warning/30 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20 shrink-0"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         {/* Funil */}
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
