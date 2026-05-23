@@ -23,11 +23,16 @@ interface Group {
   isCommunity?: boolean;
   isAnnounce?: boolean;
   isContact?: boolean;
+  kindOverride?: string | null;
   ownerPhone?: string | null;
 }
 
 function getGroupType(g: Group): string {
-  // Classificacao estrita por sufixo do JID:
+  // kindOverride manual tem prioridade sobre classificacao automatica.
+  // Permite mover um contato pra "lista" (ou qualquer combinacao) sem
+  // mexer no JID real.
+  if (g.kindOverride) return g.kindOverride;
+  // Classificacao automatica por sufixo do JID:
   //   @newsletter -> canal (canal OFICIAL do WhatsApp)
   //   @broadcast  -> lista de transmissao
   //   @s.whatsapp.net -> contato (DM 1-1)
@@ -291,6 +296,38 @@ export default function GruposPage() {
 
   // Renomear grupo manualmente
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [kindMenuOpenId, setKindMenuOpenId] = useState<string | null>(null);
+
+  // Aplica override manual de tipo. Passar null/"" remove o override
+  // (volta a classificacao automatica por JID).
+  const handleChangeKind = async (group: Group, kind: string | null) => {
+    setKindMenuOpenId(null);
+    try {
+      const res = await fetch(`/api/groups/${group.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kindOverride: kind }),
+      });
+      if (res.ok) {
+        toast.success(kind ? `Reclassificado como ${kind}` : "Tipo restaurado para automático");
+        fetchGroups();
+        fetchStats();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Erro ao reclassificar");
+      }
+    } catch {
+      toast.error("Erro de conexão");
+    }
+  };
+
+  // Fecha menu ao clicar fora
+  useEffect(() => {
+    if (!kindMenuOpenId) return;
+    const close = () => setKindMenuOpenId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [kindMenuOpenId]);
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
@@ -600,7 +637,69 @@ export default function GruposPage() {
             </div>
           ) : (
             <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }} className="flex items-center gap-1.5 group/name">
-              <span style={{ marginRight: "2px" }}>{getGroupTypeIcon(getGroupType(group))}</span>
+              {/* Icone do tipo -- clicavel pra reclassificar */}
+              <span className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setKindMenuOpenId(kindMenuOpenId === group.id ? null : group.id);
+                  }}
+                  className="rounded px-0.5 hover:bg-cugini-orange/15 transition-colors cursor-pointer"
+                  title={`Tipo: ${getGroupType(group)}${group.kindOverride ? " (manual)" : ""} — clique para mudar`}
+                >
+                  {getGroupTypeIcon(getGroupType(group))}
+                  {group.kindOverride && (
+                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-cugini-orange shadow-[0_0_4px_rgba(232,115,26,0.6)]" title="Tipo definido manualmente" />
+                  )}
+                </button>
+                {kindMenuOpenId === group.id && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-white/[0.08] bg-[#131316] shadow-[0_10px_40px_rgba(0,0,0,0.6)] py-1"
+                  >
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/50 font-semibold border-b border-white/[0.04] mb-1">
+                      Reclassificar como
+                    </div>
+                    {[
+                      { id: "grupo", label: "👥 Grupo" },
+                      { id: "canal", label: "📡 Canal" },
+                      { id: "comunidade", label: "🏘️ Comunidade" },
+                      { id: "lista", label: "📢 Lista" },
+                      { id: "contato", label: "👤 Contato" },
+                    ].map((opt) => {
+                      const current = getGroupType(group);
+                      const isCurrent = current === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => handleChangeKind(group, opt.id)}
+                          className={cn(
+                            "w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors",
+                            isCurrent
+                              ? "bg-cugini-orange/10 text-cugini-orange"
+                              : "text-foreground hover:bg-white/[0.04]"
+                          )}
+                        >
+                          <span>{opt.label}</span>
+                          {isCurrent && <Check className="h-3 w-3" />}
+                        </button>
+                      );
+                    })}
+                    {group.kindOverride && (
+                      <>
+                        <div className="border-t border-white/[0.04] my-1" />
+                        <button
+                          onClick={() => handleChangeKind(group, null)}
+                          className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-colors"
+                        >
+                          ↩ Voltar automático
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{group.name}</span>
               {group.nameLocked && (
                 <span title="Nome fixado manualmente" className="text-[9px] text-cugini-orange shrink-0">📌</span>

@@ -138,6 +138,11 @@ model WhatsAppGroup {
   /// podem mandar carros via mensagem direta ou lista de transmissao
   /// (do lado do remetente; do lado de quem recebe chega como DM).
   isContact   Boolean @default(false)
+  /// Override manual do tipo. Quando setado, sobrescreve a classificacao
+  /// automatica por sufixo do JID. Util quando o usuario quer tratar um
+  /// contato (@s.whatsapp.net) como "lista" pra organizar melhor.
+  /// Valores: "grupo" | "canal" | "comunidade" | "lista" | "contato"
+  kindOverride String?
   ownerPhone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

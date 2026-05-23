@@ -72,34 +72,42 @@ export async function GET(request: NextRequest) {
       where.region = region === "" ? null : region;
     }
 
-    // Filtro de tipo. Regra estrita por sufixo do JID:
-    //   @newsletter -> canal (canal oficial do WhatsApp)
-    //   @broadcast  -> lista de transmissao
-    //   @s.whatsapp.net -> contato (DM 1-1)
-    //   @g.us com isCommunity=true -> comunidade
-    //   @g.us padrao -> grupo (mesmo se isAnnounce=true, e grupo restrito,
-    //                          NAO canal -- canal e SO @newsletter)
+    // Filtro de tipo. kindOverride tem prioridade sobre regra automatica.
+    // Regra automatica (quando kindOverride is null):
+    //   @newsletter -> canal
+    //   @broadcast  -> lista
+    //   @s.whatsapp.net -> contato
+    //   @g.us + isCommunity -> comunidade
+    //   @g.us padrao -> grupo
     if (type && type !== "todos") {
-      if (type === "canal") {
-        where.groupId = { endsWith: "@newsletter" };
-      } else if (type === "comunidade") {
-        where.AND = [
-          { groupId: { endsWith: "@g.us" } },
-          { isCommunity: true },
-        ];
-      } else if (type === "lista") {
-        where.groupId = { endsWith: "@broadcast" };
-      } else if (type === "contato") {
+      // Auto-classificacao por tipo (somente quando kindOverride is null)
+      const autoMatch: Record<string, Record<string, unknown>> = {
+        canal: { groupId: { endsWith: "@newsletter" } },
+        comunidade: {
+          AND: [{ groupId: { endsWith: "@g.us" } }, { isCommunity: true }],
+        },
+        lista: { groupId: { endsWith: "@broadcast" } },
+        contato: {
+          OR: [
+            { isContact: true },
+            { groupId: { endsWith: "@s.whatsapp.net" } },
+          ],
+        },
+        grupo: {
+          AND: [
+            { groupId: { endsWith: "@g.us" } },
+            { isCommunity: false },
+            { isContact: false },
+          ],
+        },
+      };
+
+      const auto = autoMatch[type];
+      if (auto) {
+        // (kindOverride = X) OR (kindOverride null AND classificacao natural = X)
         where.OR = [
-          { isContact: true },
-          { groupId: { endsWith: "@s.whatsapp.net" } },
-        ];
-      } else if (type === "grupo") {
-        // Grupos @g.us que NAO sao comunidade nem contato (announce-only ainda e grupo).
-        where.AND = [
-          { groupId: { endsWith: "@g.us" } },
-          { isCommunity: false },
-          { isContact: false },
+          { kindOverride: type },
+          { AND: [{ kindOverride: null }, auto] },
         ];
       }
     }

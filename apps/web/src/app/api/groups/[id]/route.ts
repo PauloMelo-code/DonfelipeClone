@@ -46,7 +46,7 @@ export async function PUT(
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
 
-    const { name, role, active, filters, photoUrl, region } = validation.data;
+    const { name, role, active, filters, photoUrl, region, kindOverride } = validation.data;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       data.name = name;
@@ -58,6 +58,10 @@ export async function PUT(
     if (filters !== undefined) data.filters = filters;
     if (photoUrl !== undefined) data.photoUrl = photoUrl;
     if (region !== undefined) data.region = region;
+    // kindOverride: null remove o override (volta classificacao automatica)
+    if (kindOverride !== undefined) {
+      data.kindOverride = kindOverride ?? null;
+    }
 
     const updated = await prisma.whatsAppGroup.update({
       where: { id },

@@ -39,48 +39,54 @@ export async function GET(request: NextRequest) {
   if (role && role !== "ALL") baseWhere.role = role;
 
   try {
-    // Classificacao estrita por sufixo do JID (canal = SO @newsletter).
-    // Mesma logica que /api/groups e getGroupType do client.
-    const [todos, canal, comunidade, lista, contato] = await Promise.all([
+    // kindOverride tem prioridade -- conta primeiro por override.
+    // Pro resto (kindOverride null), aplica regra natural por sufixo JID.
+    const buildWhere = (auto: Record<string, unknown>, kindKey: string) => ({
+      ...baseWhere,
+      OR: [
+        { kindOverride: kindKey },
+        { AND: [{ kindOverride: null }, auto] },
+      ],
+    });
+
+    const [todos, canal, comunidade, lista, contato, grupo] = await Promise.all([
       prisma.whatsAppGroup.count({ where: baseWhere }),
       prisma.whatsAppGroup.count({
-        where: { ...baseWhere, groupId: { endsWith: "@newsletter" } },
+        where: buildWhere({ groupId: { endsWith: "@newsletter" } }, "canal"),
       }),
       prisma.whatsAppGroup.count({
-        where: {
-          ...baseWhere,
-          AND: [
-            { groupId: { endsWith: "@g.us" } },
-            { isCommunity: true },
-          ],
-        },
+        where: buildWhere(
+          { AND: [{ groupId: { endsWith: "@g.us" } }, { isCommunity: true }] },
+          "comunidade"
+        ),
       }),
       prisma.whatsAppGroup.count({
-        where: { ...baseWhere, groupId: { endsWith: "@broadcast" } },
+        where: buildWhere({ groupId: { endsWith: "@broadcast" } }, "lista"),
       }),
       prisma.whatsAppGroup.count({
-        where: {
-          ...baseWhere,
-          OR: [
-            { isContact: true },
-            { groupId: { endsWith: "@s.whatsapp.net" } },
-          ],
-        },
+        where: buildWhere(
+          {
+            OR: [
+              { isContact: true },
+              { groupId: { endsWith: "@s.whatsapp.net" } },
+            ],
+          },
+          "contato"
+        ),
+      }),
+      prisma.whatsAppGroup.count({
+        where: buildWhere(
+          {
+            AND: [
+              { groupId: { endsWith: "@g.us" } },
+              { isCommunity: false },
+              { isContact: false },
+            ],
+          },
+          "grupo"
+        ),
       }),
     ]);
-
-    // Grupo = @g.us que NAO e comunidade nem contato. Conta explicitamente
-    // pra nao depender de subtracao (alguns chats antigos podem nao bater).
-    const grupo = await prisma.whatsAppGroup.count({
-      where: {
-        ...baseWhere,
-        AND: [
-          { groupId: { endsWith: "@g.us" } },
-          { isCommunity: false },
-          { isContact: false },
-        ],
-      },
-    });
 
     const stats: StatsByType = { todos, grupo, canal, comunidade, lista, contato };
     statsCache.set(cacheKey, { data: stats, expiresAt: Date.now() + TTL_MS });

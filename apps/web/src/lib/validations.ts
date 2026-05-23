@@ -65,6 +65,9 @@ export const updateGroupSchema = z.object({
   filters: z.string().nullable().optional(),
   photoUrl: z.string().nullable().optional(),
   region: z.string().max(50).nullable().optional(),
+  // Override manual do tipo. null/"" remove o override e volta pra classificacao
+  // automatica por sufixo do JID.
+  kindOverride: z.enum(["grupo", "canal", "comunidade", "lista", "contato"]).nullable().optional(),
 });
 
 // ---------------------------------------------------------------------------
