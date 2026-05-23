@@ -81,28 +81,45 @@ export async function GET() {
       }
     }
 
-    // ── 4. Listas de transmissao (@broadcast) via /chat/list ──────────────
-    // Listas nao aparecem em /group/list. Aparecem em chats. Pode falhar
-    // silencioso se a build da UAZAPI nao expor.
-    type BroadcastInfo = { id: string; name: string };
-    const captureBroadcasts: BroadcastInfo[] = (await uazapi.listChats().catch(() => []))
-      .filter((c) => c.kind === "broadcast" && c.id);
-    const captureBroadcastMapped: RemoteWithRole[] = captureBroadcasts.map((b) => ({
-      id: b.id,
-      subject: b.name,
-      defaultRole: "SOURCE" as const,
-    }));
+    // ── 4. Chats via POST /chat/find ──────────────────────────────────────
+    // Endpoint amplo que retorna tudo (grupos, listas @broadcast, contatos)
+    // E expoe flags wa_isGroup_community / wa_isGroup_announce que /group/list
+    // nao traz com precisao. Usamos pra:
+    // - Capturar listas de transmissao (@broadcast)
+    // - Enriquecer grupos com isCommunity / isAnnounce
+    const captureChats = await uazapi.listChats().catch(() => []);
+    const sendChats = uazapiSend.isConfigured
+      ? await uazapiSend.listChats().catch(() => [])
+      : [];
 
-    let sendBroadcastMapped: RemoteWithRole[] = [];
-    if (uazapiSend.isConfigured) {
-      const sendBroadcasts = (await uazapiSend.listChats().catch(() => []))
-        .filter((c) => c.kind === "broadcast" && c.id);
-      sendBroadcastMapped = sendBroadcasts.map((b) => ({
+    // Mapa de enriquecimento: JID -> { isCommunity, isAnnounce, name }
+    const chatEnrichment = new Map<string, { isCommunity: boolean; isAnnounce: boolean; name: string }>();
+    for (const c of [...captureChats, ...sendChats]) {
+      if (!c.id) continue;
+      const existing = chatEnrichment.get(c.id);
+      // Mantem flag se ja foi true em algum chat
+      chatEnrichment.set(c.id, {
+        isCommunity: existing?.isCommunity || c.isCommunity,
+        isAnnounce: existing?.isAnnounce || c.isAnnounce,
+        name: c.name || existing?.name || "",
+      });
+    }
+
+    // Broadcasts: viraram itens novos no sync
+    const captureBroadcastMapped: RemoteWithRole[] = captureChats
+      .filter((c) => c.kind === "broadcast" && c.id)
+      .map((b) => ({
+        id: b.id,
+        subject: b.name,
+        defaultRole: "SOURCE" as const,
+      }));
+    const sendBroadcastMapped: RemoteWithRole[] = sendChats
+      .filter((c) => c.kind === "broadcast" && c.id)
+      .map((b) => ({
         id: b.id,
         subject: b.name,
         defaultRole: "TARGET" as const,
       }));
-    }
 
     // Junta tudo (grupos + canais + broadcasts, captura + envio)
     captureMapped.push(...captureNewsletters, ...captureBroadcastMapped);
@@ -154,9 +171,16 @@ export async function GET() {
       const groupId = group.id;
       if (!groupId) continue;
 
-      // Resolve name with fallbacks
-      let name: string = group.subject || "";
-      const isNewsletter = groupId.endsWith("@newsletter") || group.isAnnounce === true;
+      // Enriquecimento via /chat/find (comunidade, announce)
+      const chatInfo = chatEnrichment.get(groupId);
+      const isCommunity = chatInfo?.isCommunity ?? false;
+
+      // Resolve name with fallbacks (prefere /group/list, depois /chat/find)
+      let name: string = group.subject || chatInfo?.name || "";
+      const isNewsletter =
+        groupId.endsWith("@newsletter") ||
+        group.isAnnounce === true ||
+        (chatInfo?.isAnnounce === true && !groupId.endsWith("@g.us"));
       if (!name) {
         const client = group.defaultRole === "TARGET" && uazapiSend.isConfigured ? uazapiSend : uazapi;
         // Canais usam endpoint diferente pra info
@@ -190,6 +214,7 @@ export async function GET() {
             name: safeName,
             photoUrl,
             isAnnounce: isNewsletter,
+            isCommunity,
           },
         });
         updatedCount++;
@@ -202,6 +227,7 @@ export async function GET() {
             active: false,
             photoUrl,
             isAnnounce: isNewsletter,
+            isCommunity,
           },
         });
         createdCount++;

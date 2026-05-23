@@ -234,50 +234,38 @@ class UazapiClient {
   // Chats (inclui listas de transmissao @broadcast)
   // ──────────────────────────────────────────────────────────────────────────
 
-  /** Lista TODOS os chats conhecidos pela instancia (grupos, contatos, listas
-   * de transmissao, canais). Usado pra descobrir broadcasts que nunca
-   * apareceram em /group/list. Falha silenciosa em builds que nao tem isso. */
-  async listChats(): Promise<{ id: string; name: string; kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" }[]> {
-    const endpoints = [
-      { method: "get" as const, url: "/chat/list" },
-      { method: "get" as const, url: "/chat/find" },
-      { method: "post" as const, url: "/chat/find", body: {} },
-      { method: "post" as const, url: "/chat/list", body: {} },
-    ];
-    for (const e of endpoints) {
-      try {
-        const res = e.method === "get"
-          ? await this.client.get(e.url)
-          : await this.client.post(e.url, e.body);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw: any[] = Array.isArray(res.data)
-          ? res.data
-          : res.data?.chats ?? res.data?.results ?? res.data?.items ?? [];
-        if (raw.length === 0) continue;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pick = (g: any, ...keys: string[]) => {
-          for (const k of keys) {
-            const v = g?.[k];
-            if (v != null && v !== "") return v;
-          }
-          return undefined;
-        };
-        return raw.map((c) => {
-          const id: string = pick(c, "JID", "jid", "id", "Id", "chatId") ?? "";
-          const name: string =
-            pick(c, "Name", "name", "subject", "pushname", "pushName", "displayName", "chatName") ?? "";
-          let kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" = "unknown";
-          if (id.endsWith("@broadcast")) kind = "broadcast";
-          else if (id.endsWith("@g.us")) kind = "group";
-          else if (id.endsWith("@newsletter")) kind = "newsletter";
-          else if (id.endsWith("@s.whatsapp.net")) kind = "user";
-          return { id, name, kind };
-        });
-      } catch {
-        // try next endpoint
-      }
+  /** Lista TODOS os chats da instancia (grupos, listas, canais, contatos)
+   * via `POST /chat/find`. Endpoint que retorna o conjunto mais amplo --
+   * usado pra descobrir broadcasts/listas que /group/list nao traz, e pra
+   * detectar comunidades (wa_isGroup_community). */
+  async listChats(): Promise<{
+    id: string;
+    name: string;
+    kind: "broadcast" | "group" | "user" | "newsletter" | "unknown";
+    isCommunity: boolean;
+    isAnnounce: boolean;
+  }[]> {
+    try {
+      const { data } = await this.client.post("/chat/find", {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw: any[] = Array.isArray(data) ? data : data?.chats ?? [];
+      return raw.map((c) => {
+        const id: string = c.wa_chatid || c.wa_fastid || c.id || "";
+        const name: string = c.wa_name || c.name || c.wa_contactName || "";
+        const isGroup = !!c.wa_isGroup;
+        const isCommunity = !!c.wa_isGroup_community;
+        const isAnnounce = !!c.wa_isGroup_announce;
+        let kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" = "unknown";
+        if (id.endsWith("@broadcast")) kind = "broadcast";
+        else if (id.endsWith("@newsletter")) kind = "newsletter";
+        else if (id.endsWith("@g.us") || isGroup) kind = "group";
+        else if (id.endsWith("@s.whatsapp.net")) kind = "user";
+        return { id, name, kind, isCommunity, isAnnounce };
+      });
+    } catch (err) {
+      console.error(`[UAZAPI:${this.label}] listChats failed:`, err);
+      return [];
     }
-    return [];
   }
 
   // ──────────────────────────────────────────────────────────────────────────
