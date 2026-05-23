@@ -293,22 +293,95 @@ export default function DashboardPage() {
             </SectionCard>
 
             <SectionCard icon={<TrendingUp />} title="Qualidade média (pendentes)">
-              <p
-                className={cn(
-                  "text-3xl font-bold tabular-nums",
-                  data.avgQualityScore >= 7
-                    ? "text-success"
-                    : data.avgQualityScore >= 5
-                    ? "text-warning"
-                    : "text-destructive"
-                )}
-              >
-                {data.avgQualityScore ? data.avgQualityScore.toFixed(1) : "—"}
-                <span className="text-base text-muted-foreground/60">/10</span>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {data.highScorePending || 0} com score ≥ 8
-              </p>
+              {(() => {
+                const score = data.avgQualityScore || 0;
+                const pct = Math.max(0, Math.min(100, (score / 10) * 100));
+                const tone =
+                  score >= 7 ? "success" : score >= 5 ? "warning" : "destructive";
+                const label =
+                  score >= 8 ? "Excelente" : score >= 7 ? "Bom" : score >= 5 ? "Médio" : score > 0 ? "Atenção" : "Sem dados";
+                const colorClasses = {
+                  success: { text: "text-success", bg: "from-success to-success/60", stroke: "stroke-success", label: "bg-success/10 text-success border-success/20" },
+                  warning: { text: "text-warning", bg: "from-warning to-warning/60", stroke: "stroke-warning", label: "bg-warning/10 text-warning border-warning/20" },
+                  destructive: { text: "text-destructive", bg: "from-destructive to-destructive/60", stroke: "stroke-destructive", label: "bg-destructive/10 text-destructive border-destructive/20" },
+                }[tone];
+                // Gauge circular: arco de 270deg (3/4 do circulo, deixa visual "speedometer")
+                const RADIUS = 42;
+                const CIRC_FULL = 2 * Math.PI * RADIUS;
+                const CIRC_ARC = CIRC_FULL * 0.75; // arco de 270deg
+                const dashOffset = CIRC_ARC * (1 - pct / 100);
+
+                return (
+                  <div className="flex flex-col items-center pt-1">
+                    {/* Gauge SVG */}
+                    <div className="relative">
+                      <svg width="140" height="140" viewBox="0 0 110 110" className="-rotate-[135deg]">
+                        {/* Track */}
+                        <circle
+                          cx="55"
+                          cy="55"
+                          r={RADIUS}
+                          fill="none"
+                          stroke="rgba(255,255,255,0.04)"
+                          strokeWidth="7"
+                          strokeLinecap="round"
+                          strokeDasharray={`${CIRC_ARC} ${CIRC_FULL}`}
+                        />
+                        {/* Progress */}
+                        <circle
+                          cx="55"
+                          cy="55"
+                          r={RADIUS}
+                          fill="none"
+                          className={cn(colorClasses.stroke, "transition-all duration-700")}
+                          strokeWidth="7"
+                          strokeLinecap="round"
+                          strokeDasharray={`${CIRC_ARC} ${CIRC_FULL}`}
+                          strokeDashoffset={dashOffset}
+                          style={{ filter: `drop-shadow(0 0 6px currentColor)` }}
+                        />
+                      </svg>
+                      {/* Centro do gauge */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className={cn("text-3xl font-bold tabular-nums leading-none", colorClasses.text)}>
+                          {score ? score.toFixed(1) : "—"}
+                        </span>
+                        <span className="mt-0.5 text-[10px] text-muted-foreground/50 tabular-nums">de 10</span>
+                      </div>
+                    </div>
+
+                    {/* Badge de status */}
+                    <span
+                      className={cn(
+                        "mt-2 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider",
+                        colorClasses.label
+                      )}
+                    >
+                      {label}
+                    </span>
+
+                    {/* Métricas auxiliares */}
+                    <div className="mt-4 w-full grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] py-2">
+                        <p className={cn("text-base font-semibold tabular-nums", colorClasses.text)}>
+                          {data.highScorePending || 0}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                          score ≥ 8
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] py-2">
+                        <p className="text-base font-semibold tabular-nums text-foreground">
+                          {data.vehicles.pending}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider">
+                          pendentes
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </SectionCard>
           </div>
         )}
