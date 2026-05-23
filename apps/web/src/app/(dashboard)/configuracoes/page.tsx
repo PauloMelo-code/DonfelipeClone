@@ -22,6 +22,7 @@ interface Settings {
   delay_max_seconds: string;
   filter_min_year: string;
   filter_min_price: string;
+  filter_max_km: string;
   blocklist_keywords: string;
   vip_keywords: string;
 }
@@ -37,6 +38,7 @@ export default function ConfiguracoesPage() {
     delay_max_seconds: "8",
     filter_min_year: "2018",
     filter_min_price: "30000",
+    filter_max_km: "300000",
     blocklist_keywords: "",
     vip_keywords: "",
   });
@@ -261,7 +263,7 @@ export default function ConfiguracoesPage() {
       const allowedKeys: (keyof Settings)[] = [
         "profit_margin_percent", "min_fipe_discount", "served_states",
         "delay_min_seconds", "delay_max_seconds",
-        "filter_min_year", "filter_min_price",
+        "filter_min_year", "filter_min_price", "filter_max_km",
         "blocklist_keywords", "vip_keywords",
       ];
       const payload: Record<string, string> = {};
@@ -641,6 +643,20 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => update("filter_min_price", e.target.value)}
                 className="bg-card border-border"
               />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label>KM máxima</Label>
+              <Input
+                type="number"
+                value={settings.filter_max_km}
+                onChange={(e) => update("filter_max_km", e.target.value)}
+                placeholder="300000"
+                className="bg-card border-border"
+              />
+              <p className="text-[11px] text-muted-foreground/60">
+                Carros com km acima desse valor são descartados na captura.
+                Padrão 300.000.
+              </p>
             </div>
           </div>
         </SectionCard>
