@@ -72,19 +72,57 @@ export async function GET(request: NextRequest) {
     return data;
   });
 
-  // /newsletter/list
+  // ── Newsletters (varios shapes) ─────────────────────────────────────
   results.newsletter_list = await safeCall("GET /newsletter/list", async () => {
     const { data } = await client.get("/newsletter/list");
     return data;
   });
-
-  // /chat/list (varios shapes)
-  results.chat_list_get = await safeCall("GET /chat/list", async () => {
-    const { data } = await client.get("/chat/list");
+  results.newsletter_find = await safeCall("POST /newsletter/find {}", async () => {
+    const { data } = await client.post("/newsletter/find", {});
     return data;
   });
-  results.chat_find_post = await safeCall("POST /chat/find", async () => {
+  results.newsletter_subscribed = await safeCall("GET /newsletter/subscribed", async () => {
+    const { data } = await client.get("/newsletter/subscribed");
+    return data;
+  });
+  results.newsletter_list_subscribed = await safeCall("GET /newsletter/list?subscribed=true", async () => {
+    const { data } = await client.get("/newsletter/list", { params: { subscribed: true } });
+    return data;
+  });
+
+  // ── Chats: contagem por tipo + amostra de broadcast/newsletter ─────
+  results.chat_find_post = await safeCall("POST /chat/find {}", async () => {
     const { data } = await client.post("/chat/find", {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chats: any[] = Array.isArray(data?.chats) ? data.chats : [];
+    const byType = { broadcast: 0, group: 0, newsletter: 0, user: 0, other: 0 };
+    const samples = { broadcast: [] as unknown[], newsletter: [] as unknown[] };
+    for (const c of chats) {
+      const id: string = c.wa_chatid || "";
+      if (id.endsWith("@broadcast")) {
+        byType.broadcast++;
+        if (samples.broadcast.length < 3) samples.broadcast.push(c);
+      } else if (id.endsWith("@newsletter")) {
+        byType.newsletter++;
+        if (samples.newsletter.length < 3) samples.newsletter.push(c);
+      } else if (id.endsWith("@g.us") || c.wa_isGroup) {
+        byType.group++;
+      } else if (id.endsWith("@s.whatsapp.net")) {
+        byType.user++;
+      } else {
+        byType.other++;
+      }
+    }
+    return { total: chats.length, byType, samples };
+  });
+
+  // ── Tentar endpoints alternativos pra LISTAS DE TRANSMISSAO ────────
+  results.broadcast_list = await safeCall("GET /broadcast/list", async () => {
+    const { data } = await client.get("/broadcast/list");
+    return data;
+  });
+  results.chat_find_broadcasts = await safeCall("POST /chat/find { wa_isBroadcast:true }", async () => {
+    const { data } = await client.post("/chat/find", { wa_isBroadcast: true });
     return data;
   });
 
