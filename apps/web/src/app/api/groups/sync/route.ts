@@ -187,10 +187,14 @@ export async function GET(request: Request) {
 
       // Resolve name with fallbacks (prefere /group/list, depois /chat/find)
       let name: string = group.subject || chatInfo?.name || "";
+      // Marca como "anuncio/canal" se for newsletter REAL (@newsletter) OU
+      // grupo announce-only (so admin posta). UAZAPI expoe esse flag via
+      // /chat/find (wa_isGroup_announce) -- mais confiavel que IsAnnounce
+      // raw do /group/list, que vem false mesmo pra grupos announce.
       const isNewsletter =
         groupId.endsWith("@newsletter") ||
         group.isAnnounce === true ||
-        (chatInfo?.isAnnounce === true && !groupId.endsWith("@g.us"));
+        chatInfo?.isAnnounce === true;
       if (!name) {
         const client = group.defaultRole === "TARGET" && uazapiSend.isConfigured ? uazapiSend : uazapi;
         // Canais usam endpoint diferente pra info
