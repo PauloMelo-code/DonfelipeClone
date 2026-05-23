@@ -18,7 +18,12 @@ export async function GET() {
         createdAt: true,
         _count: { select: { auditLogs: true } },
       },
-      orderBy: { createdAt: "asc" },
+      // Ativos primeiro, depois por nome (ordem estavel).
+      // Inativos descem pro final mas mantem ordenacao alfabetica entre si.
+      orderBy: [
+        { active: "desc" },
+        { name: "asc" },
+      ],
     });
 
     return NextResponse.json(users);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,9 @@ import {
   EyeOff,
   Pencil,
   Power,
+  ChevronLeft,
+  ChevronRight,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -38,12 +41,17 @@ interface User {
   _count: { auditLogs: number };
 }
 
+const PAGE_SIZE = 15;
+
 export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [page, setPage] = useState(1);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -51,6 +59,39 @@ export default function UsuariosPage() {
   const [formPassword, setFormPassword] = useState("");
   const [formRole, setFormRole] = useState<"ADMIN" | "OPERATOR">("OPERATOR");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Ordena: ATIVOS primeiro (sempre no topo), depois por nome.
+  // Aplica busca e filtro de status. Pagina client-side.
+  const filteredUsers = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return users
+      .filter((u) => {
+        if (statusFilter === "active" && !u.active) return false;
+        if (statusFilter === "inactive" && u.active) return false;
+        if (!s) return true;
+        return u.name.toLowerCase().includes(s) || u.email.toLowerCase().includes(s);
+      })
+      .sort((a, b) => {
+        // Ativos sempre antes de inativos
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return a.name.localeCompare(b.name, "pt-BR");
+      });
+  }, [users, search, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedUsers = useMemo(
+    () => filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filteredUsers, currentPage]
+  );
+
+  // Reseta pagina ao filtrar/buscar
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter]);
+
+  const activeCount = useMemo(() => users.filter((u) => u.active).length, [users]);
+  const inactiveCount = users.length - activeCount;
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -175,19 +216,80 @@ export default function UsuariosPage() {
       <Header title="Usuários" subtitle="Gerenciamento de usuários do sistema" />
 
       <PageContainer>
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {users.length} usuário(s)
-          </p>
+        {/* Header: count + actions */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-foreground font-medium tabular-nums">
+              {users.length}
+            </span>
+            <span className="text-muted-foreground/60">
+              {users.length === 1 ? "usuário" : "usuários"}
+            </span>
+            {activeCount > 0 && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="inline-flex items-center gap-1.5 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+                  <span className="text-success tabular-nums">{activeCount}</span>
+                  <span className="text-muted-foreground/60">ativos</span>
+                </span>
+              </>
+            )}
+            {inactiveCount > 0 && (
+              <>
+                <span className="text-muted-foreground/30">·</span>
+                <span className="inline-flex items-center gap-1.5 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                  <span className="text-muted-foreground tabular-nums">{inactiveCount}</span>
+                  <span className="text-muted-foreground/60">inativos</span>
+                </span>
+              </>
+            )}
+          </div>
           <Button
             size="sm"
             onClick={openCreate}
-            className="gap-1.5 gradient-orange text-white border-0"
+            className="gap-1.5 gradient-orange text-white border-0 hover:shadow-[0_4px_20px_rgba(232,115,26,0.3)] transition-all"
           >
             <Plus className="h-4 w-4" />
             Novo usuário
           </Button>
         </div>
+
+        {/* Filters: search + status */}
+        {users.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+              <Input
+                placeholder="Buscar por nome ou email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-card/50 border-white/[0.06] focus:border-cugini-orange/40"
+              />
+            </div>
+            <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+              {([
+                { id: "all", label: "Todos" },
+                { id: "active", label: "Ativos" },
+                { id: "inactive", label: "Inativos" },
+              ] as const).map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setStatusFilter(f.id)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+                    statusFilter === f.id
+                      ? "bg-cugini-orange/15 text-cugini-orange"
+                      : "text-muted-foreground/70 hover:text-foreground"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -201,12 +303,18 @@ export default function UsuariosPage() {
             actionLabel="Novo usuário"
             onAction={openCreate}
           />
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState
+            icon={<Search />}
+            title="Nenhum usuário encontrado"
+            description={search ? `Nenhum resultado para "${search}".` : `Sem usuários ${statusFilter === "active" ? "ativos" : "inativos"} no momento.`}
+          />
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-white/[0.04]">
               <AnimatePresence>
-                {users.map((user, i) => (
+                {paginatedUsers.map((user, i) => (
                   <motion.div
                     key={user.id}
                     initial={{ opacity: 0, y: 5 }}
@@ -266,7 +374,7 @@ export default function UsuariosPage() {
                 </thead>
                 <tbody>
                   <AnimatePresence>
-                    {users.map((user, i) => (
+                    {paginatedUsers.map((user, i) => (
                       <motion.tr
                         key={user.id}
                         initial={{ opacity: 0, y: 5 }}
@@ -317,6 +425,36 @@ export default function UsuariosPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-white/[0.04] px-5 py-3.5">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Mostrando <span className="text-foreground font-medium">{(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredUsers.length)}</span> de <span className="text-foreground font-medium">{filteredUsers.length}</span>
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-white/[0.06] bg-card/40 text-muted-foreground transition-colors hover:text-foreground hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="px-3 text-xs font-medium text-foreground tabular-nums">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-white/[0.06] bg-card/40 text-muted-foreground transition-colors hover:text-foreground hover:bg-white/[0.04] disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Próxima página"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </PageContainer>
