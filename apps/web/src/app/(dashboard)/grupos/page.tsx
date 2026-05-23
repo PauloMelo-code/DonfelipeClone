@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Send, ShieldAlert, ShieldCheck, Pencil, Check, X } from "lucide-react";
+import { RefreshCw, Users, Loader2, Radio, Target, Search, Plus, Trash2, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, ChevronDown, Send, ShieldAlert, ShieldCheck, Pencil, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -635,7 +635,8 @@ export default function GruposPage() {
             </div>
           ) : (
             <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }} className="flex items-center gap-1.5 group/name">
-              {/* Icone do tipo -- clicavel pra reclassificar */}
+              {/* Icone do tipo -- clicavel pra reclassificar.
+                  Estilizado como botao obvio: border + bg + chevron */}
               <span className="relative shrink-0">
                 <button
                   type="button"
@@ -643,10 +644,15 @@ export default function GruposPage() {
                     e.stopPropagation();
                     setKindMenuOpenId(kindMenuOpenId === group.id ? null : group.id);
                   }}
-                  className="rounded px-0.5 hover:bg-cugini-orange/15 transition-colors cursor-pointer"
+                  className={cn(
+                    "inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[12px] transition-all cursor-pointer",
+                    "border-white/[0.08] bg-white/[0.03] hover:bg-cugini-orange/10 hover:border-cugini-orange/40",
+                    group.kindOverride && "border-cugini-orange/40 bg-cugini-orange/10"
+                  )}
                   title={`Tipo: ${getGroupType(group)}${group.kindOverride ? " (manual)" : ""} — clique para mudar`}
                 >
-                  {getGroupTypeIcon(getGroupType(group))}
+                  <span>{getGroupTypeIcon(getGroupType(group))}</span>
+                  <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60" />
                   {group.kindOverride && (
                     <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-cugini-orange shadow-[0_0_4px_rgba(232,115,26,0.6)]" title="Tipo definido manualmente" />
                   )}
