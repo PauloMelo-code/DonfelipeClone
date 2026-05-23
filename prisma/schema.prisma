@@ -134,6 +134,10 @@ model WhatsAppGroup {
   region    String?
   isCommunity Boolean @default(false)
   isAnnounce  Boolean @default(false)
+  /// true = DM 1-1 (JID @s.whatsapp.net). Contatos individuais que
+  /// podem mandar carros via mensagem direta ou lista de transmissao
+  /// (do lado do remetente; do lado de quem recebe chega como DM).
+  isContact   Boolean @default(false)
   ownerPhone  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

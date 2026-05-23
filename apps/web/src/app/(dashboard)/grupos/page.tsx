@@ -22,14 +22,15 @@ interface Group {
   region: string | null;
   isCommunity?: boolean;
   isAnnounce?: boolean;
+  isContact?: boolean;
   ownerPhone?: string | null;
 }
 
 function getGroupType(g: Group): string {
+  if (g.isContact || g.groupId.endsWith("@s.whatsapp.net")) return "contato";
   if (g.isAnnounce || g.groupId.endsWith("@newsletter")) return "canal";
   if (g.isCommunity) return "comunidade";
   if (g.groupId.endsWith("@broadcast")) return "lista";
-  if (g.groupId.endsWith("@s.whatsapp.net")) return "contato";
   return "grupo";
 }
 

@@ -29,6 +29,7 @@ export async function GET(request: Request) {
       profilePictureUrl?: string;
       defaultRole: "SOURCE" | "TARGET";
       isAnnounce?: boolean;
+      isContact?: boolean;
     };
 
     // ── 1. Grupos da instancia de CAPTURA ──────────────────────────────────
@@ -131,9 +132,29 @@ export async function GET(request: Request) {
         defaultRole: "TARGET" as const,
       }));
 
-    // Junta tudo (grupos + canais + broadcasts, captura + envio)
-    captureMapped.push(...captureNewsletters, ...captureBroadcastMapped);
-    sendMapped.push(...sendNewsletters, ...sendBroadcastMapped);
+    // Contatos (DM 1-1): JIDs @s.whatsapp.net.
+    // Inclui contatos com quem o usuario ja interagiu. Cadastrados como
+    // SOURCE inativos -- o admin ativa manualmente o que quiser monitorar.
+    const captureContactMapped: RemoteWithRole[] = captureChats
+      .filter((c) => c.kind === "user" && c.id)
+      .map((c) => ({
+        id: c.id,
+        subject: c.name || c.id.replace(/@.*/, ""),
+        defaultRole: "SOURCE" as const,
+        isContact: true,
+      }));
+    const sendContactMapped: RemoteWithRole[] = sendChats
+      .filter((c) => c.kind === "user" && c.id)
+      .map((c) => ({
+        id: c.id,
+        subject: c.name || c.id.replace(/@.*/, ""),
+        defaultRole: "SOURCE" as const, // contatos da instancia de envio tambem viram fontes
+        isContact: true,
+      }));
+
+    // Junta tudo (grupos + canais + broadcasts + contatos, captura + envio)
+    captureMapped.push(...captureNewsletters, ...captureBroadcastMapped, ...captureContactMapped);
+    sendMapped.push(...sendNewsletters, ...sendBroadcastMapped, ...sendContactMapped);
 
     // Merge: prefer entries from send instance for groups that appear in both
     // (those are likely TARGET-relevant). De-dupe by groupId.
@@ -184,6 +205,7 @@ export async function GET(request: Request) {
       // Enriquecimento via /chat/find (comunidade, announce)
       const chatInfo = chatEnrichment.get(groupId);
       const isCommunity = chatInfo?.isCommunity ?? false;
+      const isContact = group.isContact === true || groupId.endsWith("@s.whatsapp.net");
 
       // Resolve name with fallbacks (prefere /group/list, depois /chat/find)
       let name: string = group.subject || chatInfo?.name || "";
@@ -195,7 +217,8 @@ export async function GET(request: Request) {
         groupId.endsWith("@newsletter") ||
         group.isAnnounce === true ||
         chatInfo?.isAnnounce === true;
-      if (!name) {
+      // Contatos nao tem getGroupInfo/getNewsletterInfo -- pula fallback
+      if (!name && !isContact) {
         const client = group.defaultRole === "TARGET" && uazapiSend.isConfigured ? uazapiSend : uazapi;
         // Canais usam endpoint diferente pra info
         const info = isNewsletter
@@ -208,15 +231,18 @@ export async function GET(request: Request) {
       }
       const existing = existingByGroupId.get(groupId);
       if (!name && existing && existing.name !== groupId) name = existing.name;
-      if (!name) name = groupId;
+      if (!name) name = isContact ? groupId.replace(/@.*/, "") : groupId;
+
+      // Contatos novos ganham prefixo "Contato: " se o nome nao tiver
+      if (isContact && !existing && !name.startsWith("Contato:") && !name.startsWith("+")) {
+        name = `Contato: ${name}`;
+      }
 
       const photoUrl = group.profilePictureUrl || null;
 
       if (existing) {
         // Sync PRESERVA: active, role, region, filters, nameLocked.
-        // Atualiza SO name (se nao travado), photoUrl e a flag isAnnounce.
-        // Set explicito (true OU false) pra corrigir grupos marcados
-        // erroneamente como canal em syncs anteriores.
+        // Atualiza SO name (se nao travado), photoUrl e a flag isAnnounce/isContact.
         const safeName = existing.nameLocked
           ? existing.name
           : name === groupId && existing.name !== groupId
@@ -229,6 +255,7 @@ export async function GET(request: Request) {
             photoUrl,
             isAnnounce: isNewsletter,
             isCommunity,
+            isContact,
           },
         });
         updatedCount++;
@@ -238,10 +265,11 @@ export async function GET(request: Request) {
             groupId,
             name,
             role: group.defaultRole, // SOURCE se veio da captura, TARGET se veio do envio
-            active: false,
+            active: false, // Tudo do sync comeca inativo (admin ativa o que quer)
             photoUrl,
             isAnnounce: isNewsletter,
             isCommunity,
+            isContact,
           },
         });
         createdCount++;
@@ -266,6 +294,8 @@ export async function GET(request: Request) {
       sendNewsletterCount: sendNewsletters.length,
       captureBroadcastCount: captureBroadcastMapped.length,
       sendBroadcastCount: sendBroadcastMapped.length,
+      captureContactCount: captureContactMapped.length,
+      sendContactCount: sendContactMapped.length,
       sendInstanceConfigured: uazapiSend.isConfigured,
       sendError,
     });

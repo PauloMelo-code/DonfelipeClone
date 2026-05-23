@@ -290,8 +290,11 @@ export async function POST(request: NextRequest) {
     // ── Validate ──
     const isGroup = groupJid?.endsWith("@g.us");
     const isBroadcast = groupJid?.endsWith("@broadcast") || groupJid?.endsWith("@newsletter");
-    if (!groupJid || (!isGroup && !isBroadcast)) {
-      return NextResponse.json({ status: "ignored", reason: "not_group" });
+    // DM 1-1: chega quando lista de transmissao envia, ou contato manda direto.
+    // No lado de quem recebe vem como @s.whatsapp.net (nao @broadcast).
+    const isContact = groupJid?.endsWith("@s.whatsapp.net");
+    if (!groupJid || (!isGroup && !isBroadcast && !isContact)) {
+      return NextResponse.json({ status: "ignored", reason: "not_supported_chat" });
     }
 
     if (isFromMe) {
@@ -307,26 +310,29 @@ export async function POST(request: NextRequest) {
     const isAnnounce = chat?.wa_isGroup_announce === true;
     const chatName = chat?.wa_name || chat?.name || raw.message?.groupName || pushName || groupJid.replace(/@.*/, "");
 
-    // Auto-register new groups/broadcast lists as SOURCE (inactive by default)
-    if (!group && (isGroup || isBroadcast)) {
-      const prefix = isAnnounce ? "Canal: " : isBroadcast ? "Lista: " : isCommunity ? "Comunidade: " : "";
+    // Auto-register: contatos (DM) entram INATIVOS pra revisao manual.
+    // Grupos/canais/broadcasts continuam ATIVOS como antes.
+    if (!group && (isGroup || isBroadcast || isContact)) {
+      const prefix = isContact ? "Contato: " : isAnnounce ? "Canal: " : isBroadcast ? "Lista: " : isCommunity ? "Comunidade: " : "";
       group = await prisma.whatsAppGroup.create({
         data: {
           groupId: groupJid,
           name: prefix + chatName,
           role: "SOURCE",
-          active: true,
+          active: !isContact, // Contatos comecam inativos
           isCommunity,
           isAnnounce,
+          isContact: !!isContact,
           ownerPhone: chat?.owner || null,
         },
       });
-      console.log(`[Webhook] Auto-registered ${isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
+      console.log(`[Webhook] Auto-registered ${isContact ? "contact" : isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})${isContact ? " [INACTIVE]" : ""}`);
     } else if (group) {
       // Atualiza flags se mudaram
       const needsUpdate =
         group.isCommunity !== isCommunity ||
         group.isAnnounce !== isAnnounce ||
+        group.isContact !== !!isContact ||
         (chat?.owner && !group.ownerPhone);
       if (needsUpdate) {
         await prisma.whatsAppGroup.update({
@@ -334,6 +340,7 @@ export async function POST(request: NextRequest) {
           data: {
             isCommunity,
             isAnnounce,
+            isContact: !!isContact,
             ownerPhone: group.ownerPhone || chat?.owner || null,
           },
         });
