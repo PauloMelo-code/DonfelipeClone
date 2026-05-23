@@ -251,7 +251,20 @@ class UazapiClient {
       const raw: any[] = Array.isArray(data) ? data : data?.chats ?? [];
       return raw.map((c) => {
         const id: string = c.wa_chatid || c.wa_fastid || c.id || "";
-        const name: string = c.wa_name || c.name || c.wa_contactName || "";
+        // Tenta TODOS os campos de nome possiveis (UAZAPI varia muito).
+        // Ordem: nome salvo na agenda > pushName > nome do chat > nome do lead.
+        const rawName: string =
+          c.wa_contactName ||
+          c.wa_name ||
+          c.name ||
+          c.lead_fullName ||
+          c.lead_name ||
+          c.pushName ||
+          c.wa_pushName ||
+          c.wa_lead_name ||
+          "";
+        // Rejeita nomes que sao so o numero (sem valor)
+        const name = rawName && !/^\+?\d{8,}$/.test(rawName.trim()) ? rawName.trim() : "";
         const isGroup = !!c.wa_isGroup;
         const isCommunity = !!c.wa_isGroup_community;
         const isAnnounce = !!c.wa_isGroup_announce;

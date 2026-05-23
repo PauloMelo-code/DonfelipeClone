@@ -429,28 +429,26 @@ export default function GruposPage() {
   const handleRepairNames = async () => {
     setRepairing(true);
     try {
-      const res = await fetch("/api/groups/repair-names", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        if (data.repaired > 0) {
-          toast.success(
-            `${data.repaired} grupos reparados${data.stillBroken > 0 ? ` (${data.stillBroken} sem retorno da UAZAPI)` : ""}`,
-            { duration: 8000 }
-          );
-          fetchGroups();
-        } else if (data.total === 0) {
-          toast.success("Todos os grupos já têm nome correto");
-        } else {
-          toast.error(
-            `Nenhum dos ${data.stillBroken} grupos quebrados retornou nome — UAZAPI não expõe metadata pra esses (provavelmente o número não é membro ou grupo foi deletado)`,
-            { duration: 12000 }
-          );
-        }
+      // Chama ambos endpoints: repair-names (grupos @g.us via /group/info)
+      // e resolve-names (contatos + listas via /chat/find).
+      const [r1, r2] = await Promise.all([
+        fetch("/api/groups/repair-names", { method: "POST" }).then((r) => r.json()).catch(() => null),
+        fetch("/api/groups/resolve-names", { method: "POST" }).then((r) => r.json()).catch(() => null),
+      ]);
+      const groupRepaired = r1?.repaired || 0;
+      const chatResolved = r2?.updated || 0;
+      const totalFixed = groupRepaired + chatResolved;
+      if (totalFixed > 0) {
+        const parts: string[] = [];
+        if (groupRepaired > 0) parts.push(`${groupRepaired} grupos`);
+        if (chatResolved > 0) parts.push(`${chatResolved} contatos/listas`);
+        toast.success(`${totalFixed} nomes resolvidos (${parts.join(" + ")})`, { duration: 6000 });
+        fetchGroups();
       } else {
-        toast.error(data.error || "Erro ao reparar nomes");
+        toast.success("Todos os nomes já estão resolvidos");
       }
     } catch (e) {
-      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+      toast.error(e instanceof Error ? e.message : "Erro de conexão");
     } finally {
       setRepairing(false);
     }

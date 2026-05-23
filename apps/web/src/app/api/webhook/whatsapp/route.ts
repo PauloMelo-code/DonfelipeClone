@@ -335,21 +335,39 @@ export async function POST(request: NextRequest) {
       console.log(`[Webhook] Auto-registered ${isContact ? "contact" : isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
     } else if (group) {
       // Atualiza flags se mudaram
-      const needsUpdate =
+      const flagsChanged =
         group.isCommunity !== isCommunity ||
         group.isAnnounce !== isAnnounce ||
         group.isContact !== !!isContact ||
         (chat?.owner && !group.ownerPhone);
-      if (needsUpdate) {
+
+      // Auto-resolve nome: se o nome atual e so o numero/JID e chegou um
+      // pushName/chatName decente (>=3 chars, nao numerico), atualiza.
+      // Respeita nameLocked -- se foi renomeado manualmente, nao mexe.
+      let nameToUpdate: string | undefined;
+      const isPlaceholder = !group.name || group.name === group.groupId
+        || group.name.match(/^Contato:?\s*\+?\d{8,}/)
+        || group.name.match(/^\+?\d{8,}$/);
+      const niceName = (pushName || chat?.wa_name || chat?.wa_contactName || "").trim();
+      const niceNameValid = niceName.length >= 3 && !/^\+?\d+$/.test(niceName);
+      if (!group.nameLocked && isPlaceholder && niceNameValid) {
+        nameToUpdate = isContact ? `Contato: ${niceName}` : niceName;
+      }
+
+      if (flagsChanged || nameToUpdate) {
         await prisma.whatsAppGroup.update({
           where: { id: group.id },
           data: {
+            ...(nameToUpdate && { name: nameToUpdate }),
             isCommunity,
             isAnnounce,
             isContact: !!isContact,
             ownerPhone: group.ownerPhone || chat?.owner || null,
           },
         });
+        if (nameToUpdate) {
+          console.log(`[Webhook] Resolved name: ${groupJid} -> "${nameToUpdate}"`);
+        }
       }
     }
 
