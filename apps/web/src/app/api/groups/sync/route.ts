@@ -176,8 +176,9 @@ export async function GET() {
 
       if (existing) {
         // Sync PRESERVA: active, role, region, filters, nameLocked.
-        // Atualiza SO name (se nao travado) e photoUrl. Tambem garante a
-        // flag isAnnounce pra canais (newsletters).
+        // Atualiza SO name (se nao travado), photoUrl e a flag isAnnounce.
+        // Set explicito (true OU false) pra corrigir grupos marcados
+        // erroneamente como canal em syncs anteriores.
         const safeName = existing.nameLocked
           ? existing.name
           : name === groupId && existing.name !== groupId
@@ -188,7 +189,7 @@ export async function GET() {
           data: {
             name: safeName,
             photoUrl,
-            ...(isNewsletter ? { isAnnounce: true } : {}),
+            isAnnounce: isNewsletter,
           },
         });
         updatedCount++;
