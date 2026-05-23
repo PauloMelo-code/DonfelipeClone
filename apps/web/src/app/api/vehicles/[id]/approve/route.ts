@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(
@@ -87,6 +88,12 @@ export async function POST(
     let features: string[] = [];
     try { features = JSON.parse(vehicle.features || "[]"); } catch { features = []; }
 
+    // Limpa o rawDescription via IA antes de formatar -- remove headers de
+    // empresa, contatos, frases promocionais que regex nao pega.
+    const cleanedDescription = vehicle.rawDescription
+      ? await cleanAdDescription(vehicle.rawDescription)
+      : null;
+
     const vehicleData = {
       model: vehicle.model,
       brand: vehicle.brand,
@@ -98,7 +105,7 @@ export async function POST(
       transmission: vehicle.transmission,
       fuel: vehicle.fuel,
       features,
-      rawDescription: vehicle.rawDescription,
+      rawDescription: cleanedDescription || vehicle.rawDescription,
     };
 
     const formattedAd = formatVehicleAd(vehicleData, { profitMarginPercent: effectiveMargin });

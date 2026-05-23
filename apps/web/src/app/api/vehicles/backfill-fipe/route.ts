@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { cleanAdDescription } from "@/lib/ad-cleaner";
 
 /**
  * Extract FIPE price from rawDescription using regex patterns.
@@ -80,6 +81,10 @@ export async function POST() {
 
     let adsRegenerated = 0;
     for (const v of approved) {
+      const cleanedDesc = v.rawDescription
+        ? await cleanAdDescription(v.rawDescription)
+        : null;
+
       const ad = formatVehicleAd(
         {
           model: v.model,
@@ -92,7 +97,7 @@ export async function POST() {
           transmission: v.transmission,
           fuel: v.fuel,
           features: v.features,
-          rawDescription: v.rawDescription,
+          rawDescription: cleanedDesc || v.rawDescription,
         },
         { profitMarginPercent: margin }
       );

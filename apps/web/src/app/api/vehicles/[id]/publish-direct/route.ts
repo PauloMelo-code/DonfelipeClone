@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { publishVehicle } from "@/lib/publisher";
 
 /**
@@ -108,12 +109,17 @@ export async function POST(
       let features: string[] = [];
       try { features = JSON.parse(vehicle.features || "[]"); } catch {}
 
-      // Texto: usa o editado pelo operador se vier, senao gera do rawDescription
+      // Limpa rawDescription via IA (cache 24h, fallback gracioso)
+      const cleanedDesc = vehicle.rawDescription
+        ? await cleanAdDescription(vehicle.rawDescription)
+        : null;
+
+      // Texto: usa o editado pelo operador se vier, senao gera do rawDescription limpo
       formattedAd = userEditedAd ?? formatVehicleAd({
         model: vehicle.model, brand: vehicle.brand, year: vehicle.year,
         yearModel: vehicle.yearModel, km: vehicle.km, price: vehicle.price,
         fipePrice, transmission: vehicle.transmission, fuel: vehicle.fuel,
-        features, rawDescription: vehicle.rawDescription,
+        features, rawDescription: cleanedDesc || vehicle.rawDescription,
       }, { profitMarginPercent: effectiveMargin });
 
       await prisma.vehicle.update({
