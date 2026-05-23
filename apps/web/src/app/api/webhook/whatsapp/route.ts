@@ -432,7 +432,22 @@ export async function POST(request: NextRequest) {
           senderJid,
           extraPhotosFromBuffer.length > 0 ? `(${extraPhotosFromBuffer.length} extras pro album)` : ""
         );
-      } else if (textContent.length >= 20) {
+      } else if (buffered?.textContent) {
+        // JA tem texto bufferado -- CONCATENA (vendedor mandando anuncio
+        // fragmentado: 'Onix LT' depois '2020, 50k', depois foto).
+        // Limite: 2000 chars no buffer pra nao explodir memoria.
+        const combined = `${buffered.textContent}\n${textContent}`.slice(0, 2000);
+        _pairingBuffer.set(bufferKey, {
+          ...buffered,
+          textContent: combined,
+          timestamp: Date.now(), // refresca TTL
+        });
+        console.log(`[Webhook] BUFFERED: texto concatenado (${combined.length} chars total) de`, senderJid);
+        return NextResponse.json({ status: "buffered", reason: "text_concatenated", chars: combined.length });
+      } else if (textContent.length >= 5) {
+        // Bufferar texto -- limite reduzido de 20 -> 5 chars pra capturar
+        // fragmentos curtos como "Onix LT", "2020", "50k". Sera processado
+        // quando a foto chegar (ou descartado em 5min se nada vier).
         _pairingBuffer.set(bufferKey, {
           imageUrls: [],
           textContent,
@@ -440,7 +455,7 @@ export async function POST(request: NextRequest) {
           senderJid: senderJid!,
           timestamp: Date.now(),
         });
-        console.log("[Webhook] BUFFERED: texto aguardando imagem de", senderJid);
+        console.log(`[Webhook] BUFFERED: texto aguardando imagem (${textContent.length} chars) de`, senderJid);
         return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
       }
     }
