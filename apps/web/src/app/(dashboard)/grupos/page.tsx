@@ -46,7 +46,7 @@ function getGroupTypeIcon(type: string): string {
 
 const REGIONS = ["SC", "RS", "PR", "SP", "Nacional"] as const;
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 interface PaginatedResponse {
   groups: Group[];
@@ -74,6 +74,11 @@ export default function GruposPage() {
   });
   const [adding, setAdding] = useState(false);
 
+  // Contagens por tipo (vindas de /api/groups/stats), uma por role
+  type TypeStats = { todos: number; grupo: number; canal: number; comunidade: number; lista: number; contato: number };
+  const [sourceStats, setSourceStats] = useState<TypeStats | null>(null);
+  const [targetStats, setTargetStats] = useState<TypeStats | null>(null);
+
   // Debounce search input — avoid hitting server on every keystroke
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -84,11 +89,11 @@ export default function GruposPage() {
     };
   }, [search]);
 
-  // Reset pagination when search/region changes
+  // Reset pagination when search/region/type changes
   useEffect(() => {
     setSourcePage(1);
     setTargetPage(1);
-  }, [debouncedSearch, regionFilter]);
+  }, [debouncedSearch, regionFilter, typeFilter]);
 
   const buildUrl = useCallback(
     (role: "SOURCE" | "TARGET", page: number) => {
@@ -101,10 +106,30 @@ export default function GruposPage() {
       // Region filter: server supports single region, so if multi-selected we apply client-side.
       // If exactly one region selected, push to server for efficiency.
       if (regionFilter.length === 1) params.set("region", regionFilter[0]);
+      // Type filter: enviado pro server pra paginacao funcionar (canais/listas
+      // sao detectados via JID + flags isAnnounce/isCommunity/isContact).
+      if (typeFilter !== "todos") params.set("type", typeFilter);
       return `/api/groups?${params.toString()}`;
     },
-    [debouncedSearch, regionFilter]
+    [debouncedSearch, regionFilter, typeFilter]
   );
+
+  // Stats: contagem por tipo pra mostrar nas pills.
+  // Refresh quando: termina de carregar grupos, ou apos sync/mutation.
+  const fetchStats = useCallback(async () => {
+    try {
+      const [sRes, tRes] = await Promise.all([
+        fetch("/api/groups/stats?role=SOURCE"),
+        fetch("/api/groups/stats?role=TARGET"),
+      ]);
+      if (sRes.ok) setSourceStats(await sRes.json());
+      if (tRes.ok) setTargetStats(await tRes.json());
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const fetchGroups = useCallback(async () => {
     try {
@@ -114,12 +139,14 @@ export default function GruposPage() {
       ]);
       if (sRes.ok) setSourceData(await sRes.json());
       if (tRes.ok) setTargetData(await tRes.json());
+      // Stats em paralelo -- atualiza contagens nas pills.
+      fetchStats();
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [buildUrl, sourcePage, targetPage]);
+  }, [buildUrl, sourcePage, targetPage, fetchStats]);
 
   useEffect(() => {
     fetchGroups();
@@ -458,11 +485,10 @@ export default function GruposPage() {
     }
   };
 
-  // Server already filtered by role + search + (single) region.
-  // Client only applies multi-region (when 2+ selected) and type filter (computed from JID).
+  // Server ja filtrou por role + search + region (single) + type.
+  // Client so aplica multi-region quando 2+ selecionados.
   const matchesClientFilters = (g: Group) => {
     if (regionFilter.length > 1 && !regionFilter.includes(g.region || "")) return false;
-    if (typeFilter !== "todos" && getGroupType(g) !== typeFilter) return false;
     return true;
   };
   const sourceGroups = (sourceData?.groups || []).filter(matchesClientFilters);
@@ -955,29 +981,46 @@ export default function GruposPage() {
             )}
           </div>
 
-          {/* Type filter */}
+          {/* Type filter — mostra contagem combinada de Fonte + Destino */}
           <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {[
-              { id: "todos", label: "Todos" },
-              { id: "grupo", label: "👥 Grupos" },
-              { id: "comunidade", label: "🏘️ Comunidades" },
-              { id: "canal", label: "📡 Canais" },
-              { id: "lista", label: "📢 Listas" },
-              { id: "contato", label: "👤 Contatos" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTypeFilter(t.id)}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
-                  typeFilter === t.id
-                    ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
-                    : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+            {([
+              { id: "todos", label: "Todos", key: "todos" as const },
+              { id: "grupo", label: "👥 Grupos", key: "grupo" as const },
+              { id: "comunidade", label: "🏘️ Comunidades", key: "comunidade" as const },
+              { id: "canal", label: "📡 Canais", key: "canal" as const },
+              { id: "lista", label: "📢 Listas", key: "lista" as const },
+              { id: "contato", label: "👤 Contatos", key: "contato" as const },
+            ]).map((t) => {
+              const count = (sourceStats?.[t.key] ?? 0) + (targetStats?.[t.key] ?? 0);
+              const active = typeFilter === t.id;
+              const hasData = sourceStats !== null || targetStats !== null;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTypeFilter(t.id)}
+                  className={cn(
+                    "shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium border transition-all",
+                    active
+                      ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                      : "bg-card/50 border-border text-muted-foreground hover:border-white/20 hover:text-foreground"
+                  )}
+                >
+                  <span>{t.label}</span>
+                  {hasData && (
+                    <span
+                      className={cn(
+                        "tabular-nums text-[10px] font-semibold rounded-full px-1.5 min-w-[20px] text-center",
+                        active
+                          ? "bg-cugini-orange/20 text-cugini-orange"
+                          : "bg-white/[0.05] text-muted-foreground/80"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           {/* Mobile: tab toggle for Fonte/Destino */}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { createGroupSchema } from "@/lib/validations";
+import { invalidateStatsCache } from "./stats/route";
 
 // In-memory cache for groups list (groups change rarely, hot read path).
 // Cleared on any mutation in POST/PUT/DELETE handlers.
@@ -12,6 +13,9 @@ const GROUPS_CACHE_TTL_MS = 30_000;
 
 export function invalidateGroupsCache() {
   groupsCache.clear();
+  // Invalida tambem o cache de contagens por tipo pra refletir mudancas
+  // imediatamente nas pills da tela /grupos.
+  invalidateStatsCache();
 }
 
 export async function GET(request: NextRequest) {
@@ -24,6 +28,10 @@ export async function GET(request: NextRequest) {
     const active = searchParams.get("active");
     const search = searchParams.get("search")?.trim() || "";
     const region = searchParams.get("region");
+    // type: grupo|canal|comunidade|lista|contato. Sem param = todos.
+    // Filtra server-side pra paginacao funcionar corretamente quando o
+    // usuario escolhe um tipo especifico.
+    const type = searchParams.get("type");
     // ?counts=false skips the expensive _count aggregates.
     const includeCounts = searchParams.get("counts") !== "false";
     // Pagination is opt-in: if `page` is present, return { groups, pagination }.
@@ -42,6 +50,7 @@ export async function GET(request: NextRequest) {
       includeCounts ? "C" : "N",
       search,
       region ?? "ALL",
+      type ?? "ALLT",
       paginated ? `P${page}x${limit}` : "FULL",
     ].join("|");
     const cached = groupsCache.get(cacheKey);
@@ -61,6 +70,35 @@ export async function GET(request: NextRequest) {
     }
     if (region) {
       where.region = region === "" ? null : region;
+    }
+
+    // Filtro de tipo (mesma logica que getGroupType no client).
+    // Ordem importa: canal/contato/comunidade/lista checados antes de "grupo"
+    // pra evitar que um canal com JID @g.us caia em "grupo".
+    if (type && type !== "todos") {
+      if (type === "canal") {
+        where.OR = [
+          { isAnnounce: true },
+          { groupId: { endsWith: "@newsletter" } },
+        ];
+      } else if (type === "comunidade") {
+        where.isCommunity = true;
+      } else if (type === "lista") {
+        where.groupId = { endsWith: "@broadcast" };
+      } else if (type === "contato") {
+        where.OR = [
+          { isContact: true },
+          { groupId: { endsWith: "@s.whatsapp.net" } },
+        ];
+      } else if (type === "grupo") {
+        // "Grupo comum" = @g.us sem flag de canal/comunidade
+        where.AND = [
+          { groupId: { endsWith: "@g.us" } },
+          { isAnnounce: false },
+          { isCommunity: false },
+          { isContact: false },
+        ];
+      }
     }
 
     if (paginated) {
