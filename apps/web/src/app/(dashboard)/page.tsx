@@ -13,6 +13,9 @@ import { StatCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeleton
 import { DateRange } from "@/components/dashboard/date-range-picker";
 import { Car, Clock, Send, TrendingUp, Crown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AlertBanner } from "@/components/ui/alert-banner";
+import { PageContainer } from "@/components/ui/page-container";
+import { SectionCard } from "@/components/ui/section-card";
 
 interface DashboardData {
   vehicles: {
@@ -133,40 +136,29 @@ export default function DashboardPage() {
         live
       />
 
-      <div className="p-6 space-y-6">
+      <PageContainer>
         {/* Alert: VIP vehicles pending */}
         {!loading && data && data.vipPending > 0 && (
-          <div className="rounded-2xl border border-yellow-400/40 bg-yellow-400/5 p-4 flex items-center gap-3">
-            <Crown className="h-6 w-6 text-yellow-400 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-yellow-400">
-                {data.vipPending} veículos VIP aguardando revisão
-              </p>
-              <p className="text-xs text-yellow-400/70">
-                Carros premium — prioridade alta
-              </p>
-            </div>
-            <Link
-              href="/veiculos"
-              className="rounded-lg bg-yellow-400/15 border border-yellow-400/30 px-3 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-400/20"
-            >
-              Revisar →
-            </Link>
-          </div>
+          <AlertBanner
+            variant="vip"
+            icon={<Crown />}
+            title={`${data.vipPending} veículos VIP aguardando revisão`}
+            description="Carros premium — prioridade alta"
+            actionLabel="Revisar"
+            actionHref="/veiculos"
+          />
         )}
 
         {/* Alert: stale approved vehicles */}
         {!loading && data && data.staleApproved > 0 && (
-          <div className="rounded-2xl border border-warning/40 bg-warning/5 p-4 flex items-center gap-3">
-            <Clock className="h-6 w-6 text-warning shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-warning">{data.staleApproved} aprovados há mais de 24h</p>
-              <p className="text-xs text-warning/70">Veículos esquecidos sem publicação</p>
-            </div>
-            <Link href="/veiculos" className="rounded-lg bg-warning/15 border border-warning/30 px-3 py-1.5 text-xs font-medium text-warning hover:bg-warning/20">
-              Publicar →
-            </Link>
-          </div>
+          <AlertBanner
+            variant="warning"
+            icon={<Clock />}
+            title={`${data.staleApproved} aprovados há mais de 24h`}
+            description="Veículos esquecidos sem publicação"
+            actionLabel="Publicar"
+            actionHref="/veiculos"
+          />
         )}
 
         {/* Stat Cards */}
@@ -232,13 +224,7 @@ export default function DashboardPage() {
         {/* Insights row: top fornecedores + qualidade media */}
         {!loading && data && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div className="glass rounded-2xl p-5 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="h-4 w-4 text-cugini-orange" />
-                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                  Top fornecedores (7 dias)
-                </h3>
-              </div>
+            <SectionCard icon={<Users />} title="Top fornecedores (7 dias)" className="lg:col-span-2">
               <div className="space-y-2">
                 {data.topGroupsWeek && data.topGroupsWeek.length > 0 ? (
                   data.topGroupsWeek.slice(0, 5).map((g) => (
@@ -253,18 +239,12 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground">Sem dados</p>
                 )}
               </div>
-            </div>
+            </SectionCard>
 
-            <div className="glass rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="h-4 w-4 text-cugini-orange" />
-                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                  Qualidade média (pendentes)
-                </h3>
-              </div>
+            <SectionCard icon={<TrendingUp />} title="Qualidade média (pendentes)">
               <p
                 className={cn(
-                  "text-3xl font-bold",
+                  "text-3xl font-bold tabular-nums",
                   data.avgQualityScore >= 7
                     ? "text-success"
                     : data.avgQualityScore >= 5
@@ -278,17 +258,14 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground mt-1">
                 {data.highScorePending || 0} com score ≥ 8
               </p>
-            </div>
+            </SectionCard>
           </div>
         )}
 
         {/* Summary Cards */}
         {!loading && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="glass rounded-2xl p-6">
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                Resumo de Veículos
-              </h3>
+            <SectionCard title="Resumo de Veículos" padding="lg">
               <div className="space-y-3">
                 {[
                   { label: "Total capturados", value: data?.vehicles.total ?? 0, color: "text-foreground" },
@@ -298,18 +275,15 @@ export default function DashboardPage() {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">{item.label}</span>
-                    <span className={`text-sm font-semibold ${item.color}`}>
+                    <span className={`text-sm font-semibold tabular-nums ${item.color}`}>
                       {item.value.toLocaleString("pt-BR")}
                     </span>
                   </div>
                 ))}
               </div>
-            </div>
+            </SectionCard>
 
-            <div className="glass rounded-2xl p-6">
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
-                Capturas por Período
-              </h3>
+            <SectionCard title="Capturas por Período" padding="lg">
               <div className="space-y-3">
                 {[
                   { label: "Hoje", value: data?.captures.today ?? 0 },
@@ -318,28 +292,28 @@ export default function DashboardPage() {
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">{item.label}</span>
-                    <span className="text-sm font-semibold text-foreground">
+                    <span className="text-sm font-semibold text-foreground tabular-nums">
                       {item.value.toLocaleString("pt-BR")}
                     </span>
                   </div>
                 ))}
                 <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
                   <span className="text-sm text-muted-foreground">Grupos fonte</span>
-                  <span className="text-sm font-semibold text-cugini-orange">
+                  <span className="text-sm font-semibold text-cugini-orange tabular-nums">
                     {data?.groups.source ?? 0}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Grupos destino</span>
-                  <span className="text-sm font-semibold text-cugini-orange">
+                  <span className="text-sm font-semibold text-cugini-orange tabular-nums">
                     {data?.groups.target ?? 0}
                   </span>
                 </div>
               </div>
-            </div>
+            </SectionCard>
           </div>
         )}
-      </div>
+      </PageContainer>
     </>
   );
 }

@@ -6,6 +6,8 @@ import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageContainer } from "@/components/ui/page-container";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Search,
   ChevronLeft,
@@ -114,7 +116,7 @@ export default function AuditoriaPage() {
     <>
       <Header title="Auditoria" subtitle="Registro de todas as ações do sistema" />
 
-      <div className="p-6 space-y-4">
+      <PageContainer>
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-1.5">
@@ -158,10 +160,11 @@ export default function AuditoriaPage() {
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
           </div>
         ) : logs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Shield className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">Nenhum registro encontrado</p>
-          </div>
+          <EmptyState
+            icon={<Shield />}
+            title="Nenhum registro encontrado"
+            description={searchDebounced || actionFilter ? "Tente ajustar os filtros acima." : "As ações do sistema aparecerão aqui conforme acontecerem."}
+          />
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
             {/* Mobile cards */}
@@ -307,7 +310,7 @@ export default function AuditoriaPage() {
             )}
           </div>
         )}
-      </div>
+      </PageContainer>
     </>
   );
 }

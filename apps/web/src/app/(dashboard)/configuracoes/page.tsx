@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown, AlertTriangle } from "lucide-react";
+import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown, AlertTriangle, Filter, Percent } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { PageContainer } from "@/components/ui/page-container";
+import { SectionCard } from "@/components/ui/section-card";
+import { AlertBanner } from "@/components/ui/alert-banner";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -359,16 +362,14 @@ export default function ConfiguracoesPage() {
     <>
       <Header title="Configurações" subtitle="Parâmetros do sistema" />
 
-      <div className="p-6 max-w-2xl space-y-6">
+      <PageContainer className="max-w-2xl">
         {/* WhatsApp Connection */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Smartphone className="h-4 w-4 text-cugini-orange" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Celular de Captura (WhatsApp)
-            </h3>
-          </div>
-
+        <SectionCard
+          icon={<Smartphone />}
+          title="Celular de Captura (WhatsApp)"
+          padding="lg"
+        >
+        <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {waStatusLoading ? (
@@ -450,16 +451,15 @@ export default function ConfiguracoesPage() {
             </p>
           )}
         </div>
+        </SectionCard>
 
         {/* WhatsApp Send Connection */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Send className="h-4 w-4 text-cugini-orange" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Celular de Envio (WhatsApp)
-            </h3>
-          </div>
-
+        <SectionCard
+          icon={<Send />}
+          title="Celular de Envio (WhatsApp)"
+          padding="lg"
+        >
+        <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {waSendStatusLoading ? (
@@ -489,9 +489,12 @@ export default function ConfiguracoesPage() {
           </div>
 
           {(waSendState === "not_configured" || (waSendState === "unknown" && !waSendStatusLoading)) && (
-            <p className="text-xs text-muted-foreground">
-              Adicione UAZAPI_SEND_BASE_URL e UAZAPI_SEND_TOKEN no .env para configurar o celular de envio.
-            </p>
+            <AlertBanner
+              variant="info"
+              icon={<AlertTriangle />}
+              title="Instância de envio não configurada"
+              description="Adicione UAZAPI_SEND_BASE_URL e UAZAPI_SEND_TOKEN no .env para ativar."
+            />
           )}
 
           {waSendState !== "open" && waSendState !== "not_configured" && !(waSendState === "unknown" && !waSendStatusLoading) && (
@@ -547,12 +550,10 @@ export default function ConfiguracoesPage() {
             </p>
           )}
         </div>
+        </SectionCard>
 
         {/* Margem de Lucro */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Margem de Lucro
-          </h3>
+        <SectionCard icon={<Percent />} title="Margem de Lucro" padding="lg">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Margem padrão sobre o preço captado (%)</Label>
@@ -577,13 +578,10 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Região atendida */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Região atendida
-          </h3>
+        <SectionCard icon={<MapPin />} title="Região Atendida" padding="lg">
           <div className="space-y-2">
             <Label>Estados atendidos (separados por vírgula)</Label>
             <Input
@@ -597,13 +595,10 @@ export default function ConfiguracoesPage() {
               Carros de fora são descartados automaticamente.
             </p>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Anti-Ban */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Anti-Ban (Delays)
-          </h3>
+        <SectionCard icon={<Wifi />} title="Anti-Ban (Delays)" padding="lg">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Delay mínimo (segundos)</Label>
@@ -624,13 +619,10 @@ export default function ConfiguracoesPage() {
               />
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Filtros */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Filtros Padrão
-          </h3>
+        <SectionCard icon={<Filter />} title="Filtros Padrão" padding="lg">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Ano mínimo</Label>
@@ -651,16 +643,11 @@ export default function ConfiguracoesPage() {
               />
             </div>
           </div>
-        </div>
+        </SectionCard>
 
         {/* Blocklist + VIP */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Ban className="h-4 w-4 text-cugini-orange" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Palavras-chave
-            </h3>
-          </div>
+        <SectionCard icon={<Ban />} title="Palavras-chave" padding="lg">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Ban className="h-3.5 w-3.5 text-destructive" />
@@ -692,15 +679,11 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
         </div>
+        </SectionCard>
 
         {/* Ferramentas */}
-        <div className="glass rounded-2xl p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-cugini-orange" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Ferramentas
-            </h3>
-          </div>
+        <SectionCard icon={<BarChart3 />} title="Ferramentas" padding="lg">
+        <div className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <p className="text-sm font-medium">Atualizar FIPE + Anúncios</p>
@@ -781,6 +764,7 @@ export default function ConfiguracoesPage() {
             </ul>
           </div>
         </div>
+        </SectionCard>
 
         <Button
           onClick={handleSave}
@@ -792,10 +776,10 @@ export default function ConfiguracoesPage() {
         </Button>
 
         {/* Zona perigosa */}
-        <div className="glass rounded-xl p-5 space-y-3 border border-destructive/20 mt-8">
+        <div className="mt-8 rounded-2xl border border-destructive/25 bg-destructive/[0.03] p-5 space-y-3">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
-            <h3 className="text-sm font-semibold text-destructive">Zona perigosa</h3>
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-destructive">Zona perigosa</h3>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium">Resetar veículos antigos</p>
@@ -815,7 +799,7 @@ export default function ConfiguracoesPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </PageContainer>
 
       {/* Modal de confirmacao do reset */}
       <Dialog open={showResetModal} onOpenChange={(open) => { if (!resetting) setShowResetModal(open); }}>

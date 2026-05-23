@@ -19,6 +19,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageContainer } from "@/components/ui/page-container";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 interface PostRecord {
   id: string;
@@ -143,7 +146,7 @@ export default function PublicacoesPage() {
     <>
       <Header title="Publicações" subtitle="Histórico de publicações realizadas" />
 
-      <div className="p-6 space-y-4">
+      <PageContainer>
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
@@ -182,10 +185,11 @@ export default function PublicacoesPage() {
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
           </div>
         ) : posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Send className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">Nenhuma publicação encontrada</p>
-          </div>
+          <EmptyState
+            icon={<Send />}
+            title="Nenhuma publicação encontrada"
+            description={searchDebounced || statusFilter !== "all" ? "Tente ajustar os filtros." : "Publicações realizadas aparecerão aqui."}
+          />
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
             {/* Mobile cards */}
@@ -223,15 +227,11 @@ export default function PublicacoesPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      {post.success ? (
-                        <Badge className="gap-1 border bg-success/10 text-success border-success/20 text-[10px]">
-                          <CheckCircle2 className="h-3 w-3" />Enviado
-                        </Badge>
-                      ) : (
-                        <Badge className="gap-1 border bg-destructive/10 text-destructive border-destructive/20 text-[10px]">
-                          <XCircle className="h-3 w-3" />Falha
-                        </Badge>
-                      )}
+                      <StatusBadge
+                        kind={post.success ? "success" : "failed"}
+                        size="xs"
+                        icon={post.success ? <CheckCircle2 /> : <XCircle />}
+                      />
                       <span className="text-[11px] text-muted-foreground/50">{formatDate(post.postedAt)}</span>
                     </div>
                   </motion.div>
@@ -297,14 +297,10 @@ export default function PublicacoesPage() {
                         </td>
                         <td className="px-5 py-3.5 text-center">
                           {post.success ? (
-                            <Badge className="gap-1 border bg-success/10 text-success border-success/20">
-                              <CheckCircle2 className="h-3 w-3" />Enviado
-                            </Badge>
+                            <StatusBadge kind="success" icon={<CheckCircle2 />} />
                           ) : (
                             <div className="flex flex-col items-center gap-1">
-                              <Badge className="gap-1 border bg-destructive/10 text-destructive border-destructive/20">
-                                <XCircle className="h-3 w-3" />Falha
-                              </Badge>
+                              <StatusBadge kind="failed" icon={<XCircle />} />
                               {post.errorMessage && (
                                 <span
                                   className="text-[10px] text-destructive/70 max-w-[180px] truncate cursor-help"
@@ -343,7 +339,7 @@ export default function PublicacoesPage() {
             )}
           </div>
         )}
-      </div>
+      </PageContainer>
     </>
   );
 }

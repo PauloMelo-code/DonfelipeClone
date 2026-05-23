@@ -6,6 +6,9 @@ import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageContainer } from "@/components/ui/page-container";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Dialog,
   DialogContent,
@@ -171,7 +174,7 @@ export default function UsuariosPage() {
     <>
       <Header title="Usuários" subtitle="Gerenciamento de usuários do sistema" />
 
-      <div className="p-6 space-y-4">
+      <PageContainer>
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {users.length} usuário(s)
@@ -191,10 +194,13 @@ export default function UsuariosPage() {
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
           </div>
         ) : users.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <UserCog className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">Nenhum usuário cadastrado</p>
-          </div>
+          <EmptyState
+            icon={<UserCog />}
+            title="Nenhum usuário cadastrado"
+            description="Adicione operadores ou administradores para acessar o sistema."
+            actionLabel="Novo usuário"
+            onAction={openCreate}
+          />
         ) : (
           <div className="glass rounded-2xl overflow-hidden">
             {/* Mobile cards */}
@@ -223,13 +229,7 @@ export default function UsuariosPage() {
                           <Shield className="h-2.5 w-2.5 mr-1" />
                           {user.role === "ADMIN" ? "Admin" : "Operador"}
                         </Badge>
-                        <Badge className={cn("border text-[10px]",
-                          user.active
-                            ? "bg-success/10 text-success border-success/20"
-                            : "bg-destructive/10 text-destructive border-destructive/20"
-                        )}>
-                          {user.active ? "Ativo" : "Inativo"}
-                        </Badge>
+                        <StatusBadge kind={user.active ? "active" : "inactive"} size="xs" />
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
@@ -291,13 +291,7 @@ export default function UsuariosPage() {
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5">
-                          <Badge className={cn("border",
-                            user.active
-                              ? "bg-success/10 text-success border-success/20"
-                              : "bg-destructive/10 text-destructive border-destructive/20"
-                          )}>
-                            {user.active ? "Ativo" : "Inativo"}
-                          </Badge>
+                          <StatusBadge kind={user.active ? "active" : "inactive"} />
                         </td>
                         <td className="px-5 py-3.5 text-muted-foreground">{user._count.auditLogs} ações</td>
                         <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(user.createdAt)}</td>
@@ -325,7 +319,7 @@ export default function UsuariosPage() {
             </div>
           </div>
         )}
-      </div>
+      </PageContainer>
 
       {/* Create/Edit Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>

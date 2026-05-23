@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PageContainer } from "@/components/ui/page-container";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -162,7 +164,7 @@ export default function TemplatesPage() {
     <>
       <Header title="Templates" subtitle="Mensagens prontas para WhatsApp" />
 
-      <div className="p-6 space-y-4">
+      <PageContainer>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <p className="text-sm text-muted-foreground">
             {templates.length} template(s)
@@ -213,14 +215,13 @@ export default function TemplatesPage() {
             <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
           </div>
         ) : filteredTemplates.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <MessageSquare className="mb-3 h-12 w-12 opacity-20" />
-            <p className="text-sm">
-              {templates.length === 0
-                ? "Nenhum template cadastrado"
-                : "Nenhum template nesta categoria"}
-            </p>
-          </div>
+          <EmptyState
+            icon={<MessageSquare />}
+            title={templates.length === 0 ? "Nenhum template cadastrado" : "Nenhum template nesta categoria"}
+            description={templates.length === 0 ? "Crie templates para enviar mensagens prontas no WhatsApp." : "Tente outra categoria ou crie um novo template."}
+            actionLabel={templates.length === 0 ? "Novo template" : undefined}
+            onAction={templates.length === 0 ? openCreate : undefined}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <AnimatePresence>
@@ -286,7 +287,7 @@ export default function TemplatesPage() {
             </AnimatePresence>
           </div>
         )}
-      </div>
+      </PageContainer>
 
       <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
         <DialogContent className="sm:max-w-md">
