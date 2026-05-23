@@ -48,6 +48,10 @@ model Vehicle {
   /// Usado pra agrupar fotos extras do mesmo anuncio (album).
   sourceSenderJid String?
   vehicleHash     String
+  /// Hash de identidade (modelo+ano+km arredondado). Diferente do
+  /// vehicleHash, NAO inclui preco. Usado pra dedup de 30 dias com regra
+  /// "fica o mais barato" -- mesmo carro reposto com preco menor substitui.
+  identityHash    String?
   status          String    @default("PENDING")
   formattedAd     String?
   rejectionReason String?
@@ -87,6 +91,7 @@ model Vehicle {
   @@index([photoHash])
   @@index([preparedAt])
   @@index([sourceSenderJid])
+  @@index([identityHash])
   @@map("vehicles")
 }
 

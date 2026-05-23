@@ -4,7 +4,7 @@ import {
   extractVehicleFromImage,
   extractVehicleFromText,
 } from "@/lib/ai";
-import { generateVehicleHash } from "@/lib/deduplication";
+import { generateVehicleHash, generateVehicleIdentityHash } from "@/lib/deduplication";
 import { applyFilters } from "@/lib/vehicle-parser";
 import { rateLimit } from "@/lib/rate-limit";
 import { uazapi } from "@/lib/uazapi";
@@ -666,6 +666,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Filtro global de KM maxima (configuravel via Settings, padrao 300.000)
+    // Carro com km muito alto perde margem -- regra do cliente.
+    const maxKmSetting = await prisma.setting.findUnique({
+      where: { key: "filter_max_km" },
+    });
+    const parsedMaxKm = maxKmSetting ? parseInt(maxKmSetting.value, 10) : NaN;
+    const maxKm = isNaN(parsedMaxKm) ? 300000 : parsedMaxKm;
+
+    if (km > maxKm) {
+      console.log(`[Webhook] FILTERED km too high: ${km} > ${maxKm}`);
+      return NextResponse.json({
+        status: "filtered",
+        reason: "vehicle_km_too_high",
+        km,
+        maxKm,
+      });
+    }
+
     // --- Filtro de DESCONTO MINIMO DA FIPE ---
     // Carro de repasse precisa estar pelo menos X% abaixo da tabela FIPE
     // (configuravel via setting `min_fipe_discount`, padrao 10%). Abaixo
@@ -762,35 +780,50 @@ export async function POST(request: NextRequest) {
 
     const fipePrice = (vehicleData.fipePrice as number) ?? null;
 
-    const vehicleHash = generateVehicleHash({
-      model,
-      year,
-      km,
-      price,
+    const vehicleHash = generateVehicleHash({ model, year, km, price });
+    const identityHash = generateVehicleIdentityHash({ model, year, km });
+
+    // Dedup de 30 DIAS por identidade (sem preco no hash) -- regra do cliente:
+    // mesmo carro reposto = fica o mais barato, descarta os outros.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const existingByIdentity = await prisma.vehicle.findFirst({
+      where: {
+        identityHash,
+        capturedAt: { gte: thirtyDaysAgo },
+      },
+      orderBy: { price: "asc" }, // o mais barato existente (ja persistido)
     });
 
-    const existingVehicle = await prisma.vehicle.findFirst({
-      where: { vehicleHash },
-    });
-
-    if (existingVehicle) {
-      // If new price is lower (better margin), update the existing vehicle
-      if (price < existingVehicle.price && existingVehicle.status === "PENDING") {
+    if (existingByIdentity) {
+      // Mesmo carro nos ultimos 30 dias
+      if (price < existingByIdentity.price && existingByIdentity.status === "PENDING") {
+        // Novo preco e MENOR -- atualiza o registro existente
         await prisma.vehicle.update({
-          where: { id: existingVehicle.id },
+          where: { id: existingByIdentity.id },
           data: {
             price,
-            fipePrice: fipePrice ?? existingVehicle.fipePrice,
-            rawDescription: textContent ?? existingVehicle.rawDescription,
-            sellerPhone: (vehicleData.sellerPhone as string) || existingVehicle.sellerPhone,
+            vehicleHash, // recalcula com novo preco
+            fipePrice: fipePrice ?? existingByIdentity.fipePrice,
+            rawDescription: textContent ?? existingByIdentity.rawDescription,
+            sellerPhone: (vehicleData.sellerPhone as string) || existingByIdentity.sellerPhone,
+            capturedAt: new Date(), // refresca a janela
           },
         });
-        console.log(`[Webhook] Updated duplicate with lower price: ${existingVehicle.id} (${existingVehicle.price} → ${price})`);
-        return NextResponse.json({ status: "updated", existingId: existingVehicle.id, oldPrice: existingVehicle.price, newPrice: price });
+        console.log(`[Webhook] DEDUP: preco menor encontrado, atualizando ${existingByIdentity.id} (${existingByIdentity.price} -> ${price})`);
+        return NextResponse.json({
+          status: "updated_lower_price",
+          existingId: existingByIdentity.id,
+          oldPrice: existingByIdentity.price,
+          newPrice: price,
+        });
       }
+      // Preco igual ou MAIOR (ou status nao-PENDING) -- descarta
+      console.log(`[Webhook] DEDUP: mesmo carro nos ultimos 30d com preco menor/igual, descartando (existente=${existingByIdentity.price}, novo=${price})`);
       return NextResponse.json({
-        status: "duplicate",
-        existingId: existingVehicle.id,
+        status: "duplicate_30d",
+        existingId: existingByIdentity.id,
+        existingPrice: existingByIdentity.price,
+        newPrice: price,
       });
     }
 
@@ -839,6 +872,7 @@ export async function POST(request: NextRequest) {
         sourceMessageId: messageId,
         sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
         sourceSenderJid: senderJid, // JID de quem postou -- usado pra agrupar fotos extras
+        identityHash,
         vehicleHash,
         photoHash,
         qualityScore,

@@ -33,6 +33,39 @@ export function generateVehicleHash(vehicle: {
   return createHash("md5").update(normalised).digest("hex");
 }
 
+/**
+ * Hash de IDENTIDADE do veiculo (sem o preco).
+ *
+ * Diferente do hash padrao, esse identifica "e o mesmo carro" mesmo se
+ * o preco mudou. Usado pra dedup de 30 dias com regra "fica o mais barato".
+ *
+ * Normaliza:
+ * - Modelo: uppercase, sem acentos, sem pontuacao, espacos simples
+ * - KM: arredondado pra 5.000 mais proximo (tolera variacoes na re-publicacao)
+ *
+ * @returns 16-char hex MD5 digest.
+ */
+export function generateVehicleIdentityHash(vehicle: {
+  model: string;
+  year: number;
+  km: number;
+}): string {
+  const modelNorm = vehicle.model
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // remove acentos
+    .replace(/[^A-Z0-9\s]/g, " ") // remove pontuacao
+    .replace(/\s+/g, " "); // colapsa espacos
+
+  // KM tolerante: arredonda pra 5.000 mais proximo (60500 -> 60000, 62500 -> 65000).
+  // Evita gerar hash diferente quando vendedor reposta com km ligeiramente diferente.
+  const kmBucket = Math.round(vehicle.km / 5000) * 5000;
+
+  const normalised = [modelNorm, String(vehicle.year), String(kmBucket)].join("|");
+  return createHash("md5").update(normalised).digest("hex").slice(0, 16);
+}
+
 // ---------------------------------------------------------------------------
 // Deduplication Check
 // ---------------------------------------------------------------------------
