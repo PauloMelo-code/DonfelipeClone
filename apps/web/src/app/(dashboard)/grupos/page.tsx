@@ -27,10 +27,16 @@ interface Group {
 }
 
 function getGroupType(g: Group): string {
+  // Classificacao estrita por sufixo do JID:
+  //   @newsletter -> canal (canal OFICIAL do WhatsApp)
+  //   @broadcast  -> lista de transmissao
+  //   @s.whatsapp.net -> contato (DM 1-1)
+  //   @g.us + isCommunity -> comunidade
+  //   @g.us (resto) -> grupo (mesmo announce-only e GRUPO restrito, nao canal)
   if (g.isContact || g.groupId.endsWith("@s.whatsapp.net")) return "contato";
-  if (g.isAnnounce || g.groupId.endsWith("@newsletter")) return "canal";
-  if (g.isCommunity) return "comunidade";
+  if (g.groupId.endsWith("@newsletter")) return "canal";
   if (g.groupId.endsWith("@broadcast")) return "lista";
+  if (g.isCommunity) return "comunidade";
   return "grupo";
 }
 
@@ -130,6 +136,26 @@ export default function GruposPage() {
   }, []);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // One-shot cleanup retroativo: desmarca isAnnounce em grupos @g.us que
+  // foram erroneamente classificados como canal em syncs antigos.
+  // Roda 1x por sessao, silencioso. Sem efeito se ja estiver tudo correto.
+  useEffect(() => {
+    const KEY = "groups-classification-fixed-v1";
+    if (typeof window === "undefined" || sessionStorage.getItem(KEY)) return;
+    sessionStorage.setItem(KEY, "1");
+    fetch("/api/groups/fix-classification", { method: "POST" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.fixed > 0) {
+          toast.success(`${data.fixed} grupos reclassificados (Canal → Grupo)`);
+          fetchGroups();
+          fetchStats();
+        }
+      })
+      .catch(() => { /* ignore */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchGroups = useCallback(async () => {
     try {

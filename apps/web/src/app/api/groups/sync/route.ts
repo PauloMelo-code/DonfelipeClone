@@ -209,14 +209,11 @@ export async function GET(request: Request) {
 
       // Resolve name with fallbacks (prefere /group/list, depois /chat/find)
       let name: string = group.subject || chatInfo?.name || "";
-      // Marca como "anuncio/canal" se for newsletter REAL (@newsletter) OU
-      // grupo announce-only (so admin posta). UAZAPI expoe esse flag via
-      // /chat/find (wa_isGroup_announce) -- mais confiavel que IsAnnounce
-      // raw do /group/list, que vem false mesmo pra grupos announce.
-      const isNewsletter =
-        groupId.endsWith("@newsletter") ||
-        group.isAnnounce === true ||
-        chatInfo?.isAnnounce === true;
+      // CANAL = SO @newsletter (canal oficial do WhatsApp).
+      // Grupos @g.us com wa_isGroup_announce=true sao grupos restritos
+      // (so admin posta), mas ainda sao GRUPOS, nao canais.
+      // Por isso isAnnounce no banco so vira true pra @newsletter.
+      const isNewsletter = groupId.endsWith("@newsletter");
       // Contatos nao tem getGroupInfo/getNewsletterInfo -- pula fallback
       if (!name && !isContact) {
         const client = group.defaultRole === "TARGET" && uazapiSend.isConfigured ? uazapiSend : uazapi;

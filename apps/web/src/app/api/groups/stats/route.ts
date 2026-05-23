@@ -39,21 +39,21 @@ export async function GET(request: NextRequest) {
   if (role && role !== "ALL") baseWhere.role = role;
 
   try {
-    // 5 counts em paralelo (canais/comunidades/listas/contatos + total).
-    // "Grupo comum" e calculado como total - outros pra evitar 6a query.
+    // Classificacao estrita por sufixo do JID (canal = SO @newsletter).
+    // Mesma logica que /api/groups e getGroupType do client.
     const [todos, canal, comunidade, lista, contato] = await Promise.all([
       prisma.whatsAppGroup.count({ where: baseWhere }),
       prisma.whatsAppGroup.count({
-        where: {
-          ...baseWhere,
-          OR: [
-            { isAnnounce: true },
-            { groupId: { endsWith: "@newsletter" } },
-          ],
-        },
+        where: { ...baseWhere, groupId: { endsWith: "@newsletter" } },
       }),
       prisma.whatsAppGroup.count({
-        where: { ...baseWhere, isCommunity: true },
+        where: {
+          ...baseWhere,
+          AND: [
+            { groupId: { endsWith: "@g.us" } },
+            { isCommunity: true },
+          ],
+        },
       }),
       prisma.whatsAppGroup.count({
         where: { ...baseWhere, groupId: { endsWith: "@broadcast" } },
@@ -69,9 +69,18 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Aproximado: grupo comum = total - outros (pode duplicar se grupo for
-    // canal+comunidade ao mesmo tempo, mas isso e raro)
-    const grupo = Math.max(0, todos - canal - comunidade - lista - contato);
+    // Grupo = @g.us que NAO e comunidade nem contato. Conta explicitamente
+    // pra nao depender de subtracao (alguns chats antigos podem nao bater).
+    const grupo = await prisma.whatsAppGroup.count({
+      where: {
+        ...baseWhere,
+        AND: [
+          { groupId: { endsWith: "@g.us" } },
+          { isCommunity: false },
+          { isContact: false },
+        ],
+      },
+    });
 
     const stats: StatsByType = { todos, grupo, canal, comunidade, lista, contato };
     statsCache.set(cacheKey, { data: stats, expiresAt: Date.now() + TTL_MS });

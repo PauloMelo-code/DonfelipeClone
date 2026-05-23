@@ -72,17 +72,21 @@ export async function GET(request: NextRequest) {
       where.region = region === "" ? null : region;
     }
 
-    // Filtro de tipo (mesma logica que getGroupType no client).
-    // Ordem importa: canal/contato/comunidade/lista checados antes de "grupo"
-    // pra evitar que um canal com JID @g.us caia em "grupo".
+    // Filtro de tipo. Regra estrita por sufixo do JID:
+    //   @newsletter -> canal (canal oficial do WhatsApp)
+    //   @broadcast  -> lista de transmissao
+    //   @s.whatsapp.net -> contato (DM 1-1)
+    //   @g.us com isCommunity=true -> comunidade
+    //   @g.us padrao -> grupo (mesmo se isAnnounce=true, e grupo restrito,
+    //                          NAO canal -- canal e SO @newsletter)
     if (type && type !== "todos") {
       if (type === "canal") {
-        where.OR = [
-          { isAnnounce: true },
-          { groupId: { endsWith: "@newsletter" } },
-        ];
+        where.groupId = { endsWith: "@newsletter" };
       } else if (type === "comunidade") {
-        where.isCommunity = true;
+        where.AND = [
+          { groupId: { endsWith: "@g.us" } },
+          { isCommunity: true },
+        ];
       } else if (type === "lista") {
         where.groupId = { endsWith: "@broadcast" };
       } else if (type === "contato") {
@@ -91,10 +95,9 @@ export async function GET(request: NextRequest) {
           { groupId: { endsWith: "@s.whatsapp.net" } },
         ];
       } else if (type === "grupo") {
-        // "Grupo comum" = @g.us sem flag de canal/comunidade
+        // Grupos @g.us que NAO sao comunidade nem contato (announce-only ainda e grupo).
         where.AND = [
           { groupId: { endsWith: "@g.us" } },
-          { isAnnounce: false },
           { isCommunity: false },
           { isContact: false },
         ];
