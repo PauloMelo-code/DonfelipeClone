@@ -291,6 +291,38 @@ export default function GruposPage() {
     }
   };
 
+  const [cleaningOrphans, setCleaningOrphans] = useState(false);
+  const handleCleanupOrphans = async (deleteOrphans: boolean) => {
+    if (deleteOrphans && !confirm("Apagar permanentemente os grupos órfãos (onde nenhuma instância UAZAPI participa)?\n\nIsso também limpa o histórico de publicações desses grupos.")) {
+      return;
+    }
+    setCleaningOrphans(true);
+    try {
+      const url = `/api/groups/cleanup-orphans${deleteOrphans ? "?delete=true" : ""}`;
+      const res = await fetch(url, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.orphans === 0) {
+          toast.success("Nenhum grupo órfão encontrado");
+        } else {
+          toast.success(
+            deleteOrphans
+              ? `${data.affected} grupos órfãos removidos do banco`
+              : `${data.affected} grupos órfãos desativados — clique novamente em modo apagar pra remover de vez`,
+            { duration: 10000 }
+          );
+          fetchGroups();
+        }
+      } else {
+        toast.error(data.error || "Erro ao limpar órfãos");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setCleaningOrphans(false);
+    }
+  };
+
   const [repairing, setRepairing] = useState(false);
   const handleRepairNames = async () => {
     setRepairing(true);
@@ -618,6 +650,21 @@ export default function GruposPage() {
               <RefreshCw className="h-4 w-4" />
             )}
             Reparar nomes
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleCleanupOrphans(false)}
+            disabled={cleaningOrphans}
+            className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10"
+            title="Desativa grupos onde nenhuma instância UAZAPI participa mais. Click duplo (com confirmação) pra apagar."
+            onDoubleClick={() => handleCleanupOrphans(true)}
+          >
+            {cleaningOrphans ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Limpar órfãos
           </Button>
           <Button
             onClick={handleSync}
