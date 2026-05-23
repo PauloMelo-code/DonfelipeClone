@@ -12,9 +12,15 @@ import { invalidateGroupsCache } from "../route";
  * Se um grupo aparece em ambas, mantem o role atual no DB (nao reverte).
  * Se a instancia de envio nao estiver configurada, sincroniza so da captura.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireAuth("ADMIN");
   if (!auth.success) return auth.response;
+
+  // ?instance=capture|send|both (default both)
+  const url = new URL(request.url);
+  const instanceParam = url.searchParams.get("instance") ?? "both";
+  const syncCapture = instanceParam === "capture" || instanceParam === "both";
+  const syncSend = instanceParam === "send" || instanceParam === "both";
 
   try {
     type RemoteWithRole = {
@@ -26,35 +32,37 @@ export async function GET() {
     };
 
     // ── 1. Grupos da instancia de CAPTURA ──────────────────────────────────
-    const captureGroups = await uazapi.listGroups(true);
-    const captureMapped: RemoteWithRole[] = captureGroups.map((g) => ({
-      id: g.id,
-      subject: g.subject,
-      profilePictureUrl: g.profilePictureUrl,
-      defaultRole: "SOURCE",
-    }));
-
-    // ── 2. Canais (newsletters) da instancia de CAPTURA ────────────────────
-    // Canais ficam fora do /group/list -- precisam de chamada separada.
+    let captureMapped: RemoteWithRole[] = [];
     let captureNewsletters: RemoteWithRole[] = [];
-    try {
-      const newsletters = await uazapi.listNewsletters();
-      captureNewsletters = newsletters.map((n) => ({
-        id: n.id,
-        subject: n.subject,
-        profilePictureUrl: n.profilePictureUrl,
-        defaultRole: "SOURCE" as const,
-        isAnnounce: true,
+    if (syncCapture) {
+      const captureGroups = await uazapi.listGroups(true);
+      captureMapped = captureGroups.map((g) => ({
+        id: g.id,
+        subject: g.subject,
+        profilePictureUrl: g.profilePictureUrl,
+        defaultRole: "SOURCE",
       }));
-    } catch (err) {
-      console.error("[Groups Sync] listNewsletters (capture) failed:", err);
+
+      // Canais (newsletters) da instancia de CAPTURA
+      try {
+        const newsletters = await uazapi.listNewsletters();
+        captureNewsletters = newsletters.map((n) => ({
+          id: n.id,
+          subject: n.subject,
+          profilePictureUrl: n.profilePictureUrl,
+          defaultRole: "SOURCE" as const,
+          isAnnounce: true,
+        }));
+      } catch (err) {
+        console.error("[Groups Sync] listNewsletters (capture) failed:", err);
+      }
     }
 
     // ── 3. Grupos + canais da instancia de ENVIO (se configurada) ─────────
     let sendMapped: RemoteWithRole[] = [];
     let sendNewsletters: RemoteWithRole[] = [];
     let sendError: string | null = null;
-    if (uazapiSend.isConfigured) {
+    if (syncSend && uazapiSend.isConfigured) {
       try {
         const sendGroups = await uazapiSend.listGroups(true);
         sendMapped = sendGroups.map((g) => ({
@@ -87,8 +95,10 @@ export async function GET() {
     // nao traz com precisao. Usamos pra:
     // - Capturar listas de transmissao (@broadcast)
     // - Enriquecer grupos com isCommunity / isAnnounce
-    const captureChats = await uazapi.listChats().catch(() => []);
-    const sendChats = uazapiSend.isConfigured
+    const captureChats = syncCapture
+      ? await uazapi.listChats().catch(() => [])
+      : [];
+    const sendChats = syncSend && uazapiSend.isConfigured
       ? await uazapiSend.listChats().catch(() => [])
       : [];
 
@@ -240,6 +250,7 @@ export async function GET() {
 
     return NextResponse.json({
       message: "Sincronizacao concluida",
+      instance: instanceParam,
       total: remoteGroups.length,
       synced: syncedCount,
       created: createdCount,

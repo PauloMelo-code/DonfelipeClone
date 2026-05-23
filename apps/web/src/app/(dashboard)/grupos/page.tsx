@@ -124,14 +124,23 @@ export default function GruposPage() {
     fetchGroups();
   }, [fetchGroups]);
 
-  const handleSync = async () => {
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const runSync = async (instance: "capture" | "send" | "both") => {
     setSyncing(true);
+    setShowSyncModal(false);
     try {
-      const res = await fetch("/api/groups/sync");
+      const res = await fetch(`/api/groups/sync?instance=${instance}`);
       if (res.ok) {
         const data = await res.json();
-        toast.success(`${data.synced} grupos sincronizados`);
+        const labels: Record<string, string> = {
+          capture: "fonte (captura)",
+          send: "destino (envio)",
+          both: "ambas instâncias",
+        };
+        toast.success(`${data.synced} grupos sincronizados de ${labels[instance]}`);
         fetchGroups();
+      } else {
+        toast.error("Erro ao sincronizar");
       }
     } catch {
       toast.error("Erro ao sincronizar");
@@ -139,6 +148,8 @@ export default function GruposPage() {
       setSyncing(false);
     }
   };
+  // Compat: handleSync abre o modal de escolha em vez de sincronizar direto
+  const handleSync = () => setShowSyncModal(true);
 
   const handleActivateAll = async (role: "SOURCE" | "TARGET", active: boolean) => {
     // Operates on the current page only — for full-list activation, fetch all roles unpaginated.
@@ -679,6 +690,59 @@ export default function GruposPage() {
             Sincronizar UAZAPI
           </Button>
         </div>
+
+        {/* Modal de escolha de instância no sync */}
+        <Dialog open={showSyncModal} onOpenChange={setShowSyncModal}>
+          <DialogContent className="sm:max-w-md bg-card border-border">
+            <DialogHeader>
+              <DialogTitle>Sincronizar UAZAPI</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                Escolha qual número WhatsApp sincronizar:
+              </p>
+              <button
+                onClick={() => runSync("capture")}
+                disabled={syncing}
+                className="w-full text-left rounded-lg border border-border p-3 hover:border-cugini-orange/40 hover:bg-cugini-orange/5 transition-colors"
+              >
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Radio className="h-4 w-4 text-success" />
+                  Apenas FONTE (captura)
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Atualiza só os grupos do número que RECEBE os anúncios.
+                </p>
+              </button>
+              <button
+                onClick={() => runSync("send")}
+                disabled={syncing}
+                className="w-full text-left rounded-lg border border-border p-3 hover:border-cugini-orange/40 hover:bg-cugini-orange/5 transition-colors"
+              >
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4 text-cugini-orange" />
+                  Apenas DESTINO (envio)
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Atualiza só os grupos do número que PUBLICA os anúncios.
+                </p>
+              </button>
+              <button
+                onClick={() => runSync("both")}
+                disabled={syncing}
+                className="w-full text-left rounded-lg border-2 border-cugini-orange/50 bg-cugini-orange/5 p-3 hover:border-cugini-orange/70 transition-colors"
+              >
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-cugini-orange" />
+                  Ambas (recomendado)
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Sincroniza fonte e destino de uma vez. Mais lento mas completo.
+                </p>
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal de verificação de acesso da instância de envio */}
         <Dialog open={showMembershipModal} onOpenChange={setShowMembershipModal}>

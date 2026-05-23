@@ -20,18 +20,20 @@ const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 // Simple in-memory lock to prevent concurrent processing of same message
 const _processingLock = new Set<string>();
 
-// Buffer for pairing image + caption sent as separate messages
-// Key: `${groupJid}:${senderJid}` — usa JID unico do remetente (nao nome)
-// Value: { imageUrl, textContent, messageId, timestamp }
+// Buffer for pairing image + caption sent as separate messages.
+// Key: `${groupJid}:${senderJid}` -- usa JID unico do remetente (nao nome).
+// Suporta MULTIPLAS imagens por sender (album): vendedor pode mandar 1-N
+// fotos da interna ANTES de mandar a foto com caption. Sem essa lista, as
+// fotos extras se perdiam (so a ultima sobrescrevia a primeira).
 interface BufferedMessage {
-  imageUrl?: string;
+  imageUrls: string[]; // fila ordenada por chegada (mais antiga primeiro)
   textContent?: string;
   messageId: string;
   senderJid: string;
   timestamp: number;
 }
 const _pairingBuffer = new Map<string, BufferedMessage>();
-const BUFFER_TTL_MS = 60 * 1000; // 60 seconds
+const BUFFER_TTL_MS = 5 * 60 * 1000; // 5 min -- vendedor demora a mandar tudo
 
 function cleanExpiredBuffer() {
   const now = Date.now();
@@ -357,32 +359,56 @@ export async function POST(request: NextRequest) {
     }
 
     // === Buffer pairing: juntar foto + texto enviados separadamente ===
-    // So pareamos se temos o JID do remetente (seguranca — evita misturar
-    // mensagens de pessoas diferentes no mesmo grupo)
+    // So pareamos se temos o JID do remetente (seguranca -- evita misturar
+    // mensagens de pessoas diferentes no mesmo grupo).
+    // Suporta album: varias fotos podem ficar aguardando o texto.
     cleanExpiredBuffer();
     const bufferKey = getBufferKey(groupJid, senderJid);
     const buffered = bufferKey ? _pairingBuffer.get(bufferKey) : null;
 
+    // Fotos extras que vao ser anexadas ao Vehicle apos ser criado.
+    let extraPhotosFromBuffer: string[] = [];
+
     if (imageUrl && !textContent && bufferKey) {
-      // Foto sem legenda — verifica se tem texto aguardando do MESMO remetente
-      if (buffered?.textContent && !buffered.imageUrl) {
+      if (buffered?.textContent && (!buffered.imageUrls || buffered.imageUrls.length === 0)) {
+        // Texto bufferizado esperando essa foto -- pareia (1a foto vira principal)
         textContent = buffered.textContent;
         _pairingBuffer.delete(bufferKey);
         console.log("[Webhook] PAIRED: imagem + texto do buffer de", senderJid);
       } else {
-        // Guarda imagem no buffer aguardando texto (60s)
-        _pairingBuffer.set(bufferKey, { imageUrl, messageId, senderJid: senderJid!, timestamp: Date.now() });
-        console.log("[Webhook] BUFFERED: imagem aguardando texto de", senderJid);
-        return NextResponse.json({ status: "buffered", reason: "awaiting_caption" });
+        // Sem texto pareando: adiciona foto na FILA. Aguarda texto chegar
+        // ou Vehicle ser criado pra drenar.
+        const existing = buffered ?? { imageUrls: [] as string[], messageId, senderJid: senderJid!, timestamp: Date.now() };
+        const urls = existing.imageUrls ?? [];
+        if (!urls.includes(imageUrl)) urls.push(imageUrl);
+        _pairingBuffer.set(bufferKey, {
+          ...existing,
+          imageUrls: urls.slice(0, 12), // cap em 12 fotos por seguranca
+          timestamp: Date.now(), // refresca o TTL
+        });
+        console.log(`[Webhook] BUFFERED: imagem #${urls.length} de`, senderJid);
+        return NextResponse.json({ status: "buffered", reason: "awaiting_caption", queued: urls.length });
       }
     } else if (!imageUrl && textContent && bufferKey) {
-      // Texto sem foto — verifica se tem imagem aguardando do MESMO remetente
-      if (buffered?.imageUrl && !buffered.textContent) {
-        imageUrl = buffered.imageUrl;
+      if (buffered?.imageUrls && buffered.imageUrls.length > 0 && !buffered.textContent) {
+        // Texto chegou e tem fotos esperando: usa a 1a como principal e
+        // guarda o resto pra anexar depois (album).
+        imageUrl = buffered.imageUrls[0];
+        extraPhotosFromBuffer = buffered.imageUrls.slice(1);
         _pairingBuffer.delete(bufferKey);
-        console.log("[Webhook] PAIRED: texto + imagem do buffer de", senderJid);
+        console.log(
+          `[Webhook] PAIRED: texto + ${buffered.imageUrls.length} imagem(s) do buffer de`,
+          senderJid,
+          extraPhotosFromBuffer.length > 0 ? `(${extraPhotosFromBuffer.length} extras pro album)` : ""
+        );
       } else if (textContent.length >= 20) {
-        _pairingBuffer.set(bufferKey, { textContent, messageId, senderJid: senderJid!, timestamp: Date.now() });
+        _pairingBuffer.set(bufferKey, {
+          imageUrls: [],
+          textContent,
+          messageId,
+          senderJid: senderJid!,
+          timestamp: Date.now(),
+        });
         console.log("[Webhook] BUFFERED: texto aguardando imagem de", senderJid);
         return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
       }
@@ -543,7 +569,11 @@ export async function POST(request: NextRequest) {
     if (plate) {
       features.push("⚠️ PLACA VISÍVEL");
     }
-    const photos = [imageUrl];
+    // Foto principal + extras vindas do buffer (album: vendedor mandou
+    // varias fotos antes/junto da legenda). Limita a 12 pra nao explodir.
+    const photos = [imageUrl, ...extraPhotosFromBuffer]
+      .filter((p, i, arr) => p && arr.indexOf(p) === i)
+      .slice(0, 12);
 
     if (!model || !year || km === undefined || !price) {
       return NextResponse.json({
