@@ -310,8 +310,14 @@ export async function POST(request: NextRequest) {
     const isAnnounce = chat?.wa_isGroup_announce === true;
     const chatName = chat?.wa_name || chat?.name || raw.message?.groupName || pushName || groupJid.replace(/@.*/, "");
 
-    // Auto-register: contatos (DM) entram INATIVOS pra revisao manual.
-    // Grupos/canais/broadcasts continuam ATIVOS como antes.
+    // Auto-register: contatos (DM) entram ATIVOS pra nao perder carros.
+    // Camadas de protecao ja filtram lixo:
+    //  - no_vehicle_keywords (texto sem palavras de carro)
+    //  - text_too_short / image_no_caption
+    //  - extracao GPT falhou (no_vehicle_data)
+    //  - blocklist + padroes aprendidos (autoRejectedReason)
+    //  - quality_score baixo
+    // Se quiser desativar um contato spammer, basta toggle em /grupos.
     if (!group && (isGroup || isBroadcast || isContact)) {
       const prefix = isContact ? "Contato: " : isAnnounce ? "Canal: " : isBroadcast ? "Lista: " : isCommunity ? "Comunidade: " : "";
       group = await prisma.whatsAppGroup.create({
@@ -319,14 +325,14 @@ export async function POST(request: NextRequest) {
           groupId: groupJid,
           name: prefix + chatName,
           role: "SOURCE",
-          active: !isContact, // Contatos comecam inativos
+          active: true,
           isCommunity,
           isAnnounce,
           isContact: !!isContact,
           ownerPhone: chat?.owner || null,
         },
       });
-      console.log(`[Webhook] Auto-registered ${isContact ? "contact" : isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})${isContact ? " [INACTIVE]" : ""}`);
+      console.log(`[Webhook] Auto-registered ${isContact ? "contact" : isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
     } else if (group) {
       // Atualiza flags se mudaram
       const needsUpdate =
