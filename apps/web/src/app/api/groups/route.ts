@@ -74,7 +74,9 @@ export async function GET(request: NextRequest) {
                 },
               }
             : {}),
-          orderBy: { name: "asc" },
+          // Ativos sempre primeiro, depois alfabetico.
+          // Vale igual pra SOURCE e TARGET -- desativados nunca misturam com ativos.
+          orderBy: [{ active: "desc" }, { name: "asc" }],
           skip: (page - 1) * limit,
           take: limit,
         }),
