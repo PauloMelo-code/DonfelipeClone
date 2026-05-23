@@ -71,7 +71,10 @@ export async function GET() {
         },
         _count: { _all: true },
         orderBy: { _count: { sourceGroupId: "desc" } },
-        take: 5,
+        // Sem limite: cliente quer ver TODOS os fornecedores ativos no
+        // periodo (7 dias) pra acompanhar quem ta enviando. Card no front
+        // tem scroll interno -- nao tem risco de quebrar layout.
+        take: 100,
       }),
       prisma.vehicle.aggregate({
         where: { status: "PENDING", qualityScore: { not: null } },

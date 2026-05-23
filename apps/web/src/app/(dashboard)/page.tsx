@@ -224,21 +224,72 @@ export default function DashboardPage() {
         {/* Insights row: top fornecedores + qualidade media */}
         {!loading && data && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <SectionCard icon={<Users />} title="Top fornecedores (7 dias)" className="lg:col-span-2">
-              <div className="space-y-2">
-                {data.topGroupsWeek && data.topGroupsWeek.length > 0 ? (
-                  data.topGroupsWeek.slice(0, 5).map((g) => (
-                    <div key={g.groupId} className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{g.name}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{g.count}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">Sem dados</p>
-                )}
-              </div>
+            <SectionCard
+              icon={<Users />}
+              title="Fornecedores ativos (7 dias)"
+              description={data.topGroupsWeek?.length ? `${data.topGroupsWeek.length} ${data.topGroupsWeek.length === 1 ? "fornecedor" : "fornecedores"} enviando carros` : undefined}
+              className="lg:col-span-2"
+            >
+              {data.topGroupsWeek && data.topGroupsWeek.length > 0 ? (
+                <div className="max-h-[400px] overflow-y-auto -mx-1 px-1 space-y-1.5">
+                  {(() => {
+                    const maxCount = data.topGroupsWeek[0]?.count || 1;
+                    return data.topGroupsWeek.map((g, idx) => {
+                      const pct = Math.max(4, (g.count / maxCount) * 100);
+                      const isTop3 = idx < 3;
+                      return (
+                        <div
+                          key={g.groupId}
+                          className="group relative flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.02] transition-colors"
+                        >
+                          {/* Rank */}
+                          <span
+                            className={cn(
+                              "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-bold tabular-nums",
+                              isTop3
+                                ? "bg-cugini-orange/15 text-cugini-orange"
+                                : "bg-white/[0.04] text-muted-foreground/60"
+                            )}
+                          >
+                            {idx + 1}
+                          </span>
+
+                          {/* Name + progress bar */}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm truncate text-foreground">{g.name}</p>
+                            <div className="mt-1 h-1 rounded-full bg-white/[0.04] overflow-hidden">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all",
+                                  isTop3
+                                    ? "bg-gradient-to-r from-cugini-orange to-cugini-orange-light"
+                                    : "bg-muted-foreground/30"
+                                )}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Count */}
+                          <div className="shrink-0 text-right">
+                            <p className={cn(
+                              "text-sm font-semibold tabular-nums",
+                              isTop3 ? "text-cugini-orange" : "text-foreground"
+                            )}>
+                              {g.count}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+                              {g.count === 1 ? "envio" : "envios"}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sem dados</p>
+              )}
             </SectionCard>
 
             <SectionCard icon={<TrendingUp />} title="Qualidade média (pendentes)">
