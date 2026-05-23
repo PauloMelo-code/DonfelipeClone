@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -296,12 +297,13 @@ export default function GruposPage() {
 
   // Renomear grupo manualmente
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [kindMenuOpenId, setKindMenuOpenId] = useState<string | null>(null);
+  // Menu de reclassificacao -- usa Portal pra escapar do overflow:hidden do card.
+  const [kindMenu, setKindMenu] = useState<{ id: string; x: number; y: number; group: Group } | null>(null);
 
   // Aplica override manual de tipo. Passar null/"" remove o override
   // (volta a classificacao automatica por JID).
   const handleChangeKind = async (group: Group, kind: string | null) => {
-    setKindMenuOpenId(null);
+    setKindMenu(null);
     try {
       const res = await fetch(`/api/groups/${group.id}`, {
         method: "PUT",
@@ -321,13 +323,45 @@ export default function GruposPage() {
     }
   };
 
-  // Fecha menu ao clicar fora
+  const openKindMenu = (e: React.MouseEvent<HTMLButtonElement>, group: Group) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // Se ja esta aberto pro mesmo group, fecha
+    if (kindMenu?.id === group.id) {
+      setKindMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setKindMenu({
+      id: group.id,
+      x: rect.left,
+      y: rect.bottom + 4,
+      group,
+    });
+  };
+
+  // Fecha menu ao clicar fora ou apertar Escape.
+  // setTimeout(0) evita capturar o mesmo click que abriu o menu.
   useEffect(() => {
-    if (!kindMenuOpenId) return;
-    const close = () => setKindMenuOpenId(null);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [kindMenuOpenId]);
+    if (!kindMenu) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("[data-kind-menu]")) return; // click dentro do menu
+      setKindMenu(null);
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setKindMenu(null);
+    };
+    const t = setTimeout(() => {
+      document.addEventListener("click", close);
+      document.addEventListener("keydown", onEsc);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [kindMenu]);
   const [renameValue, setRenameValue] = useState("");
   const [savingRename, setSavingRename] = useState(false);
 
@@ -635,75 +669,23 @@ export default function GruposPage() {
             </div>
           ) : (
             <p style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 500 }} className="flex items-center gap-1.5 group/name">
-              {/* Icone do tipo -- clicavel pra reclassificar.
-                  Estilizado como botao obvio: border + bg + chevron */}
-              <span className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setKindMenuOpenId(kindMenuOpenId === group.id ? null : group.id);
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[12px] transition-all cursor-pointer",
-                    "border-white/[0.08] bg-white/[0.03] hover:bg-cugini-orange/10 hover:border-cugini-orange/40",
-                    group.kindOverride && "border-cugini-orange/40 bg-cugini-orange/10"
-                  )}
-                  title={`Tipo: ${getGroupType(group)}${group.kindOverride ? " (manual)" : ""} — clique para mudar`}
-                >
-                  <span>{getGroupTypeIcon(getGroupType(group))}</span>
-                  <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60" />
-                  {group.kindOverride && (
-                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-cugini-orange shadow-[0_0_4px_rgba(232,115,26,0.6)]" title="Tipo definido manualmente" />
-                  )}
-                </button>
-                {kindMenuOpenId === group.id && (
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute left-0 top-full mt-1 z-30 min-w-[180px] rounded-lg border border-white/[0.08] bg-[#131316] shadow-[0_10px_40px_rgba(0,0,0,0.6)] py-1"
-                  >
-                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/50 font-semibold border-b border-white/[0.04] mb-1">
-                      Reclassificar como
-                    </div>
-                    {[
-                      { id: "grupo", label: "👥 Grupo" },
-                      { id: "canal", label: "📡 Canal" },
-                      { id: "comunidade", label: "🏘️ Comunidade" },
-                      { id: "lista", label: "📢 Lista" },
-                      { id: "contato", label: "👤 Contato" },
-                    ].map((opt) => {
-                      const current = getGroupType(group);
-                      const isCurrent = current === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() => handleChangeKind(group, opt.id)}
-                          className={cn(
-                            "w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors",
-                            isCurrent
-                              ? "bg-cugini-orange/10 text-cugini-orange"
-                              : "text-foreground hover:bg-white/[0.04]"
-                          )}
-                        >
-                          <span>{opt.label}</span>
-                          {isCurrent && <Check className="h-3 w-3" />}
-                        </button>
-                      );
-                    })}
-                    {group.kindOverride && (
-                      <>
-                        <div className="border-t border-white/[0.04] my-1" />
-                        <button
-                          onClick={() => handleChangeKind(group, null)}
-                          className="w-full text-left px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-colors"
-                        >
-                          ↩ Voltar automático
-                        </button>
-                      </>
-                    )}
-                  </div>
+              {/* Botao do tipo -- clicavel pra reclassificar. Menu via Portal. */}
+              <button
+                type="button"
+                onClick={(e) => openKindMenu(e, group)}
+                className={cn(
+                  "relative inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[12px] transition-all cursor-pointer shrink-0",
+                  "border-white/[0.08] bg-white/[0.03] hover:bg-cugini-orange/10 hover:border-cugini-orange/40",
+                  (group.kindOverride || kindMenu?.id === group.id) && "border-cugini-orange/40 bg-cugini-orange/10"
                 )}
-              </span>
+                title={`Tipo: ${getGroupType(group)}${group.kindOverride ? " (manual)" : ""} — clique para mudar`}
+              >
+                <span>{getGroupTypeIcon(getGroupType(group))}</span>
+                <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60" />
+                {group.kindOverride && (
+                  <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-cugini-orange shadow-[0_0_4px_rgba(232,115,26,0.6)]" title="Tipo definido manualmente" />
+                )}
+              </button>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{group.name}</span>
               {group.nameLocked && (
                 <span title="Nome fixado manualmente" className="text-[9px] text-cugini-orange shrink-0">📌</span>
@@ -1323,6 +1305,62 @@ export default function GruposPage() {
           </>
         )}
       </div>
+
+      {/* Portal: menu de reclassificacao. Fica fora do card pra escapar
+          do overflow:hidden + zIndex sempre no topo. */}
+      {kindMenu && typeof document !== "undefined" && createPortal(
+        <div
+          data-kind-menu
+          style={{
+            position: "fixed",
+            left: kindMenu.x,
+            top: kindMenu.y,
+            zIndex: 100,
+          }}
+          className="min-w-[200px] rounded-lg border border-white/[0.08] bg-[#131316] shadow-[0_10px_40px_rgba(0,0,0,0.7)] py-1"
+        >
+          <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-muted-foreground/50 font-semibold border-b border-white/[0.04] mb-1">
+            Reclassificar como
+          </div>
+          {[
+            { id: "grupo", label: "👥 Grupo" },
+            { id: "canal", label: "📡 Canal" },
+            { id: "comunidade", label: "🏘️ Comunidade" },
+            { id: "lista", label: "📢 Lista" },
+            { id: "contato", label: "👤 Contato" },
+          ].map((opt) => {
+            const current = getGroupType(kindMenu.group);
+            const isCurrent = current === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleChangeKind(kindMenu.group, opt.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors",
+                  isCurrent
+                    ? "bg-cugini-orange/10 text-cugini-orange"
+                    : "text-foreground hover:bg-white/[0.04]"
+                )}
+              >
+                <span>{opt.label}</span>
+                {isCurrent && <Check className="h-3 w-3" />}
+              </button>
+            );
+          })}
+          {kindMenu.group.kindOverride && (
+            <>
+              <div className="border-t border-white/[0.04] my-1" />
+              <button
+                onClick={() => handleChangeKind(kindMenu.group, null)}
+                className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-colors"
+              >
+                ↩ Voltar automático
+              </button>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
