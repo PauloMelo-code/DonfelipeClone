@@ -1442,38 +1442,79 @@ function VeiculosPageInner() {
 
       {/* WhatsApp Preview Dialog (read-only) */}
       <Dialog open={!!previewVehicle} onOpenChange={(open) => !open && setPreviewVehicle(null)}>
-        <DialogContent showCloseButton={false} className="sm:max-w-md p-0 overflow-hidden bg-transparent ring-0">
-          <div className="rounded-xl overflow-hidden">
-            <div className="bg-[#1F2C34] px-4 py-3 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-[#2A3942] flex items-center justify-center">
-                <MessageCircle className="h-4 w-4 text-[#8696A0]" />
+        <DialogContent
+          showCloseButton={false}
+          className="inset-0 translate-x-0 translate-y-0 max-w-none rounded-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-4xl sm:rounded-xl p-0 overflow-hidden bg-[#0D0D0D] ring-1 ring-white/10 h-full sm:h-auto sm:max-h-[90vh]"
+        >
+          <div className="flex flex-col h-full sm:max-h-[90vh]">
+            {/* Header */}
+            <div className="px-5 py-3.5 border-b border-white/10 flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-cugini-orange" />
+                  Detalhes do veículo
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {previewVehicle?.brand && `${previewVehicle.brand} `}{previewVehicle?.model}
+                  {previewVehicle && ` · ${formatPrice(previewVehicle.price)} (custo)`}
+                </p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-[#E9EDEF] truncate">Grupo de Vendas</p>
-                <p className="text-[11px] text-[#8696A0]">Preview da mensagem</p>
-              </div>
-              <button onClick={() => setPreviewVehicle(null)} className="text-[#8696A0] hover:text-[#E9EDEF] transition-colors">
-                <X className="h-5 w-5" />
+              <button
+                onClick={() => setPreviewVehicle(null)}
+                className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
               </button>
             </div>
-            <WhatsAppBubble
-              text={previewVehicle ? getPreviewAdText(previewVehicle) : ""}
-              photo={previewVehicle ? parseArray(previewVehicle.photos)[0] : undefined}
-              photoCount={previewVehicle ? parseArray(previewVehicle.photos).length : 0}
-            />
-            <div className="bg-[#1F2C34] px-4 py-2.5 flex items-center justify-between">
-              <span className="text-xs text-[#8696A0]">Assim aparecera no WhatsApp</span>
-              <button
-                onClick={() => {
-                  if (!previewVehicle) return;
-                  navigator.clipboard.writeText(getPreviewAdText(previewVehicle));
-                  toast.success("Texto copiado!");
-                }}
-                className="flex items-center gap-1.5 text-xs text-[#00A884] hover:text-[#06CF9C] transition-colors"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copiar texto
-              </button>
+
+            {/* Conteúdo scrollavel: grid 2 colunas em desktop, stack em mobile */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
+                {/* Coluna 1: anuncio no formato WhatsApp */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
+                      Anúncio
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (!previewVehicle) return;
+                        navigator.clipboard.writeText(getPreviewAdText(previewVehicle));
+                        toast.success("Texto copiado!");
+                      }}
+                      className="flex items-center gap-1.5 text-[11px] text-cugini-orange hover:text-cugini-orange-light transition-colors"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copiar texto
+                    </button>
+                  </div>
+                  <div className="rounded-xl overflow-hidden ring-1 ring-white/[0.06]">
+                    <div className="bg-[#1F2C34] px-3 py-2 flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-full bg-[#2A3942] flex items-center justify-center">
+                        <MessageCircle className="h-3.5 w-3.5 text-[#8696A0]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-[#E9EDEF] truncate">Grupo de Vendas</p>
+                        <p className="text-[10px] text-[#8696A0]">como aparece no WhatsApp</p>
+                      </div>
+                    </div>
+                    <WhatsAppBubble
+                      text={previewVehicle ? getPreviewAdText(previewVehicle) : ""}
+                      photo={previewVehicle ? parseArray(previewVehicle.photos)[0] : undefined}
+                      photoCount={previewVehicle ? parseArray(previewVehicle.photos).length : 0}
+                    />
+                  </div>
+                </div>
+
+                {/* Coluna 2: análise IA */}
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
+                    Análise inteligente
+                  </p>
+                  {previewVehicle && <AIInsights vehicleId={previewVehicle.id} />}
+                </div>
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -1524,13 +1565,6 @@ function VeiculosPageInner() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-
-            {/* AI Insights — análise inteligente do veículo */}
-            {publishVehicle && !republishMode && (
-              <div className="px-5 pt-3">
-                <AIInsights vehicleId={publishVehicle.id} />
-              </div>
-            )}
 
             {/* Tab switcher */}
             <div className="flex border-b border-white/10">
