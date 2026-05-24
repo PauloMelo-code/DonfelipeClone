@@ -228,6 +228,53 @@ export default function ConfiguracoesPage() {
     }
   };
 
+  const [fixingPrices, setFixingPrices] = useState(false);
+  const handleFixInflatedPrices = async () => {
+    // 1. dry run
+    setFixingPrices(true);
+    try {
+      const dryRes = await fetch("/api/admin/fix-inflated-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const dryData = await dryRes.json();
+      if (!dryRes.ok) {
+        toast.error(dryData.error || "Erro ao verificar");
+        return;
+      }
+      if (dryData.candidates === 0) {
+        toast.success("Nenhum veículo com valor inflado");
+        return;
+      }
+      // 2. confirma
+      if (!confirm(
+        `Encontrados ${dryData.candidates} veículos com valor inflado (> R$ 2.000.000).\n\n` +
+        `Eles serão DIVIDIDOS POR 100 (corrige o bug do '78.200.00').\n\n` +
+        `Exemplo: ${dryData.samples?.[0]?.model} R$ ${dryData.samples?.[0]?.old?.price?.toLocaleString("pt-BR")} → R$ ${dryData.samples?.[0]?.new?.price?.toLocaleString("pt-BR")}\n\n` +
+        `Aplicar correção?`
+      )) {
+        return;
+      }
+      // 3. aplica
+      const fixRes = await fetch("/api/admin/fix-inflated-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const fixData = await fixRes.json();
+      if (fixRes.ok) {
+        toast.success(`${fixData.fixed} veículos corrigidos`, { duration: 8000 });
+      } else {
+        toast.error(fixData.error || "Erro ao aplicar correção");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro de conexão");
+    } finally {
+      setFixingPrices(false);
+    }
+  };
+
   const handleCleanup = async (mode: string) => {
     const labels: Record<string, string> = {
       no_photo: "sem foto",
@@ -662,6 +709,25 @@ export default function ConfiguracoesPage() {
             >
               {cleaning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               {cleaning ? "Limpando..." : "Executar"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Corrigir valores inflados</p>
+              <p className="text-xs text-muted-foreground">
+                Divide por 100 carros com preço/FIPE acima de R$ 2 mi (bug do &quot;78.200.00&quot;)
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFixInflatedPrices}
+              disabled={fixingPrices}
+              className="gap-1.5 border-warning/40 text-warning hover:bg-warning/10"
+            >
+              {fixingPrices ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {fixingPrices ? "Verificando..." : "Executar"}
             </Button>
           </div>
 
