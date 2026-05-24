@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { SwipeStack } from "@/components/vehicles/swipe-stack";
 import { PhotoEditor } from "@/components/vehicles/photo-editor";
+import { AIInsights } from "@/components/vehicles/ai-insights";
 import {
   Car,
   Search,
@@ -1523,6 +1524,13 @@ function VeiculosPageInner() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* AI Insights — análise inteligente do veículo */}
+            {publishVehicle && !republishMode && (
+              <div className="px-5 pt-3">
+                <AIInsights vehicleId={publishVehicle.id} />
+              </div>
+            )}
 
             {/* Tab switcher */}
             <div className="flex border-b border-white/10">

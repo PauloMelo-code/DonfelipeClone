@@ -893,22 +893,27 @@ export async function POST(request: NextRequest) {
       void alertHighScore(model, year, qualityScore).catch(() => {});
     }
 
-    // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas e
-    // reordena pra que a melhor foto destaque (carro inteiro de fora) fique
-    // em [0]. Nao bloqueia a resposta do webhook.
+    // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas,
+    // categoriza cada uma (exterior/interior/motor/etc) e reordena pra que
+    // a melhor foto destaque fique em [0]. Salva categorias no DB para UI
+    // mostrar warning quando destaque nao for "exterior".
     if (photos.length > 1 && !autoRejectedReason) {
       const vehicleId = vehicle.id;
       const originalPhotos = photos;
       void (async () => {
         try {
-          const { reordered, originalBestIndex, changed } = await reorderPhotosByBest(originalPhotos);
-          if (changed) {
-            await prisma.vehicle.update({
-              where: { id: vehicleId },
-              data: { photos: JSON.stringify(reordered) },
-            });
-            console.log(`[Webhook] Photo picker: reordered ${vehicleId} (best was #${originalBestIndex})`);
-          }
+          const { reordered, categories, originalBestIndex, changed } = await reorderPhotosByBest(originalPhotos);
+          // Sempre salva categorias (mesmo se nao reordenou) -- UI usa elas
+          await prisma.vehicle.update({
+            where: { id: vehicleId },
+            data: {
+              ...(changed ? { photos: JSON.stringify(reordered) } : {}),
+              photoCategories: JSON.stringify(categories),
+            },
+          });
+          console.log(
+            `[Webhook] Photo analyze: ${vehicleId} cats=${categories.join(",")}${changed ? ` (reordered, best was #${originalBestIndex})` : ""}`
+          );
         } catch (e) {
           console.error("[Webhook] Photo picker background failed:", e);
         }

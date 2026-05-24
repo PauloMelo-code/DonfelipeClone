@@ -20,51 +20,66 @@ function getOpenAI(): OpenAI {
   return _openai;
 }
 
+export type PhotoCategory = "exterior" | "interior" | "motor" | "detalhe" | "screenshot" | "outro";
+
 const SYSTEM_PROMPT = `Voce e um curador de fotos de anuncios de carros.
 
-Recebera 2 a 6 fotos do mesmo veiculo. Escolha o INDICE (0-based) da foto que
-MELHOR funciona como FOTO DESTAQUE do anuncio.
+Recebera 2 a 6 fotos do mesmo veiculo. Sua tarefa:
+1. CATEGORIZAR cada foto em UMA dessas categorias:
+   - "exterior": carro inteiro de fora (lateral/diagonal/frente/traseira)
+   - "interior": bancos, painel, volante, console central
+   - "motor": cofre, motor, embaixo do capo
+   - "detalhe": roda, farol, lanterna, escapamento, retrovisor isolado
+   - "screenshot": print de aplicativo, tela de celular, foto de FIPE/tabela
+   - "outro": qualquer outra coisa
 
-CRITERIOS (em ordem de prioridade):
-1. Mostra o carro INTEIRO (a maior parte da carroceria visivel)
-2. Vista lateral/diagonal externa (3/4 ou perfil)
-3. Carro centralizado e em foco
-4. Boa iluminacao, fundo limpo
+2. ESCOLHER o INDICE (0-based) da MELHOR foto destaque do anuncio:
+   - PREFERIR vista lateral/diagonal externa (3/4 ou perfil)
+   - Carro centralizado, em foco, boa iluminacao
+   - EVITAR interior/motor/detalhe/screenshot como destaque
 
-EVITAR como destaque:
-- Foto da interna/bancos/painel/volante
-- Foto so do motor
-- Detalhe de roda/farol/escapamento
-- Foto do porta-malas aberto
-- Print de tela de aplicativo
+RESPONDA em JSON estrito (sem markdown, sem comentarios):
+{"best": <indice 0-based>, "categories": ["<categoria1>", "<categoria2>", ...]}
 
-Responda APENAS com o numero do indice (ex: "2"), sem explicacao.
-Se todas as fotos forem ruins, retorne 0.`;
+Se todas as fotos forem ruins, escolha a "menos pior" como best.
+Sempre retorne TODAS as categorias na ordem das fotos enviadas.`;
+
+export interface PhotoAnalysis {
+  best: number;
+  categories: PhotoCategory[];
+}
+
+const VALID_CATEGORIES: PhotoCategory[] = ["exterior", "interior", "motor", "detalhe", "screenshot", "outro"];
 
 /**
- * Escolhe o indice da melhor foto destaque entre as fornecidas.
+ * Analisa um array de fotos: retorna indice da melhor + categoria de cada uma.
+ * Vision faz tudo em UMA chamada (economiza vs duas requests separadas).
  *
- * @param photoUrls URLs (http://, data:image, ou path /api/media/X)
- * @returns indice (0-based) da melhor foto, ou 0 se Vision falhar.
+ * @returns { best: 0-based index, categories: array paralelo com tipo de cada foto }
  */
-export async function pickBestPhotoIndex(photoUrls: string[]): Promise<number> {
-  if (!photoUrls || photoUrls.length === 0) return 0;
-  if (photoUrls.length === 1) return 0;
+export async function analyzePhotos(photoUrls: string[]): Promise<PhotoAnalysis> {
+  if (!photoUrls || photoUrls.length === 0) {
+    return { best: 0, categories: [] };
+  }
+  // 1 foto: assume exterior (sem chamar Vision)
+  if (photoUrls.length === 1) {
+    return { best: 0, categories: ["exterior"] };
+  }
 
-  // GPT Vision aceita ate ~20 imagens por request. Limitamos a 6 pra economizar.
   const photos = photoUrls.slice(0, 6);
 
   try {
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0,
-      max_tokens: 10,
+      max_tokens: 200,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
-            { type: "text", text: `Foto destaque do veiculo. ${photos.length} candidatas, escolha o melhor indice (0 a ${photos.length - 1}):` },
+            { type: "text", text: `Analise as ${photos.length} fotos abaixo (indices 0 a ${photos.length - 1}):` },
             ...photos.map((url) => ({
               type: "image_url" as const,
               image_url: { url, detail: "low" as const },
@@ -74,35 +89,58 @@ export async function pickBestPhotoIndex(photoUrls: string[]): Promise<number> {
       ],
     });
 
-    const raw = (completion.choices[0]?.message?.content || "").trim();
-    const match = raw.match(/\d+/);
-    if (!match) return 0;
-    const idx = parseInt(match[0], 10);
-    if (isNaN(idx) || idx < 0 || idx >= photos.length) return 0;
-    return idx;
+    const raw = completion.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(raw);
+    let best = typeof parsed.best === "number" ? parsed.best : 0;
+    if (best < 0 || best >= photos.length) best = 0;
+
+    const rawCats: unknown[] = Array.isArray(parsed.categories) ? parsed.categories : [];
+    const categories: PhotoCategory[] = rawCats.map((c) => {
+      const s = String(c).toLowerCase();
+      return (VALID_CATEGORIES.includes(s as PhotoCategory) ? s : "outro") as PhotoCategory;
+    });
+    // Garante length igual ao numero de fotos
+    while (categories.length < photoUrls.length) categories.push("outro");
+
+    // REFORCO: se best aponta pra foto categorizada como interior/motor/screenshot,
+    // procura a primeira "exterior" da lista como fallback
+    const bestCat = categories[best];
+    if (bestCat !== "exterior") {
+      const exteriorIdx = categories.findIndex((c) => c === "exterior");
+      if (exteriorIdx !== -1 && exteriorIdx < photos.length) {
+        best = exteriorIdx;
+      }
+    }
+
+    return { best, categories: categories.slice(0, photoUrls.length) };
   } catch (err) {
-    console.error("[photo-picker] GPT Vision failed:", err);
-    return 0; // fallback: mantem ordem original
+    console.error("[photo-picker] GPT Vision analyze failed:", err);
+    return { best: 0, categories: photoUrls.map(() => "outro" as PhotoCategory) };
   }
 }
 
 /**
- * Reordena array de fotos colocando a "melhor" em [0].
- *
- * @returns novo array com a melhor foto primeiro
+ * Reordena array de fotos colocando a "melhor" em [0], retornando tambem
+ * as categorias reordenadas paralelamente.
  */
 export async function reorderPhotosByBest(photoUrls: string[]): Promise<{
   reordered: string[];
+  categories: PhotoCategory[];
   originalBestIndex: number;
   changed: boolean;
 }> {
   if (!photoUrls || photoUrls.length <= 1) {
-    return { reordered: photoUrls, originalBestIndex: 0, changed: false };
+    return {
+      reordered: photoUrls,
+      categories: photoUrls.map(() => "exterior" as PhotoCategory),
+      originalBestIndex: 0,
+      changed: false,
+    };
   }
 
-  const bestIdx = await pickBestPhotoIndex(photoUrls);
+  const { best: bestIdx, categories } = await analyzePhotos(photoUrls);
   if (bestIdx === 0) {
-    return { reordered: photoUrls, originalBestIndex: 0, changed: false };
+    return { reordered: photoUrls, categories, originalBestIndex: 0, changed: false };
   }
 
   const best = photoUrls[bestIdx];
@@ -111,5 +149,10 @@ export async function reorderPhotosByBest(photoUrls: string[]): Promise<{
     ...photoUrls.slice(0, bestIdx),
     ...photoUrls.slice(bestIdx + 1),
   ];
-  return { reordered, originalBestIndex: bestIdx, changed: true };
+  const reorderedCats = [
+    categories[bestIdx],
+    ...categories.slice(0, bestIdx),
+    ...categories.slice(bestIdx + 1),
+  ];
+  return { reordered, categories: reorderedCats, originalBestIndex: bestIdx, changed: true };
 }

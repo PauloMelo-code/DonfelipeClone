@@ -40,6 +40,10 @@ model Vehicle {
   state           String?
   features        String    @default("[]")
   photos          String    @default("[]")
+  /// JSON array paralelo a photos[] com a categoria de cada foto
+  /// segundo GPT Vision: exterior|interior|motor|detalhe|screenshot|outro.
+  /// Usado pra alertar quando a foto destaque nao e do exterior do carro.
+  photoCategories String?
   rawDescription  String?
   sourceGroupId   String?
   sourceMessageId String?   @unique
