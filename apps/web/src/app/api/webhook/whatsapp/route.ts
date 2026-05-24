@@ -13,7 +13,6 @@ import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning"
 import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
-import { alertVipCaptured, alertHighScore } from "@/lib/telegram";
 import { reorderPhotosByBest } from "@/lib/photo-picker";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
@@ -884,14 +883,6 @@ export async function POST(request: NextRequest) {
         rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
       },
     });
-
-    // Fire-and-forget Telegram alerts for noteworthy captures
-    if (isVip && !autoRejectedReason) {
-      void alertVipCaptured(model, year, price).catch(() => {});
-    }
-    if (qualityScore && qualityScore >= 8 && !autoRejectedReason) {
-      void alertHighScore(model, year, qualityScore).catch(() => {});
-    }
 
     // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas,
     // categoriza cada uma (exterior/interior/motor/etc) e reordena pra que

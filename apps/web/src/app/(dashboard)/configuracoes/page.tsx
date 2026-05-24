@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Save, Loader2, Smartphone, RefreshCw, WifiOff, Wifi, BarChart3, MapPin, Send, Trash2, Ban, Crown, AlertTriangle, Filter, Percent } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PageContainer } from "@/components/ui/page-container";
 import { SectionCard } from "@/components/ui/section-card";
 import { AlertBanner } from "@/components/ui/alert-banner";
@@ -59,105 +58,6 @@ export default function ConfiguracoesPage() {
   const [sendQrCode, setSendQrCode] = useState<string | null>(null);
   const [sendQrLoading, setSendQrLoading] = useState(false);
 
-  // Reset vehicles state
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [resetPreview, setResetPreview] = useState<{
-    keepFrom: string;
-    wouldDelete: { vehicles: number; postHistory: number; auditLogs: number; mediaFiles: number };
-    kept: { vehicles: number };
-  } | null>(null);
-  const [resetting, setResetting] = useState(false);
-  const [resetConfirmText, setResetConfirmText] = useState("");
-
-  // Helper: parse response safely. Returns parsed JSON or a friendly error
-  // when the server returned HTML (deploy in progress, 404, login redirect, etc).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const parseJsonResponse = async (res: Response): Promise<{ ok: true; data: any } | { ok: false; error: string }> => {
-    const text = await res.text();
-    if (!text) {
-      return { ok: false, error: `Resposta vazia (HTTP ${res.status})` };
-    }
-    if (text.trim().startsWith("<")) {
-      return {
-        ok: false,
-        error:
-          res.status === 404
-            ? "Endpoint não encontrado. O deploy talvez ainda não tenha terminado — aguarde 1 minuto e tente de novo."
-            : res.status === 401 || res.status === 403
-              ? "Sessão expirou ou você não é admin. Faça logout e login de novo."
-              : `Servidor retornou HTML em vez de JSON (HTTP ${res.status}). Provavelmente o deploy está em progresso ou houve erro 500.`,
-      };
-    }
-    try {
-      return { ok: true, data: JSON.parse(text) };
-    } catch {
-      return { ok: false, error: `Resposta inválida do servidor: ${text.slice(0, 120)}` };
-    }
-  };
-
-  const handleOpenReset = async () => {
-    setResetting(true);
-    setResetPreview(null);
-    setResetConfirmText("");
-    setShowResetModal(true);
-    try {
-      const res = await fetch("/api/admin/reset-vehicles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: true }),
-      });
-      const parsed = await parseJsonResponse(res);
-      if (!parsed.ok) {
-        toast.error(parsed.error, { duration: 12000 });
-        setShowResetModal(false);
-        return;
-      }
-      if (res.ok) {
-        setResetPreview(parsed.data);
-      } else {
-        toast.error(parsed.data.error || "Erro ao calcular preview");
-        setShowResetModal(false);
-      }
-    } catch (e) {
-      toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`);
-      setShowResetModal(false);
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  const handleConfirmReset = async () => {
-    if (resetConfirmText !== "RESETAR") {
-      toast.error('Digite "RESETAR" para confirmar');
-      return;
-    }
-    setResetting(true);
-    try {
-      const res = await fetch("/api/admin/reset-vehicles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: false }),
-      });
-      const parsed = await parseJsonResponse(res);
-      if (!parsed.ok) {
-        toast.error(parsed.error, { duration: 12000 });
-        return;
-      }
-      if (res.ok) {
-        toast.success(
-          `${parsed.data.deleted.vehicles} veículos apagados. ${parsed.data.kept.vehicles} mantidos.`,
-          { duration: 8000 }
-        );
-        setShowResetModal(false);
-      } else {
-        toast.error(parsed.data.error || "Erro ao resetar");
-      }
-    } catch (e) {
-      toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setResetting(false);
-    }
-  };
 
   const fetchWaStatus = useCallback(async () => {
     setWaStatusLoading(true);
@@ -765,20 +665,6 @@ export default function ConfiguracoesPage() {
             </Button>
           </div>
 
-          {/* Telegram alerts info section */}
-          <div className="space-y-2 pt-3 border-t border-border">
-            <p className="text-sm font-medium">Alertas Telegram</p>
-            <p className="text-xs text-muted-foreground">
-              Configure TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID nas variáveis de ambiente.
-              Você receberá alertas quando:
-            </p>
-            <ul className="text-xs text-muted-foreground space-y-1 ml-4 list-disc">
-              <li>Carro VIP capturado</li>
-              <li>Oportunidade com score &gt;= 8</li>
-              <li>WhatsApp desconectado</li>
-              <li>Erros críticos do sistema</li>
-            </ul>
-          </div>
         </div>
         </SectionCard>
 
@@ -790,106 +676,7 @@ export default function ConfiguracoesPage() {
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar Configurações
         </Button>
-
-        {/* Zona perigosa */}
-        <div className="mt-8 rounded-2xl border border-destructive/25 bg-destructive/[0.03] p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-destructive">Zona perigosa</h3>
-          </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Resetar veículos antigos</p>
-            <p className="text-xs text-muted-foreground">
-              Apaga todos os veículos capturados ANTES de hoje (00:00). Mantém só os carros do dia.
-              Também limpa histórico de publicações, audit logs e media files órfãos relacionados.
-              Ação irreversível.
-            </p>
-            <Button
-              variant="outline"
-              onClick={handleOpenReset}
-              disabled={resetting}
-              className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Resetar veículos antigos
-            </Button>
-          </div>
-        </div>
       </PageContainer>
-
-      {/* Modal de confirmacao do reset */}
-      <Dialog open={showResetModal} onOpenChange={(open) => { if (!resetting) setShowResetModal(open); }}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Resetar veículos antigos
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            {!resetPreview ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                <div className="rounded-lg border border-border p-3 text-xs space-y-1">
-                  <p className="text-muted-foreground">
-                    Apagando capturas até <span className="font-mono">{new Date(resetPreview.keepFrom).toLocaleString("pt-BR")}</span>
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-destructive uppercase tracking-wide">Será apagado</p>
-                  <ul className="text-sm space-y-0.5 mt-2">
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.vehicles}</span> veículos</li>
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.postHistory}</span> registros de publicação</li>
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.auditLogs}</span> audit logs</li>
-                    <li><span className="font-bold text-destructive">{resetPreview.wouldDelete.mediaFiles}</span> arquivos de media</li>
-                  </ul>
-                </div>
-
-                <div className="rounded-lg border border-success/30 bg-success/5 p-3 space-y-1">
-                  <p className="text-xs font-semibold text-success uppercase tracking-wide">Será mantido</p>
-                  <p className="text-sm">
-                    <span className="font-bold text-success">{resetPreview.kept.vehicles}</span> veículos (capturados hoje)
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">
-                    Pra confirmar, digite <span className="font-mono font-semibold text-destructive">RESETAR</span>:
-                  </Label>
-                  <Input
-                    value={resetConfirmText}
-                    onChange={(e) => setResetConfirmText(e.target.value)}
-                    placeholder="RESETAR"
-                    className="bg-background border-border"
-                    disabled={resetting}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowResetModal(false)}
-              disabled={resetting}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleConfirmReset}
-              disabled={resetting || !resetPreview || resetConfirmText !== "RESETAR"}
-              className="gap-2 bg-destructive text-white hover:bg-destructive/90 disabled:opacity-50"
-            >
-              {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Apagar definitivamente
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
