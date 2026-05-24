@@ -23,6 +23,7 @@ import {
   X,
   Send,
   Eye,
+  Sparkles,
   Loader2,
   MessageCircle,
   Copy,
@@ -174,6 +175,7 @@ function VeiculosPageInner() {
   const [publishVehicle, setPublishVehicle] = useState<Vehicle | null>(null);
   const [republishMode, setRepublishMode] = useState(false);
   const [editedAd, setEditedAd] = useState("");
+  const [regeneratingAd, setRegeneratingAd] = useState(false);
   const [publishTab, setPublishTab] = useState<"photo" | "edit" | "preview">("edit");
   const [mobileEditorFullscreen, setMobileEditorFullscreen] = useState(false);
   const [editedPhotos, setEditedPhotos] = useState<Record<number, string>>({});
@@ -653,10 +655,8 @@ function VeiculosPageInner() {
     setPublishVehicle(vehicle);
     setEditedPhotos({});
     setPublishTab("photo");
-    // Start with empty selection — the auto-select-by-region useEffect picks
-    // the right groups once both vehicle and targetGroups are loaded. If no
-    // region is detected, selection stays empty (operator chooses manually).
     setSelectedGroupIds([]);
+
     // Fetch target groups
     try {
       const res = await fetch("/api/groups?role=TARGET&active=true&counts=false");
@@ -667,22 +667,24 @@ function VeiculosPageInner() {
     } catch {
       setTargetGroups([]);
     }
+
     // Fetch current margin setting
+    let m = 10;
     try {
       const res = await fetch("/api/settings");
       if (res.ok) {
         const data = await res.json();
-        const m = data.profit_margin_percent ? parseFloat(data.profit_margin_percent) : 10;
-        setMargin(m);
-        setEditedAd(getAdText(vehicle, m));
-      } else {
-        setMargin(10);
-        setEditedAd(getAdText(vehicle, 10));
+        m = data.profit_margin_percent ? parseFloat(data.profit_margin_percent) : 10;
       }
-    } catch {
-      setMargin(10);
-      setEditedAd(getAdText(vehicle, 10));
-    }
+    } catch { /* ignore, usa default 10 */ }
+    setMargin(m);
+
+    // PRIORIDADE pra o texto:
+    //   1. vehicle.formattedAd (salvo no DB - inclui edicoes anteriores do operador)
+    //   2. getAdText gerado a partir do rawDescription
+    // Antes o sistema SEMPRE regerava do zero, descartando edicoes feitas.
+    const savedAd = vehicle.formattedAd?.trim();
+    setEditedAd(savedAd && savedAd.length > 0 ? savedAd : getAdText(vehicle, m));
   };
 
   const handleMarginChange = (newMargin: number) => {
@@ -1613,16 +1615,49 @@ function VeiculosPageInner() {
               )}
 
               {publishTab === "edit" && (
-                <div className="p-4">
+                <div className="p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      Edite o texto. Sua alteração é salva ao fechar o modal.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={regeneratingAd || !publishVehicle}
+                      onClick={async () => {
+                        if (!publishVehicle) return;
+                        setRegeneratingAd(true);
+                        try {
+                          const res = await fetch(`/api/vehicles/${publishVehicle.id}/regenerate-ad`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ margin }),
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.formattedAd) {
+                            setEditedAd(data.formattedAd);
+                            toast.success("Texto regerado com IA");
+                          } else {
+                            toast.error(data.error || "Erro ao regerar");
+                          }
+                        } catch {
+                          toast.error("Erro de conexão");
+                        } finally {
+                          setRegeneratingAd(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-cugini-orange/30 bg-cugini-orange/[0.05] text-cugini-orange hover:bg-cugini-orange/10 px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                      title="Limpa o texto com IA (remove header da loja, contatos, frases promocionais)"
+                    >
+                      {regeneratingAd ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      {regeneratingAd ? "Regerando..." : "Regerar com IA"}
+                    </button>
+                  </div>
                   <textarea
                     value={editedAd}
                     onChange={(e) => setEditedAd(e.target.value)}
                     className="w-full h-[50vh] sm:h-64 rounded-lg bg-card border border-border p-3 text-sm text-foreground font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-cugini-orange/50 focus:border-cugini-orange/50"
                     placeholder="Texto do anuncio..."
                   />
-                  <p className="text-[11px] text-muted-foreground mt-2">
-                    Edite o texto acima. Alterar a margem abaixo regenera automaticamente.
-                  </p>
                 </div>
               )}
 
