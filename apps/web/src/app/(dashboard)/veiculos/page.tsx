@@ -24,6 +24,7 @@ import {
   X,
   Send,
   Eye,
+  Sparkles,
   Loader2,
   MessageCircle,
   Copy,
@@ -1358,11 +1359,12 @@ function VeiculosPageInner() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="gap-1.5 border-border"
+                          className="gap-1.5 border-cugini-orange/30 text-cugini-orange hover:bg-cugini-orange/10 hover:border-cugini-orange/50 relative"
                           onClick={() => setPreviewVehicle(vehicle)}
-                          title="Preview WhatsApp"
+                          title="Ver detalhes + análise IA"
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline text-xs">Análise IA</span>
                         </Button>
                       </div>
                     </div>
