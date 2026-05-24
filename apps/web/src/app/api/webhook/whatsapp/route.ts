@@ -666,6 +666,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Sanity check: preco > R$ 2.000.000 indica erro de parsing (ponto
+    // duplo "78.200.00" lido como 7.820.000). Carro de repasse nao chega
+    // a esses valores. Descarta e loga pra investigacao.
+    if (price > 2_000_000) {
+      console.warn(`[Webhook] SUSPECT price ${price} for "${model}" -- provavelmente erro de parsing decimal`);
+      return NextResponse.json({
+        status: "filtered",
+        reason: "price_likely_parse_error",
+        price,
+      });
+    }
+    // Mesma protecao pra FIPE quando ela vem absurda
+    const fipeRaw = typeof vehicleData.fipePrice === "number" ? vehicleData.fipePrice : null;
+    if (fipeRaw && fipeRaw > 2_000_000) {
+      console.warn(`[Webhook] SUSPECT fipePrice ${fipeRaw} -- ignorando FIPE`);
+      vehicleData.fipePrice = null;
+    }
+
     // Filtro global de KM maxima (configuravel via Settings, padrao 300.000)
     // Carro com km muito alto perde margem -- regra do cliente.
     const maxKmSetting = await prisma.setting.findUnique({

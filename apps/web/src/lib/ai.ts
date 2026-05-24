@@ -40,9 +40,44 @@ function parseBrazilianNumber(raw: string): number | null {
     return parseFloat(kMatch[1].replace(",", ".")) * 1000;
   }
 
-  // Brazilian format: "127.000" or "127.000,00"
-  // Remove dots (thousands), replace comma with dot (decimal)
-  s = s.replace(/\./g, "").replace(",", ".");
+  // Brazilian format. Casos suportados:
+  //   "127.000"      -> 127000   (pontos = milhar)
+  //   "127.000,00"   -> 127000   (virgula = decimal)
+  //   "65.500"       -> 65500
+  //   "78.200.00"    -> 78200    (ponto duplo: ultimo eh DECIMAL, nao milhar)
+  //   "78.200.000"   -> 78200000 (ponto duplo: ultimo com 3 digitos = milhar)
+  //   "78,200.00"    -> 78200    (formato US misturado: virgula milhar, ponto decimal)
+  const hasComma = s.includes(",");
+  const dots = (s.match(/\./g) || []).length;
+
+  if (!hasComma && dots >= 2) {
+    // Multiplos pontos sem virgula -- ambiguo. Heuristica:
+    //   se o ultimo grupo apos o ponto tem 1-2 digitos = decimal
+    //   se tem 3 digitos = milhar
+    const lastDot = s.lastIndexOf(".");
+    const tail = s.slice(lastDot + 1);
+    if (/^\d{1,2}$/.test(tail)) {
+      // "78.200.00" -> "78200.00" -> 78200
+      s = s.slice(0, lastDot).replace(/\./g, "") + "." + tail;
+    } else {
+      // "78.200.000" -> "78200000"
+      s = s.replace(/\./g, "");
+    }
+  } else if (!hasComma && dots === 1) {
+    // 1 ponto, sem virgula -- ainda pode ser decimal se grupo tem 1-2 digitos
+    // Ex: "12.50" -> 12.50 (decimal) vs "12.500" -> 12500 (milhar)
+    const tail = s.slice(s.indexOf(".") + 1);
+    if (/^\d{1,2}$/.test(tail)) {
+      // mantem como float: "12.50" -> 12.50
+    } else {
+      // milhar: "12.500" -> "12500"
+      s = s.replace(/\./g, "");
+    }
+  } else {
+    // Padrao PT-BR: pontos = milhar, virgula = decimal
+    s = s.replace(/\./g, "").replace(",", ".");
+  }
+
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
@@ -460,6 +495,14 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    - "Vendo por 90 mil"                 -> price=90000, fipePrice=null
    - "Fipe 0km R$180.000 / Fipe usado R$159.000 / Por R$149.000"
         -> fipePrice=159000 (a do usado), price=149000
+
+7. FORMATO BRASILEIRO DE NUMEROS:
+   - "78.200,00" = 78200 (ponto = milhar, virgula = decimal)
+   - "78.200.00" = 78200 (ponto duplo: o ultimo eh DECIMAL, NAO milhar!)
+   - "78.200.000" = 78200000 (ultimo grupo com 3 digitos = milhar)
+   - "65.500" = 65500 (1 ponto + 3 digitos = milhar)
+   - NUNCA retorne valores absurdos (carro de R\$ 7 milhoes nao existe em
+     repasse). Se extrair >R\$ 800.000 verifique se nao tirou virgula errada.
 
 === REGRAS CRITICAS SOBRE O ANO ===
 1. "year" e "yearModel" sao o ano de FABRICACAO e MODELO do veiculo.
