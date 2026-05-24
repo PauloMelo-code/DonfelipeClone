@@ -14,6 +14,7 @@ import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
 import { alertVipCaptured, alertHighScore } from "@/lib/telegram";
+import { reorderPhotosByBest } from "@/lib/photo-picker";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -890,6 +891,28 @@ export async function POST(request: NextRequest) {
     }
     if (qualityScore && qualityScore >= 8 && !autoRejectedReason) {
       void alertHighScore(model, year, qualityScore).catch(() => {});
+    }
+
+    // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas e
+    // reordena pra que a melhor foto destaque (carro inteiro de fora) fique
+    // em [0]. Nao bloqueia a resposta do webhook.
+    if (photos.length > 1 && !autoRejectedReason) {
+      const vehicleId = vehicle.id;
+      const originalPhotos = photos;
+      void (async () => {
+        try {
+          const { reordered, originalBestIndex, changed } = await reorderPhotosByBest(originalPhotos);
+          if (changed) {
+            await prisma.vehicle.update({
+              where: { id: vehicleId },
+              data: { photos: JSON.stringify(reordered) },
+            });
+            console.log(`[Webhook] Photo picker: reordered ${vehicleId} (best was #${originalBestIndex})`);
+          }
+        } catch (e) {
+          console.error("[Webhook] Photo picker background failed:", e);
+        }
+      })();
     }
 
     await prisma.auditLog.create({
