@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageContainer } from "@/components/ui/page-container";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AuditVehicleDetail } from "@/components/vehicles/audit-vehicle-detail";
 import {
   Search,
   ChevronLeft,
@@ -202,16 +203,26 @@ export default function AuditoriaPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
                         <span className="text-[10px] text-muted-foreground">{formatDate(log.createdAt)}</span>
-                        {details && (
+                        {(details || log.vehicleId) && (
                           <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
                         )}
                       </div>
                     </div>
-                    {isExpanded && details && (
-                      <div className="px-4 pb-3 bg-card/50">
-                        <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-background/50 rounded-lg p-3 max-h-40 overflow-auto">
-                          {JSON.stringify(details, null, 2)}
-                        </pre>
+                    {isExpanded && (
+                      <div className="px-4 pb-3 bg-card/50 space-y-3">
+                        {log.vehicleId && (
+                          <AuditVehicleDetail vehicleId={log.vehicleId} />
+                        )}
+                        {details && (
+                          <details className="rounded-lg bg-background/50">
+                            <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2">
+                              Detalhes técnicos (JSON)
+                            </summary>
+                            <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono px-3 pb-3 max-h-40 overflow-auto">
+                              {JSON.stringify(details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                     )}
                   </motion.div>
@@ -268,7 +279,7 @@ export default function AuditoriaPage() {
                         </td>
                         <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
                         <td className="px-5 py-3.5">
-                          {details && <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />}
+                          {(details || log.vehicleId) && <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />}
                         </td>
                       </motion.tr>
                     );
@@ -280,14 +291,24 @@ export default function AuditoriaPage() {
             {/* Expanded details - desktop */}
             {expandedId && (() => {
               const log = logs.find((l) => l.id === expandedId);
-              const details = log ? parseDetails(log.details) : null;
-              if (!details) return null;
+              if (!log) return null;
+              const details = parseDetails(log.details);
+              if (!details && !log.vehicleId) return null;
               return (
-                <div className="hidden md:block px-4 py-3 bg-card/50 border-t border-white/[0.03]">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/50 mb-2">Detalhes</p>
-                  <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono bg-background/50 rounded-lg p-3 max-h-40 overflow-auto">
-                    {JSON.stringify(details, null, 2)}
-                  </pre>
+                <div className="hidden md:block px-5 py-4 bg-card/40 border-t border-white/[0.04] space-y-4">
+                  {log.vehicleId && (
+                    <AuditVehicleDetail vehicleId={log.vehicleId} />
+                  )}
+                  {details && (
+                    <details className="rounded-lg border border-white/[0.04] bg-background/40">
+                      <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2 select-none">
+                        Detalhes técnicos (JSON)
+                      </summary>
+                      <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono px-3 pb-3 max-h-40 overflow-auto">
+                        {JSON.stringify(details, null, 2)}
+                      </pre>
+                    </details>
+                  )}
                 </div>
               );
             })()}
