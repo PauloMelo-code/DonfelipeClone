@@ -116,13 +116,25 @@ export function formatVehicleAd(
     ? `${vehicle.year}/${vehicle.yearModel}`
     : `${vehicle.year}`;
 
-  // --- Remove brand prefix from model if present ---
+  // --- GARANTIR que a marca aparece no inicio do model display ---
+  // Cliente quer ver a marca SEMPRE (ex: "BMW i7" e nao so "i7",
+  // "JEEP Compass" e nao so "Compass"). Se model ja comecar com brand,
+  // mantem. Se nao, prefixa.
   let displayModel = vehicle.model;
   if (vehicle.brand) {
     const brandUpper = vehicle.brand.toUpperCase();
     const modelUpper = displayModel.toUpperCase();
-    if (modelUpper.startsWith(brandUpper + " ")) {
-      displayModel = displayModel.substring(vehicle.brand.length + 1);
+    // Tambem aceita formato "MARCA/MODELO" do extractor
+    const startsWithBrand =
+      modelUpper.startsWith(brandUpper + " ") ||
+      modelUpper.startsWith(brandUpper + "/") ||
+      modelUpper === brandUpper;
+    if (!startsWithBrand) {
+      displayModel = `${vehicle.brand.toUpperCase()} ${displayModel}`;
+    } else if (!displayModel.startsWith(vehicle.brand.toUpperCase())) {
+      // Ja tem brand mas em case diferente -- normaliza pra MAIUSCULA
+      const sepIdx = vehicle.brand.length;
+      displayModel = vehicle.brand.toUpperCase() + displayModel.substring(sepIdx);
     }
   }
 

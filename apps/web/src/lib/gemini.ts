@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 export const isGeminiConfigured = () => !!process.env.GEMINI_API_KEY;
 

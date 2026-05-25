@@ -67,7 +67,7 @@ async function analyzePhotosWithGemini(photoUrls: string[]): Promise<PhotoAnalys
   // Se nao conseguiu carregar nenhuma imagem, aborta
   if (parts.length <= 1) return null;
 
-  const url = `${GEMINI_API_BASE}/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const url = `${GEMINI_API_BASE}/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   const body = {
     contents: [{ role: "user", parts }],
     systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
