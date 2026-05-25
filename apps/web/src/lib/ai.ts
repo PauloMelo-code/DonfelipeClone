@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { geminiGenerateText, isGeminiConfigured } from "./gemini";
 
 export interface VehicleData {
   model: string;
@@ -632,8 +633,25 @@ function parseGptResponse(raw: string): VehicleData | null {
   } catch { return null; }
 }
 
+async function extractWithGemini(text: string): Promise<VehicleData | null> {
+  if (!isGeminiConfigured()) return null;
+  // Gemini nao tem response_format strict como o GPT, mas suporta JSON mode.
+  // Vou pedir JSON explicito no prompt + jsonMode=true.
+  const userPrompt = `${text}\n\nResponda APENAS com JSON no formato pedido (sem markdown, sem aspas envolvendo).`;
+  const raw = await geminiGenerateText(EXTRACTION_SYSTEM_PROMPT, userPrompt, {
+    jsonMode: true,
+    maxTokens: 1000,
+    temperature: 0.1,
+  });
+  if (!raw) return null;
+  return parseGptResponse(raw);
+}
+
 async function extractWithGPT(text: string): Promise<VehicleData | null> {
-  if (!process.env.OPENAI_API_KEY) return null;
+  if (!process.env.OPENAI_API_KEY) {
+    // GPT nao configurado -- tenta Gemini direto
+    return extractWithGemini(text);
+  }
   try {
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4.1-mini", temperature: 0.1,
@@ -644,11 +662,22 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
       ],
     });
     const content = completion.choices[0]?.message?.content;
-    if (!content) return null;
-    return parseGptResponse(content);
+    if (!content) {
+      console.warn("[ai] GPT retornou vazio, tentando Gemini");
+      return extractWithGemini(text);
+    }
+    const parsed = parseGptResponse(content);
+    if (!parsed) {
+      console.warn("[ai] GPT retornou JSON invalido, tentando Gemini");
+      return extractWithGemini(text);
+    }
+    return parsed;
   } catch (error) {
     console.error("[ai] GPT extraction failed:", error);
-    return null;
+    // Fallback automatico pro Gemini
+    const fallback = await extractWithGemini(text);
+    if (fallback) console.log("[ai] Gemini fallback sucesso");
+    return fallback;
   }
 }
 

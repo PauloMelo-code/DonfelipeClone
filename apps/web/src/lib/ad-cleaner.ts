@@ -14,6 +14,7 @@
 
 import OpenAI from "openai";
 import { createHash } from "crypto";
+import { geminiGenerateText, isGeminiConfigured } from "./gemini";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -161,6 +162,7 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
   const cached = cacheGet(key);
   if (cached !== null) return cached;
 
+  // 1) Tenta GPT-4.1-mini (primario)
   try {
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4.1-mini",
@@ -172,13 +174,31 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
       ],
     });
     const cleaned = (completion.choices[0]?.message?.content || "").trim();
-    cacheSet(key, cleaned);
-    return cleaned;
+    if (cleaned) {
+      cacheSet(key, cleaned);
+      return cleaned;
+    }
+    // GPT retornou vazio -- considera falha, cai pro fallback
+    console.warn("[ad-cleaner] GPT retornou vazio, tentando Gemini");
   } catch (err) {
     console.error("[ad-cleaner] GPT failed:", err);
-    // Fallback: devolve original truncado, regex do formatter cuida do resto
-    return text.slice(0, 2000);
   }
+
+  // 2) Fallback: Gemini 2.0 Flash (se configurado)
+  if (isGeminiConfigured()) {
+    const cleaned = await geminiGenerateText(SYSTEM_PROMPT, text.slice(0, 3000), {
+      maxTokens: 400,
+      temperature: 0.1,
+    });
+    if (cleaned) {
+      console.log("[ad-cleaner] usado fallback Gemini com sucesso");
+      cacheSet(key, cleaned);
+      return cleaned;
+    }
+  }
+
+  // 3) Ultimo fallback: texto original truncado (regex do formatter limpa o resto)
+  return text.slice(0, 2000);
 }
 
 /** Limpa o cache (util pra testes). */
