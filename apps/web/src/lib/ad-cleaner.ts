@@ -30,8 +30,11 @@ const cleanerCache = new Map<string, CacheEntry>();
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
+// Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
+const PROMPT_VERSION = "v2";
+
 function hashText(s: string): string {
-  return createHash("md5").update(s.trim()).digest("hex").slice(0, 16);
+  return createHash("md5").update(PROMPT_VERSION + ":" + s.trim()).digest("hex").slice(0, 16);
 }
 
 function cacheGet(key: string): string | null {
@@ -53,38 +56,81 @@ function cacheSet(key: string, value: string) {
   cleanerCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados.
+const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Cugini.
 
-Sua tarefa: receber o texto de um anuncio (potencialmente bagunçado, com headers de empresa, contatos, frases promocionais) e devolver APENAS as informacoes relevantes do VEICULO no formato de bullets curtos.
+Tarefa: receber o texto bagunçado e devolver APENAS as informacoes do
+VEICULO no FORMATO PADRAO Cugini abaixo.
+
+=== FORMATO PADRAO (CRITICO) ===
+Devolva no MAXIMO 5-6 linhas seguindo essa estrutura quando aplicavel:
+
+  Opcionais: <item1>, <item2>, <item3>, ...
+  <Atributo curto isolado: ex "Único dono">
+  Manual e chave reserva
+  IPVA <ano> pago
+  Estado: <pneus bons, sem detalhes, etc>
+  Historico: <revisoes em concessionaria, etc>
 
 REGRAS:
-1. MANTER:
-   - Lista de opcionais/equipamentos (multimidia, couro, sensores, etc)
-   - Estado de pneus, IPVA, placa
-   - Historico relevante (revisoes em concessionaria, manual, chave reserva, garantia ativa)
-   - Estado do veiculo (sem detalhes, batidas, sinistro -- se mencionar)
+1. AGRUPAR opcionais EM UMA LINHA SO com prefixo "Opcionais: " separado
+   por virgula. NAO listar cada um numa linha.
+   ERRADO:
+     Blindada SBA
+     Vidros protector
+     Multimidia
+   CERTO:
+     Opcionais: blindada SBA, vidros protector, multimidia
 
-2. REMOVER:
-   - Nome da empresa/loja/grupo (ex: "VAAPTY ITAJAI", "REPASSE SUL")
-   - Telefones, contatos, nomes de vendedores
-   - Frases promocionais (HISTORICO PREMIUM, OPORTUNIDADE, MENOR PRECO, AVALIACAO SUPERFICIAL, "Para o seu showroom", "Acompanha manual" sem ser opcional, etc)
+2. Atributos "individuais" continuam em linha propria (sao status, nao opcional):
+   - "Único dono", "Manual do proprietário", "Chave reserva"
+   - "IPVA <ano> pago", "Placa a confirmar"
+   - "Sem detalhes"
+   Estes ficam em linhas separadas, podem ate agrupar com " · " se ficar bom:
+     Único dono · Manual e chave reserva
+
+3. REMOVER:
+   - Nome da loja/empresa/grupo (VAAPTY, REPASSE SUL, GO REPASSES, etc)
+   - Telefones, contatos, nomes de vendedores (Lucas, Junior, etc)
+   - Frases promocionais (Menor valor Brasil, Oportunidade, Historico Premium,
+     Avaliacao Superficial, "Para o seu showroom", etc)
    - Localizacao (cidade, estado) -- ja temos no header
-   - Pedida/Custo/Faco/Investimento -- ja temos no rodape
+   - Pedida/Custo/Faco/Investimento/Valor -- ja temos no rodape
    - Modelo, ano, km, fipe -- ja temos no cabecalho
-   - Emojis decorativos (manter so se for delimitador relevante)
+   - Emojis decorativos
    - Linhas vazias excessivas
 
-3. FORMATO de saida:
-   - Use uma linha por categoria de info
-   - Pode usar prefixos curtos quando agregam clareza ("Opcionais:", "Estado:")
-   - Mantenha o texto enxuto, no maximo 6-8 linhas
-   - Se o anuncio nao tiver NADA relevante alem do que ja temos no cabecalho, devolva string vazia
-   - NAO use markdown (sem *, _, ~)
+4. SAIDA:
+   - Maximo 5-6 linhas
+   - Se nao tiver NADA relevante alem do que ja temos no cabecalho, devolva ""
+   - NAO use markdown (sem *, _, ~, #)
    - NAO adicione informacao que nao esta no texto original
+   - portugues brasileiro, sem palavras em maiusculas excessivas
 
-4. IDIOMA: portugues brasileiro, mesmo tom do anuncio original.
+=== EXEMPLOS ===
+INPUT:
+  Menor valor Brasil
+  BMW i7
+  Ano 2024
+  39.000 km
+  *Blindada SBA vidros protector evo*
+  Único dono
+  Manual do proprietário
+  Chave reserva
+  Sem detalhes
+  IPVA 2026 pago
+  Fipe R\$ 882.373,00
+  Valor R\$ 679.990,00
+  *Contatos Go Repasses Porto Alegre*
+  *Lucas* | 51997361089
+  *Júnior* | 51996811106
 
-Devolva APENAS o texto limpo, sem explicacoes nem prefixo "Texto limpo:".`;
+OUTPUT (sem cabecalho/rodape -- so o corpo limpo):
+  Opcionais: blindada SBA, vidros protector EVO
+  Único dono · Manual do proprietário · Chave reserva
+  IPVA 2026 pago
+  Sem detalhes
+
+Devolva APENAS o corpo limpo. Sem explicacoes, sem prefixo "Texto limpo:".`;
 
 /**
  * Limpa o rawDescription via GPT-4.1-mini.

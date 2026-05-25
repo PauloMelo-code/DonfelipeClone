@@ -248,29 +248,70 @@ function extractWithRegex(text: string): VehicleData | null {
   else if (/\betanol\b/i.test(clean)) fuel = "ETANOL";
 
   // --- Model (first non-empty line that looks like a vehicle name) ---
+  // Lista de CHAMADAS promocionais que aparecem como header de loja/anuncio
+  // mas NAO sao modelo. Ex: "Menor valor Brasil", "Oportunidade", "VAAPTY ITAJAI"
+  const PROMO_PHRASES: RegExp[] = [
+    /^menor\s*(valor|pre[çc]o)\s*(do\s*)?(brasil|sul|pa[ií]s)?/i,
+    /^oportunidade\b/i,
+    /^imperd[ií]vel/i,
+    /^melhor\s*(oferta|pre[çc]o|valor|neg[oó]ci)/i,
+    /^aproveite/i,
+    /^promo[çc][ãa]o\b/i,
+    /^baita\s*(neg|oferta)/i,
+    /^abaixo\s*da\s*(tabela|fipe)/i,
+    /^super\s*oferta/i,
+    /^ultim[ao]s?\s*(unidade|dia)/i,
+    /^repassey/i,
+    /^vaapty/i,
+    /^repasse[s]?\s*(sul|brasil|premium|vip)/i,
+    /^contatos?\b/i,
+    /^historico\s*(premium|completo)/i,
+    /^hist[oó]rico\s*premium/i,
+    /^aval[ií]a[çc][aã]o\s*superficial/i,
+    /^carro\s*(de|para|do)\s*(repasse|garagem)/i,
+    /^carros?\s*(novos|seminovos|usados)/i,
+    /^\s*(loja|repasse|garagem|consultoria)\b/i,
+    /^para\s*(o\s*)?seu\s*showroom/i,
+    /^acompanha\s*(manual|chave)/i,
+    /^baixou+/i,
+    /^para\s*vender\s*agora/i,
+  ];
+  const isPromoLine = (l: string) => PROMO_PHRASES.some((p) => p.test(l));
+
   let model: string | null = null;
   let brand: string | undefined;
-  for (const line of lines.slice(0, 5)) {
+
+  // PASSADA 1: prioriza linha COM brand conhecida (maior confiabilidade)
+  for (const line of lines.slice(0, 10)) {
     const l = line.replace(/[*_~`]/g, "").trim();
     if (!l || l.length < 3 || l.length > 80) continue;
-    // Skip lines that are just numbers, dates, or common non-model text
     if (/^\d+$/.test(l)) continue;
     if (/^(ano|km|preco|valor|fipe|pedid|r\$)/i.test(l)) continue;
-    // Check if line contains a known brand
+    if (isPromoLine(l)) continue;
+
     const upperL = l.toUpperCase();
     for (const b of BRANDS) {
       if (upperL.includes(b)) {
         brand = b === "VW" ? "VOLKSWAGEN" : b;
-        // Model is the line, optionally without the brand prefix
         model = l;
         break;
       }
     }
     if (model) break;
-    // If no brand found but looks like a model name (has letters + possibly numbers)
-    if (/[a-zA-Z]/.test(l) && !/^(✅|📊|💰|📍|🔑)/u.test(l)) {
-      model = l;
-      break;
+  }
+
+  // PASSADA 2: fallback -- primeira linha alfa que nao seja promocional
+  if (!model) {
+    for (const line of lines.slice(0, 5)) {
+      const l = line.replace(/[*_~`]/g, "").trim();
+      if (!l || l.length < 3 || l.length > 80) continue;
+      if (/^\d+$/.test(l)) continue;
+      if (/^(ano|km|preco|valor|fipe|pedid|r\$)/i.test(l)) continue;
+      if (isPromoLine(l)) continue;
+      if (/[a-zA-Z]/.test(l) && !/^(✅|📊|💰|📍|🔑)/u.test(l)) {
+        model = l;
+        break;
+      }
     }
   }
 
@@ -456,7 +497,15 @@ function setCache(text: string, data: VehicleData | null): void {
 const EXTRACTION_SYSTEM_PROMPT = `Voce e um especialista em extrair dados de veiculos de anuncios brasileiros de repasse.
 
 Extraia os seguintes campos do texto ou imagem fornecida:
-- model: nome do modelo (ex: "CIVIC EXL 2.0")
+- model: nome do modelo REAL do carro (ex: "CIVIC EXL 2.0", "BMW i7", "RENEGADE LONGITUDE 1.3").
+  NUNCA use chamadas promocionais como modelo. Exemplos do que NAO E modelo:
+    * "Menor valor Brasil" -> e CHAMADA, o modelo verdadeiro vem na linha seguinte
+    * "Oportunidade", "Imperdivel", "Promoção"
+    * "VAAPTY ITAJAI", "REPASSES SUL", "GO REPASSES" -> e nome da loja
+    * "Historico Premium", "Avaliacao Superficial"
+    * "Carro de Garagem", "Para seu showroom"
+  Se a primeira linha do anuncio for desse tipo, pule e use a SEGUNDA linha
+  (que geralmente tem o modelo real, ex: "BMW i7", "TORO RANCH 2.0").
 - brand: marca (ex: "HONDA")
 - year: ano de fabricacao (numero inteiro)
 - yearModel: ano do modelo (numero inteiro, pode ser diferente do ano de fabricacao)
