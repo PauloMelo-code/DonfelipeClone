@@ -1290,7 +1290,7 @@ function VeiculosPageInner() {
                         {sc.label}
                       </Badge>
                       <h3 className="absolute bottom-3 left-4 right-4 font-semibold text-white text-base drop-shadow-lg truncate">
-                        {vehicle.brand && `${vehicle.brand} `}{vehicle.model}
+                        {vehicle.brand && !vehicle.model.toUpperCase().startsWith(vehicle.brand.toUpperCase()) ? `${vehicle.brand} ` : ""}{vehicle.model}
                       </h3>
                     </div>
 
@@ -1527,7 +1527,15 @@ function VeiculosPageInner() {
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-foreground">{republishMode ? "Reenviar veículo" : "Publicar veículo"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                  {publishVehicle?.brand && `${publishVehicle.brand} `}{publishVehicle?.model}
+                  {publishVehicle && (() => {
+                    // Evita duplicar marca: se model ja comeca com brand, mostra so model
+                    const brand = publishVehicle.brand || "";
+                    const model = publishVehicle.model || "";
+                    if (brand && model.toUpperCase().startsWith(brand.toUpperCase())) {
+                      return model;
+                    }
+                    return brand ? `${brand} ${model}` : model;
+                  })()}
                   {publishVehicle && ` \u00B7 ${formatPrice(publishVehicle.price)} (custo)`}
                 </p>
                 {/* Source origin chip \u2014 group/community/region the car came from */}
@@ -1673,15 +1681,24 @@ function VeiculosPageInner() {
                           const data = await res.json();
                           if (res.ok && data.formattedAd) {
                             setEditedAd(data.formattedAd);
-                            // Atualiza tambem o publishVehicle pra refletir modelo/texto novos
-                            if (data.modelChanged) {
+                            // Atualiza publishVehicle pra refletir mudancas no header
+                            if (data.modelChanged || data.dataChanged) {
                               setPublishVehicle((prev) =>
-                                prev ? { ...prev, model: data.model, brand: data.brand, formattedAd: data.formattedAd } : prev
+                                prev ? {
+                                  ...prev,
+                                  ...(data.modelChanged ? { model: data.model, brand: data.brand } : {}),
+                                  ...(data.dataChanged ? { km: data.km, year: data.year, fipePrice: data.fipePrice } : {}),
+                                  formattedAd: data.formattedAd,
+                                } : prev
                               );
-                              toast.success(`Modelo corrigido: ${data.model}`, { duration: 5000 });
+                              const msgs: string[] = [];
+                              if (data.modelChanged) msgs.push(`Modelo: ${data.model}`);
+                              if (data.dataChanged) msgs.push("dados corrigidos");
+                              toast.success(`✓ ${msgs.join(" · ")}`, { duration: 5000 });
                             } else {
                               toast.success("Texto regerado com IA");
                             }
+                            fetchVehicles();
                           } else {
                             toast.error(data.error || "Erro ao regerar");
                           }
@@ -2005,7 +2022,7 @@ function VeiculosPageInner() {
                 <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-semibold text-foreground">
-                      {galleryVehicle.brand && `${galleryVehicle.brand} `}{galleryVehicle.model}
+                      {galleryVehicle.brand && !galleryVehicle.model.toUpperCase().startsWith(galleryVehicle.brand.toUpperCase()) ? `${galleryVehicle.brand} ` : ""}{galleryVehicle.model}
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {galleryVehicle.year} &middot; {formatKm(galleryVehicle.km)}

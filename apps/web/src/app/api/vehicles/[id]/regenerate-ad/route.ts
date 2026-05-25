@@ -57,17 +57,51 @@ export async function POST(
       margin = setting ? parseFloat(setting.value) : 10;
     }
 
-    // Re-extrai modelo SE o nome atual e chamada/loja e ha rawDescription.
-    // Isso corrige carros capturados antes do extractor v2.
+    // Re-extrai modelo + km/year/price quando dados parecem suspeitos.
     let model = vehicle.model;
     let brand = vehicle.brand;
+    let km = vehicle.km;
+    let year = vehicle.year;
+    let yearModel = vehicle.yearModel;
+    let fipePrice = vehicle.fipePrice;
     let modelChanged = false;
-    if (isBadModelName(vehicle.model) && vehicle.rawDescription) {
+    let dataChanged = false;
+
+    // Heuristica: dados suspeitos = model promocional OU km muito baixo (<1000)
+    // OU year fora da faixa razoavel.
+    const needsReExtract =
+      isBadModelName(vehicle.model) ||
+      vehicle.km < 1000 ||
+      vehicle.year < 1990 ||
+      vehicle.year > new Date().getFullYear() + 1;
+
+    if (needsReExtract && vehicle.rawDescription) {
       const extracted = await extractVehicleFromTextNoCache(vehicle.rawDescription);
-      if (extracted?.model && !isBadModelName(extracted.model) && extracted.model !== vehicle.model) {
-        model = extracted.model;
-        brand = extracted.brand ?? vehicle.brand;
-        modelChanged = true;
+      if (extracted) {
+        // Modelo: troca se atual e ruim e extraido e bom
+        if (isBadModelName(vehicle.model) && extracted.model && !isBadModelName(extracted.model)) {
+          model = extracted.model;
+          brand = extracted.brand ?? vehicle.brand;
+          modelChanged = true;
+        }
+        // KM: troca se atual e muito baixo e extraido e razoavel (>=1000)
+        if (vehicle.km < 1000 && typeof extracted.km === "number" && extracted.km >= 1000) {
+          km = extracted.km;
+          dataChanged = true;
+        }
+        // Year: troca se fora da faixa
+        if ((vehicle.year < 1990 || vehicle.year > new Date().getFullYear() + 1) &&
+            extracted.year && extracted.year >= 1990 && extracted.year <= new Date().getFullYear() + 1) {
+          year = extracted.year;
+          yearModel = extracted.yearModel ?? year;
+          dataChanged = true;
+        }
+        // Fipe: aceita se atual for null/zero e extraido for valido
+        if ((!vehicle.fipePrice || vehicle.fipePrice <= 0) &&
+            typeof extracted.fipePrice === "number" && extracted.fipePrice > 0) {
+          fipePrice = extracted.fipePrice;
+          dataChanged = true;
+        }
       }
     }
 
@@ -83,11 +117,11 @@ export async function POST(
       {
         model,
         brand,
-        year: vehicle.year,
-        yearModel: vehicle.yearModel,
-        km: vehicle.km,
+        year,
+        yearModel,
+        km,
         price: vehicle.price,
-        fipePrice: vehicle.fipePrice,
+        fipePrice,
         transmission: vehicle.transmission,
         fuel: vehicle.fuel,
         features,
@@ -104,6 +138,7 @@ export async function POST(
           formattedAd: newAd,
           sellingPrice,
           ...(modelChanged ? { model, brand } : {}),
+          ...(dataChanged ? { km, year, yearModel, fipePrice } : {}),
         },
       });
     }
@@ -114,7 +149,11 @@ export async function POST(
       margin,
       model,
       brand,
+      km,
+      year,
+      fipePrice,
       modelChanged,
+      dataChanged,
       saved: !!body.save,
     });
   } catch (error) {

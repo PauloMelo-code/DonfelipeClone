@@ -79,7 +79,11 @@ export async function POST(request: Request) {
       },
     });
 
-    const candidates = all.filter((v) => isBadModelName(v.model));
+    const isBadKm = (km: number) => km < 1000;
+    const isBadYear = (y: number) => y < 1990 || y > new Date().getFullYear() + 1;
+    const candidates = all.filter((v) =>
+      isBadModelName(v.model) || isBadKm(v.km) || isBadYear(v.year)
+    );
 
     // Margem global pra regenerar formattedAd
     const marginSetting = await prisma.setting.findUnique({
@@ -102,13 +106,38 @@ export async function POST(request: Request) {
         continue;
       }
       const extracted = await extractVehicleFromTextNoCache(v.rawDescription);
-      const newModel = extracted?.model?.trim();
-
-      // Se nao conseguiu extrair ou continua dando "modelo ruim", desiste
-      if (!newModel || isBadModelName(newModel) || newModel === v.model) {
+      if (!extracted) {
         skipped++;
         continue;
       }
+
+      // Coleta mudancas possiveis
+      const updates: Record<string, unknown> = {};
+      let willChange = false;
+
+      // Modelo
+      if (isBadModelName(v.model) && extracted.model && !isBadModelName(extracted.model)) {
+        updates.model = extracted.model;
+        updates.brand = extracted.brand ?? v.brand;
+        willChange = true;
+      }
+      // KM
+      if (isBadKm(v.km) && typeof extracted.km === "number" && !isBadKm(extracted.km)) {
+        updates.km = extracted.km;
+        willChange = true;
+      }
+      // Year
+      if (isBadYear(v.year) && extracted.year && !isBadYear(extracted.year)) {
+        updates.year = extracted.year;
+        if (extracted.yearModel) updates.yearModel = extracted.yearModel;
+        willChange = true;
+      }
+
+      if (!willChange) {
+        skipped++;
+        continue;
+      }
+      const newModel = (updates.model as string) || v.model;
 
       // Re-roda cleaner + formatter pra gerar formattedAd novo
       let newFormattedAd: string | null = null;
@@ -119,10 +148,10 @@ export async function POST(request: Request) {
         newFormattedAd = formatVehicleAd(
           {
             model: newModel,
-            brand: (extracted?.brand ?? v.brand),
-            year: v.year,
-            yearModel: v.yearModel,
-            km: v.km,
+            brand: ((updates.brand as string) ?? v.brand),
+            year: (updates.year as number) ?? v.year,
+            yearModel: (updates.yearModel as number) ?? v.yearModel,
+            km: (updates.km as number) ?? v.km,
             price: v.price,
             fipePrice: v.fipePrice,
             transmission: v.transmission,
@@ -147,8 +176,7 @@ export async function POST(request: Request) {
         await prisma.vehicle.update({
           where: { id: v.id },
           data: {
-            model: newModel,
-            brand: (extracted?.brand ?? v.brand),
+            ...updates,
             ...(newFormattedAd ? { formattedAd: newFormattedAd } : {}),
           },
         });
