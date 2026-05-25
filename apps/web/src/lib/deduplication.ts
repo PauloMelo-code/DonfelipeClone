@@ -128,7 +128,8 @@ export async function recordPost(
   targetGroupId: string,
   messageId?: string,
   success: boolean = true,
-  errorMessage?: string
+  errorMessage?: string,
+  userId?: string | null
 ): Promise<void> {
   await prisma.postHistory.create({
     data: {
@@ -138,6 +139,7 @@ export async function recordPost(
       messageId: messageId ?? null,
       success,
       errorMessage: errorMessage ?? null,
+      userId: userId ?? null,
     },
   });
 }

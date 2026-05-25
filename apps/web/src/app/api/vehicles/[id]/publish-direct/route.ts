@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { publishVehicle } from "@/lib/publisher";
+import { extractRequestMeta } from "@/lib/request-meta";
 
 /**
  * POST /api/vehicles/[id]/publish-direct

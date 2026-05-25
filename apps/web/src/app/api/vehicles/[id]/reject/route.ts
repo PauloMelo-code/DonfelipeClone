@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { extractRequestMeta } from "@/lib/request-meta";
 
 export async function POST(
   request: NextRequest,
@@ -59,6 +60,7 @@ export async function POST(
       },
     });
 
+    const meta = extractRequestMeta(request);
     await prisma.auditLog.create({
       data: {
         action: "VEHICLE_REJECTED",
@@ -66,6 +68,8 @@ export async function POST(
         entityId: id,
         vehicleId: id,
         userId: auth.user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
         details:
           rejectionReason || rejectionTags
             ? JSON.stringify({

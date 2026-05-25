@@ -44,12 +44,20 @@ export async function GET(request: NextRequest) {
               price: true,
               sellingPrice: true,
               photos: true,
+              formattedAd: true,
             },
           },
           targetGroup: {
             select: {
               groupId: true,
               name: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
           },
         },

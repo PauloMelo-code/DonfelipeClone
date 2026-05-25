@@ -239,7 +239,8 @@ export async function publishVehicle(
           group.groupId,
           undefined,
           false,
-          result.skippedReason
+          result.skippedReason,
+          options?.userId
         );
         results.push(result);
         continue;
@@ -300,7 +301,9 @@ export async function publishVehicle(
         vehicle.vehicleHash,
         group.groupId,
         messageId,
-        true
+        true,
+        undefined,
+        options?.userId
       );
     } catch (error) {
       const errorMsg =
@@ -314,7 +317,8 @@ export async function publishVehicle(
         group.groupId,
         undefined,
         false,
-        errorMsg
+        errorMsg,
+        options?.userId
       );
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
+import { extractRequestMeta } from "@/lib/request-meta";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(
@@ -121,6 +122,7 @@ export async function POST(
       },
     });
 
+    const meta = extractRequestMeta(request);
     await prisma.auditLog.create({
       data: {
         action: "VEHICLE_APPROVED",
@@ -128,6 +130,8 @@ export async function POST(
         entityId: id,
         vehicleId: id,
         userId: auth.user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
         details: JSON.stringify({
           margin,
           effectiveMargin,

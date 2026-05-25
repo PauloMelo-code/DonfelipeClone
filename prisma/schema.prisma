@@ -18,6 +18,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs AuditLog[]
+  posts     PostHistory[] @relation("UserPosts")
 
   @@map("users")
 }
@@ -120,9 +121,12 @@ model PostHistory {
   messageId     String?
   success       Boolean  @default(true)
   errorMessage  String?
+  /// Usuario que disparou a publicacao (null se acao automatica/sistema)
+  userId        String?
 
   vehicle     Vehicle       @relation(fields: [vehicleId], references: [id])
   targetGroup WhatsAppGroup @relation("TargetPosts", fields: [targetGroupId], references: [groupId])
+  user        User?         @relation("UserPosts", fields: [userId], references: [id])
 
   @@index([vehicleHash, targetGroupId, postedAt])
   @@index([postedAt])
@@ -179,6 +183,10 @@ model AuditLog {
   details    String?
   userId     String?
   vehicleId  String?
+  /// IP do cliente (X-Forwarded-For / X-Real-IP) -- pra rastreabilidade
+  ipAddress  String?
+  /// User-Agent do browser/dispositivo
+  userAgent  String?
   createdAt  DateTime @default(now())
 
   user    User?    @relation(fields: [userId], references: [id])

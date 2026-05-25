@@ -32,9 +32,40 @@ interface AuditLog {
   details: string | null;
   userId: string | null;
   vehicleId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
   user: { id: string; name: string; email: string } | null;
   vehicle: { id: string; model: string; brand: string | null } | null;
+}
+
+// Resumo legivel do User-Agent (mesma logica do lib/request-meta.ts)
+function summarizeUA(ua: string | null | undefined): string {
+  if (!ua) return "Desconhecido";
+  let browser = "Browser";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/Chrome\//i.test(ua) && !/Edg/i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+  const verMatch = ua.match(/(?:Edg|Chrome|Firefox|Safari|OPR)\/(\d+)/i);
+  const browserVer = verMatch?.[1];
+  let os = "Desconhecido";
+  let device: string | null = null;
+  if (/Android/i.test(ua)) {
+    const m = ua.match(/Android (\d+(?:\.\d+)?)/);
+    os = m ? `Android ${m[1]}` : "Android";
+    const dm = ua.match(/Android.*?;\s*([^)]+?)(?:\s*Build|\))/i);
+    if (dm && dm[1] && !/Linux|wv/i.test(dm[1])) {
+      device = dm[1].trim().split(";").pop()?.trim() || null;
+    }
+  } else if (/iPhone/i.test(ua)) { device = "iPhone"; os = "iOS"; }
+  else if (/iPad/i.test(ua)) { device = "iPad"; os = "iPadOS"; }
+  else if (/Mac OS X/i.test(ua)) os = "macOS";
+  else if (/Windows NT 10/i.test(ua)) os = "Windows 10/11";
+  else if (/Windows NT/i.test(ua)) os = "Windows";
+  else if (/Linux/i.test(ua)) os = "Linux";
+  const browserPart = browserVer ? `${browser} ${browserVer}` : browser;
+  return device ? `${browserPart} · ${device} · ${os}` : `${browserPart} · ${os}`;
 }
 
 interface Pagination {
@@ -213,6 +244,9 @@ export default function AuditoriaPage() {
                         {log.vehicleId && (
                           <AuditVehicleDetail vehicleId={log.vehicleId} />
                         )}
+                        {(log.ipAddress || log.userAgent) && (
+                          <AuditRequestMeta ip={log.ipAddress} ua={log.userAgent} />
+                        )}
                         {details && (
                           <details className="rounded-lg bg-background/50">
                             <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2">
@@ -299,6 +333,9 @@ export default function AuditoriaPage() {
                   {log.vehicleId && (
                     <AuditVehicleDetail vehicleId={log.vehicleId} />
                   )}
+                  {(log.ipAddress || log.userAgent) && (
+                    <AuditRequestMeta ip={log.ipAddress} ua={log.userAgent} />
+                  )}
                   {details && (
                     <details className="rounded-lg border border-white/[0.04] bg-background/40">
                       <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2 select-none">
@@ -333,5 +370,37 @@ export default function AuditoriaPage() {
         )}
       </PageContainer>
     </>
+  );
+}
+
+// Bloco com info do dispositivo/IP que realizou a acao
+function AuditRequestMeta({ ip, ua }: { ip: string | null; ua: string | null }) {
+  const summary = summarizeUA(ua);
+  return (
+    <div className="rounded-lg border border-white/[0.04] bg-background/40 p-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 mb-2">
+        Origem da ação
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">Dispositivo</p>
+          <p className="text-foreground">{summary}</p>
+        </div>
+        {ip && (
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50">IP</p>
+            <p className="text-foreground font-mono text-xs">{ip}</p>
+          </div>
+        )}
+      </div>
+      {ua && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-[10px] text-muted-foreground/50 hover:text-muted-foreground select-none">
+            User-Agent completo
+          </summary>
+          <p className="mt-1 text-[10px] text-muted-foreground/70 font-mono break-all">{ua}</p>
+        </details>
+      )}
+    </div>
   );
 }
