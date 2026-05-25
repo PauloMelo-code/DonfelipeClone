@@ -28,12 +28,16 @@ const BAD_MODEL_PATTERNS: RegExp[] = [
   /\bcaarpix/i,
   /go\s*repasses/i,
   /repasses?\s+(sul|brasil|premium|vip|porto\s*alegre)/i,
-  /\bporto\s*alegre\b/i, // muitos casos de "X PORTO ALEGRE" como modelo
+  /\bporto\s*alegre\b/i,
   /historico\s*premium/i,
   /aval[ií]a[çc][aã]o\s*superficial/i,
   /para\s*seu\s*showroom/i,
   /baixou+/i,
   /^abaixo\s*da\s*(tabela|fipe)/i,
+  /^exclusividade/i,
+  /^edicao\s*(limitada|especial|exclusiva)/i,
+  /^lan[çc]amento/i,
+  /^reservad[ao]/i,
 ];
 
 function isBadModelName(name: string): boolean {

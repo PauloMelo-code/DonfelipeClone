@@ -278,6 +278,13 @@ function extractWithRegex(text: string): VehicleData | null {
     /^acompanha\s*(manual|chave)/i,
     /^baixou+/i,
     /^para\s*vender\s*agora/i,
+    /^exclusividade\b/i,
+    /^edicao\s*(limitada|especial|exclusiva)/i,
+    /^lan[çc]amento\b/i,
+    /^reservad[ao]\b/i,
+    /^apenas\s*\d+\s*(unidade|carro)/i,
+    /^[uú]nic[ao]s?\s+\d+\s*(anunciad|disponivel|no\s*brasil)/i,
+    /^so\s*aqui\b/i,
     // Padrao generico de loja: "<NOME> PORTO ALEGRE" "<NOME> SC" "<NOME> SUL"
     /^[A-ZÀ-Ú][A-ZÀ-Ú0-9\s]+\s+(porto\s*alegre|s[ãa]o\s*paulo|florian[oó]polis|curitiba|sul|brasil)\s*$/i,
   ];
@@ -558,6 +565,21 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    - NUNCA retorne valores absurdos (carro de R\$ 7 milhoes nao existe em
      repasse). Se extrair >R\$ 800.000 verifique se nao tirou virgula errada.
 
+=== REGRAS CRITICAS SOBRE KM ===
+1. "km" = QUILOMETRAGEM rodada (Ex: 50.000 km, 29.940 Km, 80mil km)
+2. NUNCA confundir com:
+   - CV (cavalos de potencia): "900 CV", "600cv" -> e POTENCIA, NAO KM
+   - HP (horsepower): "500 HP" -> POTENCIA
+   - cilindradas: "2.0", "1.6", "3.0 V6"
+   - litragem tanque: "60L"
+3. Procure linhas com explicitamente "km", "quilometragem", "rodados",
+   "Km rodados". Se nao houver linha explicita de km, retorne null.
+4. Exemplos:
+   - "29.940 Km" -> km=29940
+   - "900 CV" -> NAO E KM, pule
+   - "Suspensao FOX, 900 cv, Volante carbono, 29mil km" -> km=29000
+   - "Ram TRX 6.2L Supercharged V8" -> NAO E KM (6.2L = cilindrada)
+
 === REGRAS CRITICAS SOBRE O ANO ===
 1. "year" e "yearModel" sao o ano de FABRICACAO e MODELO do veiculo.
 2. NUNCA confunda com o ano do IPVA/licenciamento. Frases como
@@ -659,6 +681,7 @@ const BAD_MODEL_PATTERNS_EXTRACT: RegExp[] = [
   /historico\s*premium|aval[ií]a[çc][aã]o\s*superficial/i,
   /baixou+|abaixo\s*da\s*(tabela|fipe)/i,
   /para\s*seu\s*showroom/i,
+  /^exclusividade|edicao\s*(limitada|especial|exclusiva)|lan[çc]amento|reservad[ao]/i,
 ];
 const isModelLikelyBad = (model?: string | null) =>
   !!model && BAD_MODEL_PATTERNS_EXTRACT.some((p) => p.test(model));

@@ -14,6 +14,7 @@ const BAD_MODEL_PATTERNS: RegExp[] = [
   /\bporto\s*alegre\b/i,
   /historico\s*premium|aval[ií]a[çc][aã]o\s*superficial/i,
   /baixou+|abaixo\s*da\s*(tabela|fipe)/i,
+  /^exclusividade|edicao\s*(limitada|especial|exclusiva)|lan[çc]amento|reservad[ao]/i,
 ];
 const isBadModelName = (n: string) => !n || n.trim().length < 3 || BAD_MODEL_PATTERNS.some((p) => p.test(n));
 
