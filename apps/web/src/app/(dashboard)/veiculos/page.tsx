@@ -289,6 +289,44 @@ function VeiculosPageInner() {
     fetchVehicles();
   }, [fetchVehicles]);
 
+  // Auto-corrigir carros legados UMA VEZ por sessao -- silencioso.
+  // Roda em paralelo no mount da pagina /veiculos:
+  //   1. fix-vehicle-names: corrige modelos = chamada/loja (Menor valor, CAARPIX...)
+  //   2. fix-inflated-prices: divide /100 carros com bug 78.200.00
+  // Toast aparece SO se algo foi corrigido. Refresh automatico da lista.
+  useEffect(() => {
+    const KEY = "vehicles-auto-fix-v1";
+    if (typeof window === "undefined" || sessionStorage.getItem(KEY)) return;
+    sessionStorage.setItem(KEY, "1");
+    (async () => {
+      try {
+        const [namesRes, pricesRes] = await Promise.all([
+          fetch("/api/admin/fix-vehicle-names", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dryRun: false }),
+          }).then((r) => r.ok ? r.json() : null).catch(() => null),
+          fetch("/api/admin/fix-inflated-prices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dryRun: false }),
+          }).then((r) => r.ok ? r.json() : null).catch(() => null),
+        ]);
+        const nameFixed = namesRes?.fixed || 0;
+        const priceFixed = pricesRes?.fixed || 0;
+        const total = nameFixed + priceFixed;
+        if (total > 0) {
+          const parts: string[] = [];
+          if (nameFixed > 0) parts.push(`${nameFixed} modelos corrigidos`);
+          if (priceFixed > 0) parts.push(`${priceFixed} valores corrigidos`);
+          toast.success(`🤖 ${parts.join(" · ")}`, { duration: 6000 });
+          fetchVehicles();
+        }
+      } catch { /* silencioso */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-select region groups based on the vehicle's state OR source group region.
   // If neither is detected, leave ALL groups unmarked (user must opt in explicitly).
   useEffect(() => {

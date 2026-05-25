@@ -14,6 +14,8 @@ import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
 import { reorderPhotosByBest } from "@/lib/photo-picker";
+import { cleanAdDescription } from "@/lib/ad-cleaner";
+import { formatVehicleAd } from "@/lib/vehicle-formatter";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -901,6 +903,44 @@ export async function POST(request: NextRequest) {
         rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
       },
     });
+
+    // AD CLEANER em BACKGROUND: gera formattedAd ja limpo (sem header de
+    // loja, contatos, etc) no momento da captura. Operador abre o card e
+    // o texto JA esta pronto -- sem precisar clicar 'Regerar com IA'.
+    // So roda em veiculos validos (nao auto-rejeitados) e com texto util.
+    if (!autoRejectedReason && textContent && textContent.length >= 20) {
+      const vehicleId = vehicle.id;
+      const rawDesc = textContent;
+      const vData = {
+        model, brand, year, yearModel, km, price, fipePrice,
+        transmission, fuel, features,
+      };
+      void (async () => {
+        try {
+          // 1. Limpa via GPT (com cache 24h -- textos similares nao re-pagam)
+          const cleaned = await cleanAdDescription(rawDesc);
+          // 2. Margem padrao do settings
+          const marginSetting = await prisma.setting.findUnique({
+            where: { key: "profit_margin_percent" },
+          });
+          const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
+          // 3. Formata no padrao Cugini
+          const formattedAd = formatVehicleAd(
+            { ...vData, rawDescription: cleaned || rawDesc },
+            { profitMarginPercent: margin }
+          );
+          // 4. Calcula sellingPrice de uma vez
+          const sellingPrice = price * (1 + margin / 100);
+          await prisma.vehicle.update({
+            where: { id: vehicleId },
+            data: { formattedAd, sellingPrice },
+          });
+          console.log(`[Webhook] Auto-formatted ad: ${vehicleId}`);
+        } catch (e) {
+          console.error("[Webhook] Auto ad-cleaner background failed:", e);
+        }
+      })();
+    }
 
     // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas,
     // categoriza cada uma (exterior/interior/motor/etc) e reordena pra que
