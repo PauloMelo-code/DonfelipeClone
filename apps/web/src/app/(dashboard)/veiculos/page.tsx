@@ -170,6 +170,7 @@ function VeiculosPageInner() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("PENDING");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [previewVehicle, setPreviewVehicle] = useState<Vehicle | null>(null);
   const [publishVehicle, setPublishVehicle] = useState<Vehicle | null>(null);
@@ -259,13 +260,21 @@ function VeiculosPageInner() {
     try {
       // "PREPARED" eh uma aba virtual: status=APPROVED + prepared=true
       // Aba APPROVED real exclui os preparados (prepared=false)
-      let url = `/api/vehicles?status=${activeTab}&page=${page}&limit=${PAGE_SIZE}`;
+      const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
       if (activeTab === "PREPARED") {
-        url = `/api/vehicles?status=APPROVED&prepared=true&page=${page}&limit=${PAGE_SIZE}`;
+        params.set("status", "APPROVED");
+        params.set("prepared", "true");
       } else if (activeTab === "APPROVED") {
-        url = `/api/vehicles?status=APPROVED&prepared=false&page=${page}&limit=${PAGE_SIZE}`;
+        params.set("status", "APPROVED");
+        params.set("prepared", "false");
+      } else {
+        params.set("status", activeTab);
       }
-      const res = await fetch(url);
+      // Busca server-side -- procura em model/brand/plate/rawDescription
+      // no DB inteiro, nao so na pagina atual.
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+      const res = await fetch(`/api/vehicles?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setVehicles(data.vehicles || []);
@@ -277,11 +286,17 @@ function VeiculosPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page]);
+  }, [activeTab, page, debouncedSearch]);
+
+  // Debounce search (300ms) -- evita request a cada tecla
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab]);
+  }, [activeTab, debouncedSearch]);
 
   useEffect(() => {
     setLoading(true);
@@ -416,16 +431,9 @@ function VeiculosPageInner() {
   };
 
   const filtered = useMemo(() => {
+    // Search ja eh feito server-side (em fetchVehicles). NAO filtra client-side
+    // pra nao confundir paginacao -- todos os resultados ja vem filtrados.
     let result = vehicles;
-    if (search) {
-      const s = search.toLowerCase();
-      result = result.filter(
-        (v) =>
-          v.model.toLowerCase().includes(s) ||
-          v.brand?.toLowerCase().includes(s) ||
-          v.color?.toLowerCase().includes(s)
-      );
-    }
     if (filters.states.length > 0) {
       // Filtra por estado em ordem de confiabilidade:
       // 1. v.state (extraido pela IA do anuncio) - mais confiavel
@@ -448,7 +456,7 @@ function VeiculosPageInner() {
       result = result.filter(v => v.transmission === filters.transmission);
     }
     return result;
-  }, [vehicles, search, filters]);
+  }, [vehicles, filters]);
 
   const handleAction = async (id: string, action: "approve" | "reject" | "publish") => {
     if (action === "reject") {
