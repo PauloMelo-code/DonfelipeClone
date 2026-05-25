@@ -31,7 +31,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v3";
+const PROMPT_VERSION = "v4";
 
 function hashText(s: string): string {
   return createHash("md5").update(PROMPT_VERSION + ":" + s.trim()).digest("hex").slice(0, 16);
@@ -124,10 +124,21 @@ EXEMPLO 3 (Sportage 2021):
 
 6. SAIDA:
    - Maximo 7 linhas
+   - SEM linhas em branco no meio (linhas devem ser CONSECUTIVAS, sem
+     espacos entre elas -- o template ja cuida do espacamento global)
    - Se nao tiver NADA util alem do que ja esta no cabecalho/rodape,
      devolva string vazia ""
    - SEM markdown (sem *, _, ~, #, :, -)
    - portugues brasileiro
+
+ESPACAMENTO (CRITICO):
+O sistema adiciona automaticamente:
+   <cabecalho>
+   <linha em branco>
+   <SEU CORPO AQUI>           <- consecutivo, sem brancas internas
+   <linha em branco>
+   <rodape>
+Entao VOCE deve devolver SO o corpo, sem linhas em branco entre os itens.
 
 Devolva APENAS o corpo limpo. SEM explicacoes, SEM prefixo "Texto limpo:",
 SEM aspas envolvendo a resposta.`;

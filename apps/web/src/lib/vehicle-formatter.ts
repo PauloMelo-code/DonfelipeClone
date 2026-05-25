@@ -156,7 +156,7 @@ export function formatVehicleAd(
 
     const modelFirstWord = vehicle.model.toLowerCase().split(" ")[0];
     const descLines = cleaned.split("\n");
-    const bodyLines: string[] = [];
+    let bodyLines: string[] = [];
 
     for (const line of descLines) {
       const l = line.trim();
@@ -223,6 +223,13 @@ export function formatVehicleAd(
     while (bodyLines.length > 0 && !bodyLines[0]) {
       bodyLines.shift();
     }
+    // Collapse multiple consecutive empty lines into ZERO empty lines.
+    // O corpo deve ser sequencia compacta de linhas; o espacamento entre
+    // cabecalho/corpo/rodape e feito pelo template (lines.push("")).
+    bodyLines = bodyLines.filter((line, idx) => {
+      // Permite primeira/ultima ja foram tratadas; aqui so remove brancas internas
+      return !!line.trim();
+    });
 
     if (bodyLines.length > 0) {
       lines.push("");
