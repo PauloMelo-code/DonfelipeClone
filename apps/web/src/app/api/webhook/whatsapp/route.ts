@@ -4,7 +4,7 @@ import {
   extractVehicleFromImage,
   extractVehicleFromText,
 } from "@/lib/ai";
-import { generateVehicleHash, generateVehicleIdentityHash } from "@/lib/deduplication";
+import { generateVehicleHash, generateVehicleIdentityHash, findFuzzyDuplicate } from "@/lib/deduplication";
 import { applyFilters } from "@/lib/vehicle-parser";
 import { rateLimit } from "@/lib/rate-limit";
 import { uazapi } from "@/lib/uazapi";
@@ -806,13 +806,27 @@ export async function POST(request: NextRequest) {
     // Dedup de 30 DIAS por identidade (sem preco no hash) -- regra do cliente:
     // mesmo carro reposto = fica o mais barato, descarta os outros.
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const existingByIdentity = await prisma.vehicle.findFirst({
+    let existingByIdentity = await prisma.vehicle.findFirst({
       where: {
         identityHash,
         capturedAt: { gte: thirtyDaysAgo },
       },
       orderBy: { price: "asc" }, // o mais barato existente (ja persistido)
     });
+
+    // Fallback FUZZY: se hash exato nao achou, tenta similaridade
+    // (modelo normalizado parcial, year +/-1, km +/-20%)
+    if (!existingByIdentity) {
+      const fuzzy = await findFuzzyDuplicate({ model, year, km }, 30);
+      if (fuzzy) {
+        existingByIdentity = await prisma.vehicle.findUnique({
+          where: { id: fuzzy.id },
+        });
+        if (existingByIdentity) {
+          console.log(`[Webhook] DEDUP fuzzy match: ${existingByIdentity.id} (${existingByIdentity.model})`);
+        }
+      }
+    }
 
     if (existingByIdentity) {
       // Mesmo carro nos ultimos 30 dias
