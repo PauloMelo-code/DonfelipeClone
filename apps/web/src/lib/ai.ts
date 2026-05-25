@@ -666,7 +666,8 @@ async function extractWithGemini(text: string): Promise<VehicleData | null> {
     temperature: 0.1,
   });
   if (!raw) return null;
-  return parseGptResponse(raw);
+  const parsed = parseGptResponse(raw);
+  return parsed ? validateAndFix(parsed, text) : null;
 }
 
 // Padroes que indicam modelo ERRADO (chamada/loja em vez do modelo real).
@@ -714,17 +715,14 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
     if (isModelLikelyBad(parsed.model)) {
       console.warn(`[ai] GPT retornou modelo suspeito ("${parsed.model}"), tentando Gemini`);
       const geminiResult = await extractWithGemini(text);
-      // Aceita o resultado do Gemini SE ele nao caiu no mesmo erro
       if (geminiResult && !isModelLikelyBad(geminiResult.model)) {
         console.log(`[ai] Gemini corrigiu modelo: "${parsed.model}" -> "${geminiResult.model}"`);
-        return geminiResult;
+        return validateAndFix(geminiResult, text);
       }
-      // Ambas falharam na validacao -- retorna GPT mesmo (sera pego em batch fix)
     }
-    return parsed;
+    return validateAndFix(parsed, text);
   } catch (error) {
     console.error("[ai] GPT extraction failed:", error);
-    // Fallback automatico pro Gemini
     const fallback = await extractWithGemini(text);
     if (fallback) console.log("[ai] Gemini fallback sucesso");
     return fallback;
@@ -740,15 +738,60 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
  * Strategy: Regex first (free), GPT fallback (paid) only if regex fails.
  */
 /**
+ * Helper standalone pra extrair APENAS o KM via regex.
+ * Usado como validacao cruzada quando o GPT pode ter confundido com CV/HP.
+ * Mesma logica da extractWithRegex parte de KM mas independente.
+ */
+export function extractKmFromText(text: string): number | null {
+  const patterns: RegExp[] = [
+    /\bquilometragem\s*:?\s*([\d.,]+)/i,
+    /\b(\d{2,3})\s*mil\s*km\b/i,
+    /\bkm\s*:?\s*([\d.,]+)/i,
+    /\b([\d.,]+)\s*km\b/i,
+    /\b([\d.,]+)\s*kms?\s*rodad/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (!m) continue;
+    let n: number | null;
+    if (/mil/i.test(m[0])) n = parseInt(m[1]) * 1000;
+    else n = parseBrazilianNumber(m[1]);
+    const raw = m[1].replace(/[.,\s]/g, "");
+    // Pula ano (4 digitos 19xx/20xx)
+    if (n !== null && raw.length === 4 && /^(19|20)\d{2}$/.test(raw)) continue;
+    if (n !== null && n >= 1000 && n <= 999999) return n;
+  }
+  return null;
+}
+
+/**
+ * Aplica validacoes cruzadas sobre o resultado extraido.
+ * Hoje cobre: KM suspeito (< 1000) quando texto tem CV/HP -> tenta regex.
+ */
+function validateAndFix(parsed: VehicleData, text: string): VehicleData {
+  if (parsed.km != null && parsed.km < 1000 && /\b(cv|hp|cavalos)\b/i.test(text)) {
+    const regexKm = extractKmFromText(text);
+    if (regexKm !== null && regexKm >= 1000) {
+      console.warn(`[ai] GPT retornou km=${parsed.km} suspeito (texto tem CV/HP); usando regex=${regexKm}`);
+      parsed.km = regexKm;
+    }
+  }
+  return parsed;
+}
+
+/**
  * Re-extrai veiculo SEM cache. Usado pelo endpoint admin que corrige
  * modelos errados de carros ja capturados (queremos rodar o extractor
  * com a regra/prompt NOVOS, nao retornar resultado antigo do cache).
  */
 export async function extractVehicleFromTextNoCache(text: string): Promise<VehicleData | null> {
   const regexResult = extractWithRegex(text);
-  if (regexResult) return regexResult;
+  if (regexResult) return validateAndFix(regexResult, text);
   const gptResult = await extractWithGPT(text);
-  if (gptResult) gptResult.rawDescription = text;
+  if (gptResult) {
+    gptResult.rawDescription = text;
+    return validateAndFix(gptResult, text);
+  }
   return gptResult;
 }
 
@@ -762,8 +805,9 @@ export async function extractVehicleFromText(
   const regexResult = extractWithRegex(text);
   if (regexResult) {
     console.log("[ai] Regex extraction succeeded for:", regexResult.model);
-    setCache(text, regexResult);
-    return regexResult;
+    const validated = validateAndFix(regexResult, text);
+    setCache(text, validated);
+    return validated;
   }
 
   // 2. Fallback to GPT if regex failed and AI is enabled
