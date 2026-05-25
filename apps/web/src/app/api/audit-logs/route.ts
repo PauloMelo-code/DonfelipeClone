@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.OR = [
-        { entityId: { contains: search } },
-        { details: { contains: search } },
+        { entityId: { contains: search, mode: "insensitive" } },
+        { details: { contains: search, mode: "insensitive" } },
       ];
     }
 

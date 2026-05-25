@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.vehicle = {
         OR: [
-          { model: { contains: search } },
-          { brand: { contains: search } },
+          { model: { contains: search, mode: "insensitive" } },
+          { brand: { contains: search, mode: "insensitive" } },
         ],
       };
     }
