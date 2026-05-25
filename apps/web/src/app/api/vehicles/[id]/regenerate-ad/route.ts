@@ -3,6 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
+import { extractVehicleFromTextNoCache } from "@/lib/ai";
+
+// Detecta se o modelo no DB e uma chamada/loja (deve ser re-extraido)
+const BAD_MODEL_PATTERNS: RegExp[] = [
+  /menor\s*(valor|pre[çc]o)/i,
+  /oportunidade|imperd[ií]vel|promo[çc][ãa]o/i,
+  /\b(vaapty|caarpix|repassey)\b/i,
+  /go\s*repasses|repasses?\s+(sul|brasil|porto\s*alegre)/i,
+  /\bporto\s*alegre\b/i,
+  /historico\s*premium|aval[ií]a[çc][aã]o\s*superficial/i,
+  /baixou+|abaixo\s*da\s*(tabela|fipe)/i,
+];
+const isBadModelName = (n: string) => !n || n.trim().length < 3 || BAD_MODEL_PATTERNS.some((p) => p.test(n));
 
 /**
  * POST /api/vehicles/:id/regenerate-ad
@@ -43,6 +56,20 @@ export async function POST(
       margin = setting ? parseFloat(setting.value) : 10;
     }
 
+    // Re-extrai modelo SE o nome atual e chamada/loja e ha rawDescription.
+    // Isso corrige carros capturados antes do extractor v2.
+    let model = vehicle.model;
+    let brand = vehicle.brand;
+    let modelChanged = false;
+    if (isBadModelName(vehicle.model) && vehicle.rawDescription) {
+      const extracted = await extractVehicleFromTextNoCache(vehicle.rawDescription);
+      if (extracted?.model && !isBadModelName(extracted.model) && extracted.model !== vehicle.model) {
+        model = extracted.model;
+        brand = extracted.brand ?? vehicle.brand;
+        modelChanged = true;
+      }
+    }
+
     // Limpa com IA
     const cleanedDesc = vehicle.rawDescription
       ? await cleanAdDescription(vehicle.rawDescription)
@@ -53,8 +80,8 @@ export async function POST(
 
     const newAd = formatVehicleAd(
       {
-        model: vehicle.model,
-        brand: vehicle.brand,
+        model,
+        brand,
         year: vehicle.year,
         yearModel: vehicle.yearModel,
         km: vehicle.km,
@@ -72,7 +99,11 @@ export async function POST(
       const sellingPrice = vehicle.price * (1 + margin / 100);
       await prisma.vehicle.update({
         where: { id },
-        data: { formattedAd: newAd, sellingPrice },
+        data: {
+          formattedAd: newAd,
+          sellingPrice,
+          ...(modelChanged ? { model, brand } : {}),
+        },
       });
     }
 
@@ -80,6 +111,9 @@ export async function POST(
       formattedAd: newAd,
       cleanedDescription: cleanedDesc,
       margin,
+      model,
+      brand,
+      modelChanged,
       saved: !!body.save,
     });
   } catch (error) {

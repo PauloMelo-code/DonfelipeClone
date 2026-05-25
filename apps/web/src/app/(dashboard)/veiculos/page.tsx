@@ -1630,12 +1630,20 @@ function VeiculosPageInner() {
                           const res = await fetch(`/api/vehicles/${publishVehicle.id}/regenerate-ad`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ margin }),
+                            body: JSON.stringify({ margin, save: true }),
                           });
                           const data = await res.json();
                           if (res.ok && data.formattedAd) {
                             setEditedAd(data.formattedAd);
-                            toast.success("Texto regerado com IA");
+                            // Atualiza tambem o publishVehicle pra refletir modelo/texto novos
+                            if (data.modelChanged) {
+                              setPublishVehicle((prev) =>
+                                prev ? { ...prev, model: data.model, brand: data.brand, formattedAd: data.formattedAd } : prev
+                              );
+                              toast.success(`Modelo corrigido: ${data.model}`, { duration: 5000 });
+                            } else {
+                              toast.success("Texto regerado com IA");
+                            }
                           } else {
                             toast.error(data.error || "Erro ao regerar");
                           }

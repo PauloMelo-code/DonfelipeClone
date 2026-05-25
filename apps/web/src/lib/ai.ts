@@ -660,6 +660,19 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
  * Extract vehicle data from text.
  * Strategy: Regex first (free), GPT fallback (paid) only if regex fails.
  */
+/**
+ * Re-extrai veiculo SEM cache. Usado pelo endpoint admin que corrige
+ * modelos errados de carros ja capturados (queremos rodar o extractor
+ * com a regra/prompt NOVOS, nao retornar resultado antigo do cache).
+ */
+export async function extractVehicleFromTextNoCache(text: string): Promise<VehicleData | null> {
+  const regexResult = extractWithRegex(text);
+  if (regexResult) return regexResult;
+  const gptResult = await extractWithGPT(text);
+  if (gptResult) gptResult.rawDescription = text;
+  return gptResult;
+}
+
 export async function extractVehicleFromText(
   text: string
 ): Promise<VehicleData | null> {

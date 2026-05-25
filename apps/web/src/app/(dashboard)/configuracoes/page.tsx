@@ -228,6 +228,56 @@ export default function ConfiguracoesPage() {
     }
   };
 
+  const [fixingNames, setFixingNames] = useState(false);
+  const handleFixVehicleNames = async () => {
+    setFixingNames(true);
+    try {
+      const dryRes = await fetch("/api/admin/fix-vehicle-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: true }),
+      });
+      const dryData = await dryRes.json();
+      if (!dryRes.ok) {
+        toast.error(dryData.error || "Erro ao verificar");
+        return;
+      }
+      if (dryData.fixed === 0) {
+        toast.success(
+          dryData.candidates > 0
+            ? `${dryData.candidates} candidatos mas não foi possível re-extrair (texto original incompleto)`
+            : "Nenhum modelo errado encontrado"
+        );
+        return;
+      }
+      const sampleStr = (dryData.samples || []).slice(0, 3)
+        .map((s: { oldModel: string; newModel: string }) => `  ${s.oldModel} → ${s.newModel}`)
+        .join("\n");
+      if (!confirm(
+        `${dryData.fixed} veículos terão o modelo corrigido.\n\n` +
+        `Exemplos:\n${sampleStr}\n\n` +
+        `Aplicar correção?`
+      )) {
+        return;
+      }
+      const fixRes = await fetch("/api/admin/fix-vehicle-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const fixData = await fixRes.json();
+      if (fixRes.ok) {
+        toast.success(`${fixData.fixed} modelos corrigidos`, { duration: 8000 });
+      } else {
+        toast.error(fixData.error || "Erro ao aplicar");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro de conexão");
+    } finally {
+      setFixingNames(false);
+    }
+  };
+
   const [fixingPrices, setFixingPrices] = useState(false);
   const handleFixInflatedPrices = async () => {
     // 1. dry run
@@ -728,6 +778,26 @@ export default function ConfiguracoesPage() {
             >
               {fixingPrices ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               {fixingPrices ? "Verificando..." : "Executar"}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="text-sm font-medium">Corrigir modelos errados</p>
+              <p className="text-xs text-muted-foreground">
+                Detecta carros com modelo = chamada/loja (&quot;Menor valor Brasil&quot;,
+                &quot;CAARPIX PORTO ALEGRE&quot;) e re-extrai do anúncio original
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFixVehicleNames}
+              disabled={fixingNames}
+              className="gap-1.5 border-cugini-orange/30 text-cugini-orange hover:bg-cugini-orange/10"
+            >
+              {fixingNames ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              {fixingNames ? "Verificando..." : "Executar"}
             </Button>
           </div>
 
