@@ -263,7 +263,9 @@ function extractWithRegex(text: string): VehicleData | null {
     /^ultim[ao]s?\s*(unidade|dia)/i,
     /^repassey/i,
     /^vaapty/i,
-    /^repasse[s]?\s*(sul|brasil|premium|vip)/i,
+    /^caarpix/i,
+    /^go\s*repasses/i,
+    /^repasse[s]?\s*(sul|brasil|premium|vip|porto|alegre)/i,
     /^contatos?\b/i,
     /^historico\s*(premium|completo)/i,
     /^hist[oó]rico\s*premium/i,
@@ -275,6 +277,8 @@ function extractWithRegex(text: string): VehicleData | null {
     /^acompanha\s*(manual|chave)/i,
     /^baixou+/i,
     /^para\s*vender\s*agora/i,
+    // Padrao generico de loja: "<NOME> PORTO ALEGRE" "<NOME> SC" "<NOME> SUL"
+    /^[A-ZÀ-Ú][A-ZÀ-Ú0-9\s]+\s+(porto\s*alegre|s[ãa]o\s*paulo|florian[oó]polis|curitiba|sul|brasil)\s*$/i,
   ];
   const isPromoLine = (l: string) => PROMO_PHRASES.some((p) => p.test(l));
 

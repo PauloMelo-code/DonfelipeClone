@@ -31,7 +31,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v2";
+const PROMPT_VERSION = "v3";
 
 function hashText(s: string): string {
   return createHash("md5").update(PROMPT_VERSION + ":" + s.trim()).digest("hex").slice(0, 16);
@@ -58,79 +58,79 @@ function cacheSet(key: string, value: string) {
 
 const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Cugini.
 
-Tarefa: receber o texto bagunçado e devolver APENAS as informacoes do
-VEICULO no FORMATO PADRAO Cugini abaixo.
+Tarefa: receber o texto bagunçado e devolver APENAS o CORPO limpo do
+anuncio. O sistema ja adiciona cabecalho (marca/modelo/ano/km) e rodape
+(Fipe/Por) automaticamente -- voce so cuida do MIOLO.
 
-=== FORMATO PADRAO (CRITICO) ===
-Devolva no MAXIMO 5-6 linhas seguindo essa estrutura quando aplicavel:
+=== PADRAO CUGINI (CRITICO -- SEGUIR 100%) ===
+Cada informacao em LINHA SEPARADA. SEM prefixos com dois pontos
+(NAO USAR "Opcionais:", "Estado:", "Placa:", "Revisoes:", "Historico:").
+Apenas listar os fatos diretamente, frases curtas e diretas.
 
-  Opcionais: <item1>, <item2>, <item3>, ...
-  <Atributo curto isolado: ex "Único dono">
-  Manual e chave reserva
-  IPVA <ano> pago
-  Estado: <pneus bons, sem detalhes, etc>
-  Historico: <revisoes em concessionaria, etc>
+EXEMPLOS DO PADRAO CORRETO:
 
-REGRAS:
-1. AGRUPAR opcionais EM UMA LINHA SO com prefixo "Opcionais: " separado
-   por virgula. NAO listar cada um numa linha.
-   ERRADO:
-     Blindada SBA
-     Vidros protector
-     Multimidia
-   CERTO:
-     Opcionais: blindada SBA, vidros protector, multimidia
+EXEMPLO 1 (Audi A6):
+  Blindado
+  Sem detalhes
+  Pneus novos
 
-2. Atributos "individuais" continuam em linha propria (sao status, nao opcional):
-   - "Único dono", "Manual do proprietário", "Chave reserva"
-   - "IPVA <ano> pago", "Placa a confirmar"
-   - "Sem detalhes"
-   Estes ficam em linhas separadas, podem ate agrupar com " · " se ficar bom:
-     Único dono · Manual e chave reserva
-
-3. REMOVER:
-   - Nome da loja/empresa/grupo (VAAPTY, REPASSE SUL, GO REPASSES, etc)
-   - Telefones, contatos, nomes de vendedores (Lucas, Junior, etc)
-   - Frases promocionais (Menor valor Brasil, Oportunidade, Historico Premium,
-     Avaliacao Superficial, "Para o seu showroom", etc)
-   - Localizacao (cidade, estado) -- ja temos no header
-   - Pedida/Custo/Faco/Investimento/Valor -- ja temos no rodape
-   - Modelo, ano, km, fipe -- ja temos no cabecalho
-   - Emojis decorativos
-   - Linhas vazias excessivas
-
-4. SAIDA:
-   - Maximo 5-6 linhas
-   - Se nao tiver NADA relevante alem do que ja temos no cabecalho, devolva ""
-   - NAO use markdown (sem *, _, ~, #)
-   - NAO adicione informacao que nao esta no texto original
-   - portugues brasileiro, sem palavras em maiusculas excessivas
-
-=== EXEMPLOS ===
-INPUT:
-  Menor valor Brasil
-  BMW i7
-  Ano 2024
-  39.000 km
-  *Blindada SBA vidros protector evo*
+EXEMPLO 2 (BMW i7):
+  Blindada SBA
+  Vidros protector EVO
   Único dono
   Manual do proprietário
   Chave reserva
-  Sem detalhes
-  IPVA 2026 pago
-  Fipe R\$ 882.373,00
-  Valor R\$ 679.990,00
-  *Contatos Go Repasses Porto Alegre*
-  *Lucas* | 51997361089
-  *Júnior* | 51996811106
-
-OUTPUT (sem cabecalho/rodape -- so o corpo limpo):
-  Opcionais: blindada SBA, vidros protector EVO
-  Único dono · Manual do proprietário · Chave reserva
   IPVA 2026 pago
   Sem detalhes
 
-Devolva APENAS o corpo limpo. Sem explicacoes, sem prefixo "Texto limpo:".`;
+EXEMPLO 3 (Sportage 2021):
+  Ar condicionado
+  Direção hidráulica
+  Manual e chave reserva
+  Pneus bons
+  Motor, suspensão e caixa OK
+  Revisado na concessionária
+  Único dono
+
+=== REGRAS ===
+1. SEM prefixos categorizadores. NUNCA escrever "Opcionais:", "Estado:",
+   "Histórico:", "Placa:". Apenas o conteúdo direto.
+
+2. Cada fato em UMA linha curta. Pode juntar coisas relacionadas com
+   virgula quando ficar natural ("Motor, suspensão e caixa OK").
+   Mas NAO USE bullets, asteriscos, hifens decorativos.
+
+3. NORMALIZAR capitalizacao: primeira letra maiuscula, resto minuscula
+   (a menos que seja sigla ou nome proprio):
+   ERRADO: "AR CONDICIONADO" / "PNEUS BONS"
+   CERTO:  "Ar condicionado" / "Pneus bons"
+
+4. REMOVER:
+   - Nome da loja/empresa (VAAPTY, REPASSE SUL, GO REPASSES, CAARPIX,
+     <NOME> PORTO ALEGRE, etc)
+   - Telefones, contatos, nomes de vendedores (Lucas, Junior, etc)
+   - Chamadas promocionais (Menor valor Brasil, Oportunidade,
+     Historico Premium, Avaliacao Superficial, "Para o seu showroom",
+     "Acompanha manual e chave reserva" -- se isolado e marketing)
+   - Localizacao (cidade, estado) -- ja temos no header
+   - Pedida/Custo/Faco/Investimento/Valor/Fipe -- ja temos no rodape
+   - Modelo, ano, km -- ja temos no cabecalho
+   - Emojis e simbolos decorativos
+   - Linhas vazias excessivas
+
+5. PLACA: so incluir se realmente houver placa valida (ABC1D23 ou
+   ABC-1234). NAO escrever "Placa: i" ou "Placa a confirmar" se nao
+   tiver placa real -- omita a linha.
+
+6. SAIDA:
+   - Maximo 7 linhas
+   - Se nao tiver NADA util alem do que ja esta no cabecalho/rodape,
+     devolva string vazia ""
+   - SEM markdown (sem *, _, ~, #, :, -)
+   - portugues brasileiro
+
+Devolva APENAS o corpo limpo. SEM explicacoes, SEM prefixo "Texto limpo:",
+SEM aspas envolvendo a resposta.`;
 
 /**
  * Limpa o rawDescription via GPT-4.1-mini.
