@@ -647,6 +647,22 @@ async function extractWithGemini(text: string): Promise<VehicleData | null> {
   return parseGptResponse(raw);
 }
 
+// Padroes que indicam modelo ERRADO (chamada/loja em vez do modelo real).
+// Se GPT retornar modelo casando com esses padroes, considera erro semantico
+// e tenta Gemini como fallback.
+const BAD_MODEL_PATTERNS_EXTRACT: RegExp[] = [
+  /menor\s*(valor|pre[çc]o)/i,
+  /oportunidade|imperd[ií]vel|promo[çc][ãa]o/i,
+  /\b(vaapty|caarpix|repassey)\b/i,
+  /go\s*repasses|repasses?\s+(sul|brasil|porto\s*alegre|premium|vip)/i,
+  /\bporto\s*alegre\b/i,
+  /historico\s*premium|aval[ií]a[çc][aã]o\s*superficial/i,
+  /baixou+|abaixo\s*da\s*(tabela|fipe)/i,
+  /para\s*seu\s*showroom/i,
+];
+const isModelLikelyBad = (model?: string | null) =>
+  !!model && BAD_MODEL_PATTERNS_EXTRACT.some((p) => p.test(model));
+
 async function extractWithGPT(text: string): Promise<VehicleData | null> {
   if (!process.env.OPENAI_API_KEY) {
     // GPT nao configurado -- tenta Gemini direto
@@ -670,6 +686,17 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
     if (!parsed) {
       console.warn("[ai] GPT retornou JSON invalido, tentando Gemini");
       return extractWithGemini(text);
+    }
+    // Validacao semantica: se modelo virou chamada/loja, GPT errou -> Gemini
+    if (isModelLikelyBad(parsed.model)) {
+      console.warn(`[ai] GPT retornou modelo suspeito ("${parsed.model}"), tentando Gemini`);
+      const geminiResult = await extractWithGemini(text);
+      // Aceita o resultado do Gemini SE ele nao caiu no mesmo erro
+      if (geminiResult && !isModelLikelyBad(geminiResult.model)) {
+        console.log(`[ai] Gemini corrigiu modelo: "${parsed.model}" -> "${geminiResult.model}"`);
+        return geminiResult;
+      }
+      // Ambas falharam na validacao -- retorna GPT mesmo (sera pego em batch fix)
     }
     return parsed;
   } catch (error) {

@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import OpenAI from "openai";
+import { isGeminiConfigured } from "./gemini";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -18,6 +19,92 @@ function getOpenAI(): OpenAI {
     _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   return _openai;
+}
+
+// ============================================================================
+// GEMINI VISION FALLBACK
+// ============================================================================
+// Gemini 2.0 Flash aceita multiplas imagens. Suportamos URLs http(s) (Gemini
+// busca a imagem) e data URLs base64 (embedamos inline_data).
+
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+interface InlinePart {
+  inlineData: { mimeType: string; data: string };
+}
+
+function parseDataUrl(url: string): InlinePart | null {
+  const m = url.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return null;
+  return { inlineData: { mimeType: m[1], data: m[2] } };
+}
+
+async function fetchAsInlinePart(url: string): Promise<InlinePart | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const mimeType = res.headers.get("content-type") || "image/jpeg";
+    const buf = await res.arrayBuffer();
+    const data = Buffer.from(buf).toString("base64");
+    return { inlineData: { mimeType, data } };
+  } catch {
+    return null;
+  }
+}
+
+async function analyzePhotosWithGemini(photoUrls: string[]): Promise<PhotoAnalysis | null> {
+  if (!isGeminiConfigured()) return null;
+  const apiKey = process.env.GEMINI_API_KEY!;
+  // Converte URLs pra inline_data (Gemini quer base64 ou URI publica)
+  const parts: (InlinePart | { text: string })[] = [
+    { text: `Analise as ${photoUrls.length} fotos abaixo (indices 0 a ${photoUrls.length - 1}):` },
+  ];
+  for (const url of photoUrls) {
+    let part = parseDataUrl(url);
+    if (!part) part = await fetchAsInlinePart(url);
+    if (part) parts.push(part);
+  }
+  // Se nao conseguiu carregar nenhuma imagem, aborta
+  if (parts.length <= 1) return null;
+
+  const url = `${GEMINI_API_BASE}/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const body = {
+    contents: [{ role: "user", parts }],
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 200,
+      responseMimeType: "application/json",
+    },
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      console.error(`[photo-picker:gemini] HTTP ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    let best = typeof parsed.best === "number" ? parsed.best : 0;
+    if (best < 0 || best >= photoUrls.length) best = 0;
+    const rawCats: unknown[] = Array.isArray(parsed.categories) ? parsed.categories : [];
+    const categories: PhotoCategory[] = rawCats.map((c) => {
+      const s = String(c).toLowerCase();
+      return (VALID_CATEGORIES.includes(s as PhotoCategory) ? s : "outro") as PhotoCategory;
+    });
+    while (categories.length < photoUrls.length) categories.push("outro");
+    return { best, categories: categories.slice(0, photoUrls.length) };
+  } catch (err) {
+    console.error("[photo-picker:gemini] failed:", err);
+    return null;
+  }
 }
 
 export type PhotoCategory = "exterior" | "interior" | "motor" | "detalhe" | "screenshot" | "outro";
@@ -68,55 +155,71 @@ export async function analyzePhotos(photoUrls: string[]): Promise<PhotoAnalysis>
 
   const photos = photoUrls.slice(0, 6);
 
-  try {
-    const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 200,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: `Analise as ${photos.length} fotos abaixo (indices 0 a ${photos.length - 1}):` },
-            ...photos.map((url) => ({
-              type: "image_url" as const,
-              image_url: { url, detail: "low" as const },
-            })),
-          ],
-        },
-      ],
-    });
-
-    const raw = completion.choices[0]?.message?.content || "{}";
-    const parsed = JSON.parse(raw);
-    let best = typeof parsed.best === "number" ? parsed.best : 0;
-    if (best < 0 || best >= photos.length) best = 0;
-
-    const rawCats: unknown[] = Array.isArray(parsed.categories) ? parsed.categories : [];
-    const categories: PhotoCategory[] = rawCats.map((c) => {
-      const s = String(c).toLowerCase();
-      return (VALID_CATEGORIES.includes(s as PhotoCategory) ? s : "outro") as PhotoCategory;
-    });
-    // Garante length igual ao numero de fotos
-    while (categories.length < photoUrls.length) categories.push("outro");
-
-    // REFORCO: se best aponta pra foto categorizada como interior/motor/screenshot,
-    // procura a primeira "exterior" da lista como fallback
-    const bestCat = categories[best];
+  // Helper: aplica REFORCO de exterior como destaque
+  const applyExteriorReforco = (result: PhotoAnalysis): PhotoAnalysis => {
+    let best = result.best;
+    const bestCat = result.categories[best];
     if (bestCat !== "exterior") {
-      const exteriorIdx = categories.findIndex((c) => c === "exterior");
+      const exteriorIdx = result.categories.findIndex((c) => c === "exterior");
       if (exteriorIdx !== -1 && exteriorIdx < photos.length) {
         best = exteriorIdx;
       }
     }
+    return { best, categories: result.categories };
+  };
 
-    return { best, categories: categories.slice(0, photoUrls.length) };
-  } catch (err) {
-    console.error("[photo-picker] GPT Vision analyze failed:", err);
-    return { best: 0, categories: photoUrls.map(() => "outro" as PhotoCategory) };
+  // 1) Tenta GPT-4o-mini Vision (primario)
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const completion = await getOpenAI().chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 200,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Analise as ${photos.length} fotos abaixo (indices 0 a ${photos.length - 1}):` },
+              ...photos.map((url) => ({
+                type: "image_url" as const,
+                image_url: { url, detail: "low" as const },
+              })),
+            ],
+          },
+        ],
+      });
+
+      const raw = completion.choices[0]?.message?.content || "{}";
+      const parsed = JSON.parse(raw);
+      let best = typeof parsed.best === "number" ? parsed.best : 0;
+      if (best < 0 || best >= photos.length) best = 0;
+
+      const rawCats: unknown[] = Array.isArray(parsed.categories) ? parsed.categories : [];
+      const categories: PhotoCategory[] = rawCats.map((c) => {
+        const s = String(c).toLowerCase();
+        return (VALID_CATEGORIES.includes(s as PhotoCategory) ? s : "outro") as PhotoCategory;
+      });
+      while (categories.length < photoUrls.length) categories.push("outro");
+
+      return applyExteriorReforco({ best, categories: categories.slice(0, photoUrls.length) });
+    } catch (err) {
+      console.error("[photo-picker] GPT Vision failed, tentando Gemini:", err);
+    }
   }
+
+  // 2) Fallback: Gemini Vision (se configurado)
+  if (isGeminiConfigured()) {
+    const geminiResult = await analyzePhotosWithGemini(photos);
+    if (geminiResult) {
+      console.log("[photo-picker] usado fallback Gemini Vision com sucesso");
+      return applyExteriorReforco(geminiResult);
+    }
+  }
+
+  // 3) Sem IA -- fallback final: ordem original, categorias "outro"
+  return { best: 0, categories: photoUrls.map(() => "outro" as PhotoCategory) };
 }
 
 /**
