@@ -81,8 +81,15 @@ export async function POST(request: Request) {
 
     const isBadKm = (km: number) => km < 1000;
     const isBadYear = (y: number) => y < 1990 || y > new Date().getFullYear() + 1;
+    // FIPE null + 2+ valores R$ no rawDescription = candidato a normalizacao
+    const hasMultipleUnlabeledPrices = (v: { fipePrice: number | null; rawDescription: string | null }) => {
+      if (v.fipePrice) return false;
+      if (!v.rawDescription) return false;
+      const matches = v.rawDescription.match(/r\$\s*[\d][\d.,]*/gi) || [];
+      return matches.length >= 2;
+    };
     const candidates = all.filter((v) =>
-      isBadModelName(v.model) || isBadKm(v.km) || isBadYear(v.year)
+      isBadModelName(v.model) || isBadKm(v.km) || isBadYear(v.year) || hasMultipleUnlabeledPrices(v)
     );
 
     // Margem global pra regenerar formattedAd
@@ -131,6 +138,16 @@ export async function POST(request: Request) {
         updates.year = extracted.year;
         if (extracted.yearModel) updates.yearModel = extracted.yearModel;
         willChange = true;
+      }
+      // FIPE + price (caso BMW 220i sem rotulo)
+      if (!v.fipePrice && extracted.fipePrice && extracted.fipePrice > 0) {
+        updates.fipePrice = extracted.fipePrice;
+        willChange = true;
+        // Se o price atual e igual a fipe extraida, corrige o price tambem
+        if (extracted.price && extracted.price !== extracted.fipePrice &&
+            (v.price === extracted.fipePrice || v.price > extracted.price * 1.05)) {
+          updates.price = extracted.price;
+        }
       }
 
       if (!willChange) {

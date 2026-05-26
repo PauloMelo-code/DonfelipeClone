@@ -64,16 +64,25 @@ export async function POST(
     let year = vehicle.year;
     let yearModel = vehicle.yearModel;
     let fipePrice = vehicle.fipePrice;
+    let price = vehicle.price;
     let modelChanged = false;
     let dataChanged = false;
 
-    // Heuristica: dados suspeitos = model promocional OU km muito baixo (<1000)
-    // OU year fora da faixa razoavel.
+    // Heuristica: dados suspeitos.
+    // Inclui: FIPE null + 2+ valores R$ no texto (caso BMW 220i:
+    // R$ 94.673 + *R$ 79.990* sem rotulo 'Fipe' -- antes pegava 94.673
+    // como price, agora reextrai pra detectar maior=FIPE / menor=venda).
+    const moneyMatches = vehicle.rawDescription
+      ? (vehicle.rawDescription.match(/r\$\s*[\d][\d.,]*/gi) || [])
+      : [];
+    const hasMultiplePrices = !vehicle.fipePrice && moneyMatches.length >= 2;
+
     const needsReExtract =
       isBadModelName(vehicle.model) ||
       vehicle.km < 1000 ||
       vehicle.year < 1990 ||
-      vehicle.year > new Date().getFullYear() + 1;
+      vehicle.year > new Date().getFullYear() + 1 ||
+      hasMultiplePrices;
 
     if (needsReExtract && vehicle.rawDescription) {
       const extracted = await extractVehicleFromTextNoCache(vehicle.rawDescription);
@@ -102,6 +111,16 @@ export async function POST(
           fipePrice = extracted.fipePrice;
           dataChanged = true;
         }
+        // PRICE: se extractor achou fipePrice + price diferentes E o atual
+        // do DB e igual a fipe (era o caso onde sistema pegou fipe como preco),
+        // atualiza pro price correto.
+        if (extracted.fipePrice && extracted.price &&
+            extracted.price !== extracted.fipePrice &&
+            (vehicle.price === extracted.fipePrice || vehicle.price > extracted.price * 1.05)) {
+          price = extracted.price;
+          dataChanged = true;
+          console.log(`[regenerate-ad] price corrigido: ${vehicle.price} -> ${price}`);
+        }
       }
     }
 
@@ -120,7 +139,7 @@ export async function POST(
         year,
         yearModel,
         km,
-        price: vehicle.price,
+        price,
         fipePrice,
         transmission: vehicle.transmission,
         fuel: vehicle.fuel,
@@ -131,14 +150,14 @@ export async function POST(
     );
 
     if (body.save) {
-      const sellingPrice = vehicle.price * (1 + margin / 100);
+      const sellingPrice = price * (1 + margin / 100);
       await prisma.vehicle.update({
         where: { id },
         data: {
           formattedAd: newAd,
           sellingPrice,
           ...(modelChanged ? { model, brand } : {}),
-          ...(dataChanged ? { km, year, yearModel, fipePrice } : {}),
+          ...(dataChanged ? { km, year, yearModel, fipePrice, price } : {}),
         },
       });
     }
@@ -151,6 +170,7 @@ export async function POST(
       brand,
       km,
       year,
+      price,
       fipePrice,
       modelChanged,
       dataChanged,
