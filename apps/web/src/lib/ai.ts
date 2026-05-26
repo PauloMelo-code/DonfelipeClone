@@ -207,8 +207,6 @@ function extractWithRegex(text: string): VehicleData | null {
 
   // --- Price ---
   // CRITICAL: nunca usar uma linha que menciona "fipe" como preco de venda.
-  // O vendedor as vezes posta SO a FIPE (sem o valor da oferta) e o sistema
-  // copiava a FIPE como price -> dava "-0% FIPE" e score errado.
   let price: number | null = null;
   const priceText = lines.filter((l) => !/fipe/i.test(l)).join("\n");
   const pricePatterns = [
@@ -225,9 +223,70 @@ function extractWithRegex(text: string): VehicleData | null {
     }
   }
 
+  // --- NORMALIZACAO FIPE/PRECO sem rotulo explicito ---
+  // Padrao comum: anuncio com 2 valores R$, o de cima e a FIPE (as vezes
+  // riscada/tachada) e o de baixo (em negrito *...*) e o preco de venda.
+  // Sem a palavra "FIPE", o regex acima nao detecta a FIPE.
+  //
+  // Heuristica:
+  //  - Pega TODOS os valores R$ do texto (>= 10mil, <= 2mi)
+  //  - Filtra valores que aparecem em linha de FIPE (ja extraidos antes)
+  //  - Se sobrarem 2+ valores DIFERENTES:
+  //      * MAIOR  = FIPE (se ainda nao tem)
+  //      * MENOR  = preco de venda
+  //  - Preserva marcacao de negrito (*X*) como hint de preco de venda
+  if (fipePrice === null) {
+    const allValues: { value: number; bold: boolean; raw: string }[] = [];
+    const seenInFipeLines = new Set<number>();
+    // Marca valores que estao em linha com "fipe" pra ignorar
+    for (const fl of lines) {
+      if (!/\bfipe\b/i.test(fl)) continue;
+      const nums = fl.match(/r?\$?\s*[\d][\d.,]*/g) || [];
+      for (const raw of nums) {
+        const n = parseBrazilianNumber(raw.replace(/r\$\s*/i, ""));
+        if (n !== null) seenInFipeLines.add(n);
+      }
+    }
+    // Coleta todos os R$ do texto, marcando se estao entre asteriscos (negrito)
+    const moneyRegex = /(\*?)\s*r?\$\s*([\d][\d.,]*)\s*(\*?)/gi;
+    let match: RegExpExecArray | null;
+    while ((match = moneyRegex.exec(clean)) !== null) {
+      const n = parseBrazilianNumber(match[2]);
+      if (n === null || n < 10000 || n > 2_000_000) continue;
+      if (seenInFipeLines.has(n)) continue;
+      const bold = match[1] === "*" || match[3] === "*";
+      allValues.push({ value: n, bold, raw: match[0] });
+    }
+    // De-duplica mantendo a primeira ocorrencia
+    const unique: typeof allValues = [];
+    const seen = new Set<number>();
+    for (const v of allValues) {
+      if (seen.has(v.value)) continue;
+      seen.add(v.value);
+      unique.push(v);
+    }
+    if (unique.length >= 2) {
+      // Existe um marcado em negrito? Esse e o preco de venda
+      const bolded = unique.find((v) => v.bold);
+      // Maior valor = candidato a FIPE
+      const sortedDesc = [...unique].sort((a, b) => b.value - a.value);
+      const maxVal = sortedDesc[0].value;
+      const minVal = sortedDesc[sortedDesc.length - 1].value;
+      // So aplica heuristica se a diferenca for plausivel (3-50% -- repasses)
+      const discount = (maxVal - minVal) / maxVal;
+      if (discount >= 0.03 && discount <= 0.5) {
+        fipePrice = maxVal;
+        // Se nao tem preco ou preco eh igual a FIPE, usa o menor como venda
+        if (price === null || price === maxVal) {
+          price = bolded?.value ?? minVal;
+        }
+        console.log(`[regex] FIPE inferida sem rotulo: ${maxVal} (venda=${price}, desconto=${(discount * 100).toFixed(1)}%)`);
+      }
+    }
+  }
+
   // Salvaguarda: se o preco extraido eh identico a FIPE, quase certamente
   // foi a FIPE copiada por engano (anuncio sem valor de oferta real).
-  // Zera o price -> regex falha (price obrigatorio) -> cai pro GPT que decide.
   if (price !== null && fipePrice !== null && price === fipePrice) {
     console.log("[regex] price == fipePrice, descartando price (anuncio provavelmente sem oferta)");
     price = null;
@@ -556,6 +615,18 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    - "Vendo por 90 mil"                 -> price=90000, fipePrice=null
    - "Fipe 0km R$180.000 / Fipe usado R$159.000 / Por R$149.000"
         -> fipePrice=159000 (a do usado), price=149000
+
+7. DOIS VALORES SEM ROTULO 'FIPE' (caso comum):
+   Vendedor escreve 2 valores no final, o de cima maior e o de baixo
+   menor (geralmente em negrito *...*). Sem palavra 'Fipe' explicita:
+     R\$ 94.673,00
+     *R\$ 79.990,00*
+   Interprete: o MAIOR e a FIPE (ou tabela), o MENOR (especialmente
+   se em negrito) e o preco de VENDA.
+   Resultado: fipePrice=94673, price=79990
+   Aplique SO se a diferenca entre os 2 estiver entre 3% e 50% (faixa
+   tipica de repasse). Se diferenca > 50%, sao precos diferentes
+   (talvez de carros diferentes ou erro), ignore.
 
 7. FORMATO BRASILEIRO DE NUMEROS:
    - "78.200,00" = 78200 (ponto = milhar, virgula = decimal)
