@@ -30,7 +30,7 @@ const MORE_NAV = [
   { label: "Insights", href: "/insights", icon: BarChart3 },
   { label: "Templates", href: "/templates", icon: MessageSquare },
   { label: "Usuários", href: "/usuarios", icon: UserCog },
-  { label: "Auditoria", href: "/auditoria", icon: Shield },
+  { label: "Análise", href: "/auditoria", icon: Shield },
   { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 

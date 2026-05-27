@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
@@ -273,8 +273,8 @@ export default function PublicacoesPage() {
                     const photos = JSON.parse(post.vehicle.photos || "[]");
                     const isExpanded = expandedId === post.id;
                     return (
+                      <Fragment key={post.id}>
                       <motion.tr
-                        key={post.id}
                         initial={{ opacity: 0, y: 5 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.03 }}
@@ -345,20 +345,19 @@ export default function PublicacoesPage() {
                           <ChevronDown className={cn("h-4 w-4 text-muted-foreground/50 transition-transform", isExpanded && "rotate-180")} />
                         </td>
                       </motion.tr>
+                      {/* Expansao INLINE -- logo abaixo da linha clicada */}
+                      {isExpanded && (
+                        <tr className="bg-card/40 border-b border-white/[0.04]">
+                          <td colSpan={7} className="px-5 py-4">
+                            <PublicationExpand post={post} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
               </table>
-              {/* Expansao desktop -- fora da tabela pra ocupar largura toda */}
-              {expandedId && (() => {
-                const post = posts.find((p) => p.id === expandedId);
-                if (!post) return null;
-                return (
-                  <div className="px-5 py-4 bg-card/40 border-t border-white/[0.04]">
-                    <PublicationExpand post={post} />
-                  </div>
-                );
-              })()}
             </div>
 
             {/* Pagination */}

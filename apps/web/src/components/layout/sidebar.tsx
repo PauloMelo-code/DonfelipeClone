@@ -33,7 +33,7 @@ const navigation = [
   { label: "Grupos", href: "/grupos", icon: Users },
   { label: "Templates", href: "/templates", icon: MessageSquare },
   { label: "Usuários", href: "/usuarios", icon: UserCog },
-  { label: "Auditoria", href: "/auditoria", icon: Shield },
+  { label: "Análise", href: "/auditoria", icon: Shield },
 ];
 
 const bottomNavigation = [

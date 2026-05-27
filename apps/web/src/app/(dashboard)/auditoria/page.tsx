@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
@@ -146,7 +146,7 @@ export default function AuditoriaPage() {
 
   return (
     <>
-      <Header title="Auditoria" subtitle="Registro de todas as ações do sistema" />
+      <Header title="Análise" subtitle="Detalhes e auditoria das ações do sistema" />
 
       <PageContainer>
         {/* Filters */}
@@ -282,73 +282,72 @@ export default function AuditoriaPage() {
                     const Icon = config?.icon || Shield;
                     const details = parseDetails(log.details);
                     const isExpanded = expandedId === log.id;
+                    const canExpand = !!(details || log.vehicleId);
                     return (
-                      <motion.tr
-                        key={log.id}
-                        initial={{ opacity: 0, y: 5 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.02 }}
-                        className={cn("border-b border-white/[0.03] transition-colors duration-200 cursor-pointer", isExpanded ? "bg-white/[0.02]" : "hover:bg-white/[0.02]")}
-                        onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                      >
-                        <td className="px-5 py-3.5">
-                          <Badge className={cn("gap-1 border", config?.color || "bg-card text-foreground border-border")}>
-                            <Icon className="h-3 w-3" />{config?.label || log.action}
-                          </Badge>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          {log.user ? (
-                            <div>
-                              <p className="font-medium text-foreground">{log.user.name}</p>
-                              <p className="text-[11px] text-muted-foreground">{log.user.email}</p>
-                            </div>
-                          ) : <span className="text-muted-foreground text-xs">Sistema</span>}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          {log.vehicle ? (
-                            <span className="text-foreground">{log.vehicle.brand && `${log.vehicle.brand} `}{log.vehicle.model}</span>
-                          ) : log.entityType ? (
-                            <span className="text-muted-foreground">{log.entityType}</span>
-                          ) : <span className="text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
-                        <td className="px-5 py-3.5">
-                          {(details || log.vehicleId) && <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />}
-                        </td>
-                      </motion.tr>
+                      <Fragment key={log.id}>
+                        <motion.tr
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.02 }}
+                          className={cn("border-b border-white/[0.03] transition-colors duration-200 cursor-pointer", isExpanded ? "bg-white/[0.02]" : "hover:bg-white/[0.02]")}
+                          onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                        >
+                          <td className="px-5 py-3.5">
+                            <Badge className={cn("gap-1 border", config?.color || "bg-card text-foreground border-border")}>
+                              <Icon className="h-3 w-3" />{config?.label || log.action}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            {log.user ? (
+                              <div>
+                                <p className="font-medium text-foreground">{log.user.name}</p>
+                                <p className="text-[11px] text-muted-foreground">{log.user.email}</p>
+                              </div>
+                            ) : <span className="text-muted-foreground text-xs">Sistema</span>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            {log.vehicle ? (
+                              <span className="text-foreground">{log.vehicle.brand && `${log.vehicle.brand} `}{log.vehicle.model}</span>
+                            ) : log.entityType ? (
+                              <span className="text-muted-foreground">{log.entityType}</span>
+                            ) : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(log.createdAt)}</td>
+                          <td className="px-5 py-3.5">
+                            {canExpand && <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />}
+                          </td>
+                        </motion.tr>
+                        {/* Linha de expansao INLINE -- logo abaixo da clicada */}
+                        {isExpanded && canExpand && (
+                          <tr className="bg-card/40 border-b border-white/[0.04]">
+                            <td colSpan={5} className="px-5 py-4">
+                              <div className="space-y-4">
+                                {log.vehicleId && (
+                                  <AuditVehicleDetail vehicleId={log.vehicleId} />
+                                )}
+                                {(log.ipAddress || log.userAgent) && (
+                                  <AuditRequestMeta ip={log.ipAddress} ua={log.userAgent} />
+                                )}
+                                {details && (
+                                  <details className="rounded-lg border border-white/[0.04] bg-background/40">
+                                    <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2 select-none">
+                                      Detalhes técnicos (JSON)
+                                    </summary>
+                                    <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono px-3 pb-3 max-h-40 overflow-auto">
+                                      {JSON.stringify(details, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-
-            {/* Expanded details - desktop */}
-            {expandedId && (() => {
-              const log = logs.find((l) => l.id === expandedId);
-              if (!log) return null;
-              const details = parseDetails(log.details);
-              if (!details && !log.vehicleId) return null;
-              return (
-                <div className="hidden md:block px-5 py-4 bg-card/40 border-t border-white/[0.04] space-y-4">
-                  {log.vehicleId && (
-                    <AuditVehicleDetail vehicleId={log.vehicleId} />
-                  )}
-                  {(log.ipAddress || log.userAgent) && (
-                    <AuditRequestMeta ip={log.ipAddress} ua={log.userAgent} />
-                  )}
-                  {details && (
-                    <details className="rounded-lg border border-white/[0.04] bg-background/40">
-                      <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 px-3 py-2 select-none">
-                        Detalhes técnicos (JSON)
-                      </summary>
-                      <pre className="text-xs text-foreground/80 whitespace-pre-wrap font-mono px-3 pb-3 max-h-40 overflow-auto">
-                        {JSON.stringify(details, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              );
-            })()}
 
             {/* Pagination */}
             {pagination.totalPages > 1 && (
