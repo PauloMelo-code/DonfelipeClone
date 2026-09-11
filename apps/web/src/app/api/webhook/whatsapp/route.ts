@@ -1,115 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, gte, asc } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
+import { extractVehicleFromImage } from "@/lib/ai";
 import {
-  extractVehicleFromImage,
-  extractVehicleFromText,
-} from "@/lib/ai";
-import { generateVehicleHash, generateVehicleIdentityHash, findFuzzyDuplicate } from "@/lib/deduplication";
-import { applyFilters } from "@/lib/vehicle-parser";
+  generateVehicleHash,
+  generateVehicleIdentityHash,
+  findFuzzyDuplicate,
+} from "@/lib/deduplication";
 import { rateLimit } from "@/lib/rate-limit";
-import { uazapi } from "@/lib/uazapi";
+import { extractRequestMeta } from "@/lib/request-meta";
+import { checkMachineSecret } from "@/lib/machine-auth";
+import { normalizarPayload } from "@/lib/webhook/normalizar";
+import { parear } from "@/lib/webhook/parear";
+import { aplicarFiltros } from "@/lib/webhook/filtros";
+import { resolverGrupo } from "@/lib/webhook/grupo";
+import { anexarFotoExtra } from "@/lib/webhook/album";
+import {
+  gerarAnuncioEmBackground,
+  analisarFotosEmBackground,
+} from "@/lib/webhook/pos-captura";
 import { persistImage } from "@/lib/media-storage";
 import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning";
 import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
-import { reorderPhotosByBest } from "@/lib/photo-picker";
-import { cleanAdDescription } from "@/lib/ad-cleaner";
-import { formatVehicleAd } from "@/lib/vehicle-formatter";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
 // Simple in-memory lock to prevent concurrent processing of same message
 const _processingLock = new Set<string>();
 
-// Buffer for pairing image + caption sent as separate messages.
-// Key: `${groupJid}:${senderJid}` -- usa JID unico do remetente (nao nome).
-// Suporta MULTIPLAS imagens por sender (album): vendedor pode mandar 1-N
-// fotos da interna ANTES de mandar a foto com caption. Sem essa lista, as
-// fotos extras se perdiam (so a ultima sobrescrevia a primeira).
-interface BufferedMessage {
-  imageUrls: string[]; // fila ordenada por chegada (mais antiga primeiro)
-  textContent?: string;
-  messageId: string;
-  senderJid: string;
-  timestamp: number;
-}
-const _pairingBuffer = new Map<string, BufferedMessage>();
-const BUFFER_TTL_MS = 5 * 60 * 1000; // 5 min -- vendedor demora a mandar tudo
-
-function cleanExpiredBuffer() {
-  const now = Date.now();
-  for (const [key, msg] of _pairingBuffer.entries()) {
-    if (now - msg.timestamp > BUFFER_TTL_MS) {
-      _pairingBuffer.delete(key);
-    }
-  }
-}
-
-// Periodically clean expired buffer entries even when no traffic
-if (typeof setInterval !== "undefined") {
-  const _bufferTimer = setInterval(cleanExpiredBuffer, 30_000);
-  // Don't keep process alive just for this
-  if (typeof _bufferTimer.unref === "function") _bufferTimer.unref();
-}
-
-function getBufferKey(groupJid: string, senderJid: string | null): string {
-  // Sem JID do remetente, nao fazemos pareamento (seguranca)
-  if (!senderJid) return "";
-  return `${groupJid}:${senderJid}`;
-}
-
-interface WebhookPayload {
-  event: string;
-  data: {
-    key: {
-      remoteJid: string;
-      id: string;
-      fromMe: boolean;
-    };
-    message: {
-      conversation?: string;
-      imageMessage?: {
-        url: string;
-        caption?: string;
-        mimetype: string;
-      };
-      extendedTextMessage?: {
-        text: string;
-      };
-    };
-    pushName?: string;
-  };
-}
 
 export async function POST(request: NextRequest) {
   try {
-    // Webhook secret verification
-    const webhookSecret = process.env.WEBHOOK_SECRET;
-    if (!webhookSecret && process.env.NODE_ENV === "production") {
-      console.error("[Webhook] WEBHOOK_SECRET is not set! Rejecting all requests in production.");
-      return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-    }
-    if (webhookSecret) {
-      const headerSecret =
-        request.headers.get("x-webhook-secret") ||
-        request.nextUrl.searchParams.get("secret");
-
-      if (!headerSecret || headerSecret !== webhookSecret) {
-        console.warn("[Webhook] Invalid or missing webhook secret");
-        return NextResponse.json(
-          { error: "Unauthorized" },
-          { status: 401 }
-        );
-      }
+    // Credencial de maquina: cabecalho, tempo constante, fail-closed em
+    // QUALQUER ambiente. Antes, a ausencia de WEBHOOK_SECRET deixava a rota
+    // aberta fora de producao, e a comparacao era `!==` sobre string.
+    const cred = checkMachineSecret(request, {
+      headerName: "x-webhook-secret",
+      envVar: "WEBHOOK_SECRET",
+      queryParam: "secret",
+    });
+    if (!cred.ok) {
+      console.warn(`[Webhook] Credencial recusada: ${cred.motivo}`);
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Rate limiting by IP
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-    const rl = rateLimit(WEBHOOK_LIMITER, ip);
+    // Teto por IP, pela leitura canonica -- a mesma do login e da trilha.
+    // A copia que havia aqui pegava o primeiro valor do `x-forwarded-for`, que
+    // e o que o cliente escreve: bastava rodar o cabecalho para zerar o
+    // contador.
+    const { ipAddress } = extractRequestMeta(request);
+    const rl = rateLimit(WEBHOOK_LIMITER, ipAddress ?? "origem-desconhecida");
     if (!rl.allowed) {
       return NextResponse.json(
         { error: "Rate limit exceeded" },
@@ -127,149 +70,12 @@ export async function POST(request: NextRequest) {
     const msgType = raw.chat?.wa_lastMessageType || raw.event || "unknown";
     console.log("[Webhook]", raw.chat?.wa_chatid || raw.data?.key?.remoteJid || "?", raw.chat?.stanzaID || raw.data?.key?.id || "?", msgType);
 
-    // ── Normalize: UAZAPI flat format vs standard nested format ──
-    // UAZAPI sends: { BaseUrl, EventType, chat: { wa_chatid, wa_lastMessageTextVote, ... }, message: {...} }
-    const chat = raw.chat || {};
-    const isUazapiFormat = !!raw.EventType || !!chat.wa_chatid;
-
-    let groupJid: string | null = null;
-    let messageId: string;
-    let isFromMe = false;
-    let pushName: string | null = null;
-    let senderJid: string | null = null;
-    let textContent: string | null = null;
-    let imageUrl: string | null = null;
-
-    if (isUazapiFormat) {
-      const event = raw.EventType || "messages";
-      if (event !== "messages") {
-        return NextResponse.json({ status: "ignored", reason: "event_type" });
-      }
-
-      // Fields are inside chat object
-      groupJid = chat.wa_chatid || chat.chatid || null;
-      messageId = chat.stanzaID || chat.messageId || raw.id || ("uazapi_" + Date.now());
-      isFromMe = chat.fromMe === true || chat.fromMe === "true";
-      pushName = chat.senderName || chat.pushName || chat.wa_name || null;
-      // JID unico do remetente (para pareamento de mensagens)
-      senderJid = chat.wa_lastMessageSender || chat.senderJid || chat.participant || null;
-
-      // Extract text based on message type
-      const msgType = chat.wa_lastMessageType || chat.messageType || "";
-      const content = chat.content || "";
-
-      if (msgType === "Conversation" || msgType === "ExtendedTextMessage") {
-        textContent = content || chat.wa_lastMessageTextVote || null;
-      } else if (msgType === "VideoMessage") {
-        // Videos: extract caption/text only, do not download media
-        textContent = chat.wa_lastMessageTextVote || chat.caption || null;
-      } else if (msgType === "ImageMessage") {
-        // Find the WhatsApp stanzaID for /message/download
-        // It can be in: content.contextInfo.stanzaID, message.contextInfo.stanzaID, or chat.stanzaID
-        let contentObj: Record<string, unknown> | null = null;
-        if (typeof content === "object" && content !== null) {
-          contentObj = content;
-        } else if (typeof content === "string" && content.startsWith("{")) {
-          try { contentObj = JSON.parse(content); } catch { /* ignore */ }
-        }
-
-        // Try multiple ID sources for /message/download
-        const ctxInfo = contentObj?.contextInfo as Record<string, unknown> | undefined;
-        const msgCtxInfo = raw.message?.contextInfo as Record<string, unknown> | undefined;
-
-        const waMessageId =
-          ctxInfo?.stanzaID ||
-          ctxInfo?.stanzaId ||
-          msgCtxInfo?.stanzaID ||
-          msgCtxInfo?.stanzaId ||
-          chat.stanzaID ||
-          raw.message?.messageId ||
-          raw.message?.id ||
-          null;
-
-        if (process.env.NODE_ENV === "development") {
-          console.log("[Webhook] ImageMessage IDs - stanzaID:", waMessageId, "contextInfo keys:", ctxInfo ? Object.keys(ctxInfo).join(",") : "none");
-        }
-
-        if (waMessageId) {
-          try {
-            const media = await uazapi.downloadMedia(waMessageId as string);
-            if (media) {
-              const mType = media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
-              if (media.base64Data) {
-                imageUrl = `data:${mType};base64,${media.base64Data}`;
-                console.log("[Webhook] Image downloaded OK");
-              } else if (media.fileURL) {
-                imageUrl = media.fileURL;
-                console.log("[Webhook] Image downloaded OK (URL)");
-              }
-            }
-          } catch (err) {
-            console.warn("[Webhook] UAZAPI download failed:", err);
-          }
-        }
-
-        // REMOVED: fallback ID download loop — caused photo mismatch
-        // (downloading wrong image from different message IDs)
-
-        // If primary download failed, skip this message (no photo = no capture)
-        if (!imageUrl) {
-          console.warn("[Webhook] Image download failed for stanzaID:", waMessageId, "- skipping");
-        }
-
-        // Caption pode estar em varios lugares no payload UAZAPI
-        textContent =
-          (contentObj?.caption as string) ||
-          (contentObj?.text as string) ||
-          chat.wa_lastMessageTextVote ||
-          chat.wa_lastMessageText ||
-          chat.caption ||
-          chat.text ||
-          null;
-      }
-
-      // Fallback: try text from any field
-      if (!textContent) {
-        const fallback = chat.wa_lastMessageTextVote || content || null;
-        if (fallback && typeof fallback === "string" && !fallback.startsWith("http")) {
-          textContent = fallback;
-        }
-      }
-
-      // Also try message object if present
-      if (raw.message) {
-        if (!textContent && raw.message.conversation) {
-          textContent = raw.message.conversation;
-        }
-        if (!textContent && raw.message.extendedTextMessage?.text) {
-          textContent = raw.message.extendedTextMessage.text;
-        }
-        if (raw.message.imageMessage) {
-          imageUrl = imageUrl || raw.message.imageMessage.url || null;
-          textContent = textContent || raw.message.imageMessage.caption || null;
-        }
-      }
-    } else {
-      // Standard nested format
-      const event = raw.event || "messages";
-      if (event !== "messages.upsert" && event !== "messages") {
-        return NextResponse.json({ status: "ignored", reason: "event_type" });
-      }
-
-      const data = raw.data || raw;
-      const key = data.key || {};
-      const message = data.message || {};
-      groupJid = key.remoteJid || null;
-      messageId = key.id || ("std_" + Date.now());
-      isFromMe = !!key.fromMe;
-      pushName = data.pushName || null;
-      textContent = message.conversation || message.extendedTextMessage?.text || message.imageMessage?.caption || null;
-      imageUrl = message.imageMessage?.url || null;
+    const norm = await normalizarPayload(raw);
+    if (!norm.ok) {
+      return NextResponse.json({ status: "ignored", reason: norm.motivo });
     }
-
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Webhook] Parsed:", { groupJid, messageId, isFromMe, hasImage: !!imageUrl });
-    }
+    const { groupJid, messageId, isFromMe, pushName, senderJid, chat } = norm.msg;
+    let { textContent, imageUrl } = norm.msg;
 
     // Prevent concurrent processing of same message
     if (_processingLock.has(messageId)) {
@@ -303,75 +109,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "own_message" });
     }
 
-    let group = await prisma.whatsAppGroup.findUnique({
-      where: { groupId: groupJid },
+    const group = await resolverGrupo({
+      groupJid,
+      chat,
+      pushName,
+      groupName: raw.message?.groupName ?? null,
+      isGroup: !!isGroup,
+      isBroadcast: !!isBroadcast,
+      isContact: !!isContact,
     });
-
-    // Capturar flags do UAZAPI (wa_isGroup_community, wa_isGroup_announce)
-    const isCommunity = chat?.wa_isGroup_community === true;
-    const isAnnounce = chat?.wa_isGroup_announce === true;
-    const chatName = chat?.wa_name || chat?.name || raw.message?.groupName || pushName || groupJid.replace(/@.*/, "");
-
-    // Auto-register: contatos (DM) entram ATIVOS pra nao perder carros.
-    // Camadas de protecao ja filtram lixo:
-    //  - no_vehicle_keywords (texto sem palavras de carro)
-    //  - text_too_short / image_no_caption
-    //  - extracao GPT falhou (no_vehicle_data)
-    //  - blocklist + padroes aprendidos (autoRejectedReason)
-    //  - quality_score baixo
-    // Se quiser desativar um contato spammer, basta toggle em /grupos.
-    if (!group && (isGroup || isBroadcast || isContact)) {
-      const prefix = isContact ? "Contato: " : isAnnounce ? "Canal: " : isBroadcast ? "Lista: " : isCommunity ? "Comunidade: " : "";
-      group = await prisma.whatsAppGroup.create({
-        data: {
-          groupId: groupJid,
-          name: prefix + chatName,
-          role: "SOURCE",
-          active: true,
-          isCommunity,
-          isAnnounce,
-          isContact: !!isContact,
-          ownerPhone: chat?.owner || null,
-        },
-      });
-      console.log(`[Webhook] Auto-registered ${isContact ? "contact" : isAnnounce ? "channel" : isCommunity ? "community" : isBroadcast ? "broadcast" : "group"}: ${group.name} (${groupJid})`);
-    } else if (group) {
-      // Atualiza flags se mudaram
-      const flagsChanged =
-        group.isCommunity !== isCommunity ||
-        group.isAnnounce !== isAnnounce ||
-        group.isContact !== !!isContact ||
-        (chat?.owner && !group.ownerPhone);
-
-      // Auto-resolve nome: se o nome atual e so o numero/JID e chegou um
-      // pushName/chatName decente (>=3 chars, nao numerico), atualiza.
-      // Respeita nameLocked -- se foi renomeado manualmente, nao mexe.
-      let nameToUpdate: string | undefined;
-      const isPlaceholder = !group.name || group.name === group.groupId
-        || group.name.match(/^Contato:?\s*\+?\d{8,}/)
-        || group.name.match(/^\+?\d{8,}$/);
-      const niceName = (pushName || chat?.wa_name || chat?.wa_contactName || "").trim();
-      const niceNameValid = niceName.length >= 3 && !/^\+?\d+$/.test(niceName);
-      if (!group.nameLocked && isPlaceholder && niceNameValid) {
-        nameToUpdate = isContact ? `Contato: ${niceName}` : niceName;
-      }
-
-      if (flagsChanged || nameToUpdate) {
-        await prisma.whatsAppGroup.update({
-          where: { id: group.id },
-          data: {
-            ...(nameToUpdate && { name: nameToUpdate }),
-            isCommunity,
-            isAnnounce,
-            isContact: !!isContact,
-            ownerPhone: group.ownerPhone || chat?.owner || null,
-          },
-        });
-        if (nameToUpdate) {
-          console.log(`[Webhook] Resolved name: ${groupJid} -> "${nameToUpdate}"`);
-        }
-      }
-    }
 
     if (!group || group.role !== "SOURCE" || !group.active) {
       return NextResponse.json({
@@ -380,9 +126,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const existingMessage = await prisma.vehicle.findFirst({
-      where: { sourceMessageId: messageId },
-    });
+    const [existingMessage] = await db
+      .select({ id: veiculos.id })
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.sourceMessageId, messageId)))
+      .limit(1);
 
     if (existingMessage) {
       return NextResponse.json({
@@ -391,76 +139,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // === Buffer pairing: juntar foto + texto enviados separadamente ===
-    // So pareamos se temos o JID do remetente (seguranca -- evita misturar
-    // mensagens de pessoas diferentes no mesmo grupo).
-    // Suporta album: varias fotos podem ficar aguardando o texto.
-    cleanExpiredBuffer();
-    const bufferKey = getBufferKey(groupJid, senderJid);
-    const buffered = bufferKey ? _pairingBuffer.get(bufferKey) : null;
-
-    // Fotos extras que vao ser anexadas ao Vehicle apos ser criado.
-    let extraPhotosFromBuffer: string[] = [];
-
-    if (imageUrl && !textContent && bufferKey) {
-      if (buffered?.textContent && (!buffered.imageUrls || buffered.imageUrls.length === 0)) {
-        // Texto bufferizado esperando essa foto -- pareia (1a foto vira principal)
-        textContent = buffered.textContent;
-        _pairingBuffer.delete(bufferKey);
-        console.log("[Webhook] PAIRED: imagem + texto do buffer de", senderJid);
-      } else {
-        // Sem texto pareando: adiciona foto na FILA. Aguarda texto chegar
-        // ou Vehicle ser criado pra drenar.
-        const existing = buffered ?? { imageUrls: [] as string[], messageId, senderJid: senderJid!, timestamp: Date.now() };
-        const urls = existing.imageUrls ?? [];
-        if (!urls.includes(imageUrl)) urls.push(imageUrl);
-        _pairingBuffer.set(bufferKey, {
-          ...existing,
-          imageUrls: urls.slice(0, 12), // cap em 12 fotos por seguranca
-          timestamp: Date.now(), // refresca o TTL
-        });
-        console.log(`[Webhook] BUFFERED: imagem #${urls.length} de`, senderJid);
-        return NextResponse.json({ status: "buffered", reason: "awaiting_caption", queued: urls.length });
-      }
-    } else if (!imageUrl && textContent && bufferKey) {
-      if (buffered?.imageUrls && buffered.imageUrls.length > 0 && !buffered.textContent) {
-        // Texto chegou e tem fotos esperando: usa a 1a como principal e
-        // guarda o resto pra anexar depois (album).
-        imageUrl = buffered.imageUrls[0];
-        extraPhotosFromBuffer = buffered.imageUrls.slice(1);
-        _pairingBuffer.delete(bufferKey);
-        console.log(
-          `[Webhook] PAIRED: texto + ${buffered.imageUrls.length} imagem(s) do buffer de`,
-          senderJid,
-          extraPhotosFromBuffer.length > 0 ? `(${extraPhotosFromBuffer.length} extras pro album)` : ""
-        );
-      } else if (buffered?.textContent) {
-        // JA tem texto bufferado -- CONCATENA (vendedor mandando anuncio
-        // fragmentado: 'Onix LT' depois '2020, 50k', depois foto).
-        // Limite: 2000 chars no buffer pra nao explodir memoria.
-        const combined = `${buffered.textContent}\n${textContent}`.slice(0, 2000);
-        _pairingBuffer.set(bufferKey, {
-          ...buffered,
-          textContent: combined,
-          timestamp: Date.now(), // refresca TTL
-        });
-        console.log(`[Webhook] BUFFERED: texto concatenado (${combined.length} chars total) de`, senderJid);
-        return NextResponse.json({ status: "buffered", reason: "text_concatenated", chars: combined.length });
-      } else if (textContent.length >= 5) {
-        // Bufferar texto -- limite reduzido de 20 -> 5 chars pra capturar
-        // fragmentos curtos como "Onix LT", "2020", "50k". Sera processado
-        // quando a foto chegar (ou descartado em 5min se nada vier).
-        _pairingBuffer.set(bufferKey, {
-          imageUrls: [],
-          textContent,
-          messageId,
-          senderJid: senderJid!,
-          timestamp: Date.now(),
-        });
-        console.log(`[Webhook] BUFFERED: texto aguardando imagem (${textContent.length} chars) de`, senderJid);
-        return NextResponse.json({ status: "buffered", reason: "awaiting_image" });
-      }
+    // Foto e legenda podem chegar em mensagens separadas, em qualquer ordem.
+    const pareado = parear({ groupJid, senderJid, messageId, textContent, imageUrl });
+    if (pareado.tipo === "bufferado") {
+      return NextResponse.json(pareado.resposta);
     }
+    textContent = pareado.textContent;
+    imageUrl = pareado.imageUrl;
+    const extraPhotosFromBuffer = pareado.fotosExtras;
 
     // Se ainda nao tem imagem, descarta
     if (!imageUrl) {
@@ -468,76 +154,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
 
-    // === Multi-foto (album): anexa fotos extras a anuncios recentes ===
-    // Se chegou foto sem texto, e o mesmo remetente gerou um Vehicle nos
-    // ultimos 5 min no mesmo grupo, anexamos a foto ao array .photos.
-    // Match primario por sourceSenderJid (JID confiavel de quem postou);
-    // fallback por sellerPhone pra anuncios antigos sem o campo novo.
+    // Foto sem legenda pode ser a segunda foto de um anuncio ja capturado.
     if (!textContent && imageUrl && senderJid) {
-      const fiveMinAgo = new Date(Date.now() - 5 * 60_000);
-      const senderDigits = senderJid.replace(/\D/g, "");
-      let target = await prisma.vehicle.findFirst({
-        where: {
-          sourceGroupId: group.groupId,
-          capturedAt: { gte: fiveMinAgo },
-          OR: [
-            { sourceSenderJid: senderJid },
-            { sellerPhone: senderJid },
-            { sellerPhone: senderDigits },
-            { sellerPhone: { contains: senderDigits } },
-          ],
-        },
-        orderBy: { capturedAt: "desc" },
-        select: { id: true, photos: true },
+      const album = await anexarFotoExtra({
+        groupId: group.groupId,
+        senderJid,
+        imageUrl,
       });
-
-      // Fallback: se nada casou por remetente mas existe UM unico anuncio
-      // recentissimo (<=90s) no grupo, provavelmente eh o mesmo anuncio
-      // (vendedor mandando fotos em sequencia).
-      if (!target) {
-        const ninetySecAgo = new Date(Date.now() - 90_000);
-        const recentInGroup = await prisma.vehicle.findMany({
-          where: { sourceGroupId: group.groupId, capturedAt: { gte: ninetySecAgo } },
-          orderBy: { capturedAt: "desc" },
-          select: { id: true, photos: true },
-          take: 2,
-        });
-        if (recentInGroup.length === 1) {
-          target = recentInGroup[0];
-          console.log("[Webhook] Multi-photo: fallback -- unico anuncio recente no grupo");
-        }
-      }
-
-      if (target) {
-        // Parse, append, save -- sem chamar GPT
-        let currentPhotos: string[] = [];
-        try {
-          const parsed = JSON.parse(target.photos);
-          if (Array.isArray(parsed)) currentPhotos = parsed.filter((p) => typeof p === "string");
-        } catch { /* ignore */ }
-
-        if (currentPhotos.length >= 12) {
-          console.log(`[Webhook] Multi-photo: vehicle ${target.id} ja tem 12 fotos, ignorando extra`);
-          return NextResponse.json({ status: "ignored", reason: "multi_photo_limit" });
-        }
-
-        if (!currentPhotos.includes(imageUrl)) {
-          currentPhotos.push(imageUrl);
-          await prisma.vehicle.update({
-            where: { id: target.id },
-            data: { photos: JSON.stringify(currentPhotos) },
-          });
-          console.log(`[Webhook] Multi-photo: foto anexada ao vehicle ${target.id} (total: ${currentPhotos.length})`);
-        }
-
+      if (album.anexou) {
         return NextResponse.json({
           status: "multi_photo_appended",
-          vehicleId: target.id,
-          totalPhotos: currentPhotos.length,
+          vehicleId: album.vehicleId,
+          totalPhotos: album.totalPhotos,
         });
       }
-
-      // Sem anuncio recente -> rejeita como antes
+      if (album.motivo === "limite_atingido") {
+        return NextResponse.json({ status: "ignored", reason: "multi_photo_limit" });
+      }
+      // Sem anuncio recente para anexar: descarta como antes.
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
@@ -556,13 +190,17 @@ export async function POST(request: NextRequest) {
 
     // Check if exact same photo was already captured (in last 30 days)
     if (photoHash) {
-      const duplicate = await prisma.vehicle.findFirst({
-        where: {
-          photoHash,
-          capturedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-          NOT: { id: undefined as never }, // ignore current
-        },
-      });
+      const [duplicate] = await db
+        .select({ id: veiculos.id })
+        .from(veiculos)
+        .where(
+          vivosE(
+            veiculos,
+            eq(veiculos.photoHash, photoHash),
+            gte(veiculos.capturedAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+          )
+        )
+        .limit(1);
       if (duplicate) {
         console.log(`[Webhook] Duplicate photo detected: ${photoHash} (existing: ${duplicate.id})`);
         return NextResponse.json({
@@ -636,169 +274,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Filtro global de ano minimo (configuravel via Settings, padrao 2018)
-    const minYearSetting = await prisma.setting.findUnique({
-      where: { key: "filter_min_year" },
+    // Filtros de captura: globais (configuracoes) + os do proprio grupo.
+    const filtro = await aplicarFiltros({
+      model,
+      brand: brand ?? null,
+      year,
+      km,
+      price,
+      state: state ?? null,
+      transmission: transmission ?? null,
+      fuel: fuel ?? null,
+      features,
+      photos,
+      fipePrice: typeof vehicleData.fipePrice === "number" ? vehicleData.fipePrice : null,
+      grupo: { region: group.region, filters: group.filters, name: group.name },
     });
-    const parsed = minYearSetting ? parseInt(minYearSetting.value, 10) : NaN;
-    const minYear = isNaN(parsed) ? 2018 : parsed;
-
-    if (year < minYear) {
-      return NextResponse.json({
-        status: "filtered",
-        reason: "vehicle_too_old",
-        year,
-        minYear,
-      });
+    if (!filtro.passou) {
+      return NextResponse.json(filtro.resposta);
     }
+    const fipePrice = filtro.fipePrice;
 
-    // Filtro global de preco minimo (configuravel via Settings, padrao R$30.000)
-    const minPriceSetting = await prisma.setting.findUnique({
-      where: { key: "filter_min_price" },
-    });
-    const parsedMinPrice = minPriceSetting ? parseFloat(minPriceSetting.value) : NaN;
-    const minPrice = isNaN(parsedMinPrice) ? 30000 : parsedMinPrice;
-
-    if (price < minPrice) {
-      return NextResponse.json({
-        status: "filtered",
-        reason: "vehicle_price_too_low",
-        price,
-        minPrice,
-      });
-    }
-
-    // Sanity check: preco > R$ 2.000.000 indica erro de parsing (ponto
-    // duplo "78.200.00" lido como 7.820.000). Carro de repasse nao chega
-    // a esses valores. Descarta e loga pra investigacao.
-    if (price > 2_000_000) {
-      console.warn(`[Webhook] SUSPECT price ${price} for "${model}" -- provavelmente erro de parsing decimal`);
-      return NextResponse.json({
-        status: "filtered",
-        reason: "price_likely_parse_error",
-        price,
-      });
-    }
-    // Mesma protecao pra FIPE quando ela vem absurda
-    const fipeRaw = typeof vehicleData.fipePrice === "number" ? vehicleData.fipePrice : null;
-    if (fipeRaw && fipeRaw > 2_000_000) {
-      console.warn(`[Webhook] SUSPECT fipePrice ${fipeRaw} -- ignorando FIPE`);
-      vehicleData.fipePrice = null;
-    }
-
-    // Filtro global de KM maxima (configuravel via Settings, padrao 300.000)
-    // Carro com km muito alto perde margem -- regra do cliente.
-    const maxKmSetting = await prisma.setting.findUnique({
-      where: { key: "filter_max_km" },
-    });
-    const parsedMaxKm = maxKmSetting ? parseInt(maxKmSetting.value, 10) : NaN;
-    const maxKm = isNaN(parsedMaxKm) ? 300000 : parsedMaxKm;
-
-    if (km > maxKm) {
-      console.log(`[Webhook] FILTERED km too high: ${km} > ${maxKm}`);
-      return NextResponse.json({
-        status: "filtered",
-        reason: "vehicle_km_too_high",
-        km,
-        maxKm,
-      });
-    }
-
-    // --- Filtro de DESCONTO MINIMO DA FIPE ---
-    // Carro de repasse precisa estar pelo menos X% abaixo da tabela FIPE
-    // (configuravel via setting `min_fipe_discount`, padrao 10%). Abaixo
-    // disso nao tem margem -- descarta na captura, nao enche a fila.
-    // Se a FIPE nao foi detectada, deixa passar (operador revisa).
-    {
-      const fipeFromAi = typeof vehicleData.fipePrice === "number" ? vehicleData.fipePrice : null;
-      if (fipeFromAi && fipeFromAi > 0) {
-        const minDiscSetting = await prisma.setting.findUnique({
-          where: { key: "min_fipe_discount" },
-        });
-        const minDiscount = minDiscSetting ? parseFloat(minDiscSetting.value) : 10;
-        const discountPct = (1 - price / fipeFromAi) * 100;
-        if (discountPct < minDiscount) {
-          console.log(
-            `[Webhook] FILTERED low FIPE discount: ${discountPct.toFixed(1)}% < ${minDiscount}% (price ${price} / fipe ${fipeFromAi})`
-          );
-          return NextResponse.json({
-            status: "filtered",
-            reason: "fipe_discount_too_low",
-            discountPct: Math.round(discountPct * 10) / 10,
-            minDiscount,
-          });
-        }
-      }
-    }
-
-    // --- Filtro automatico de GRUPOS NACIONAIS ---
-    // Grupos "Nacional" recebem carros do Brasil inteiro. Muitos anuncios de
-    // FORA da regiao atendida nao mencionam o estado. Regra do cliente:
-    // "se nao colocar nada, esta fora". Entao em grupo nacional EXIGIMOS
-    // mencao explicita de um estado atendido -- sem isso, descarta.
-    const groupRegion = (group.region || "").toUpperCase();
-    if (groupRegion === "NACIONAL") {
-      const servedSetting = await prisma.setting.findUnique({
-        where: { key: "served_states" },
-      });
-      const servedStates = (servedSetting?.value || "RS,SC,PR,SP")
-        .split(",")
-        .map((s) => s.trim().toUpperCase())
-        .filter(Boolean);
-
-      const detectedState = state ? state.toUpperCase() : null;
-
-      // Estado nao detectado OU fora da regiao atendida -> descarta.
-      // Em grupo nacional, ausencia de estado = presumido fora da regiao.
-      if (!detectedState || !servedStates.includes(detectedState)) {
-        console.log(
-          `[Webhook] FILTERED national group: estado=${detectedState ?? "NAO_DETECTADO"} (atendidos: ${servedStates.join(",")})`
-        );
-        return NextResponse.json({
-          status: "filtered",
-          reason: detectedState
-            ? "national_group_state_not_served"
-            : "national_group_no_state_mentioned",
-          state: detectedState ?? "nao_detectado",
-          servedStates,
-        });
-      }
-    }
-
-    let groupFilters = null;
-    try {
-      groupFilters = group.filters ? JSON.parse(group.filters) : null;
-    } catch {
-      console.warn("[Webhook] Invalid JSON in group.filters for", group.name);
-    }
-    if (groupFilters) {
-      // State filter: if group has allowedStates, only accept vehicles from those states
-      if (groupFilters.allowedStates && groupFilters.allowedStates.length > 0 && state) {
-        const allowed = (groupFilters.allowedStates as string[]).map((s: string) => s.toUpperCase());
-        if (!allowed.includes(state.toUpperCase())) {
-          return NextResponse.json({
-            status: "filtered",
-            reason: "state_not_allowed",
-            state,
-            allowedStates: allowed,
-          });
-        }
-      }
-
-      const passesFilters = applyFilters(
-        { model, brand: brand ?? undefined, year, km, price, transmission: transmission ?? undefined, fuel: fuel ?? undefined, features: features, photos },
-        groupFilters
-      );
-
-      if (!passesFilters) {
-        return NextResponse.json({
-          status: "filtered",
-          reason: "group_filters",
-        });
-      }
-    }
-
-    const fipePrice = (vehicleData.fipePrice as number) ?? null;
 
     const vehicleHash = generateVehicleHash({ model, year, km, price });
     const identityHash = generateVehicleIdentityHash({ model, year, km });
@@ -806,22 +301,29 @@ export async function POST(request: NextRequest) {
     // Dedup de 30 DIAS por identidade (sem preco no hash) -- regra do cliente:
     // mesmo carro reposto = fica o mais barato, descarta os outros.
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    let existingByIdentity = await prisma.vehicle.findFirst({
-      where: {
-        identityHash,
-        capturedAt: { gte: thirtyDaysAgo },
-      },
-      orderBy: { price: "asc" }, // o mais barato existente (ja persistido)
-    });
+    let [existingByIdentity] = await db
+      .select()
+      .from(veiculos)
+      .where(
+        vivosE(
+          veiculos,
+          eq(veiculos.identityHash, identityHash),
+          gte(veiculos.capturedAt, thirtyDaysAgo)
+        )
+      )
+      .orderBy(asc(veiculos.price)) // o mais barato existente (ja persistido)
+      .limit(1);
 
     // Fallback FUZZY: se hash exato nao achou, tenta similaridade
     // (modelo normalizado parcial, year +/-1, km +/-20%)
     if (!existingByIdentity) {
       const fuzzy = await findFuzzyDuplicate({ model, year, km }, 30);
       if (fuzzy) {
-        existingByIdentity = await prisma.vehicle.findUnique({
-          where: { id: fuzzy.id },
-        });
+        [existingByIdentity] = await db
+          .select()
+          .from(veiculos)
+          .where(vivosE(veiculos, eq(veiculos.id, fuzzy.id)))
+          .limit(1);
         if (existingByIdentity) {
           console.log(`[Webhook] DEDUP fuzzy match: ${existingByIdentity.id} (${existingByIdentity.model})`);
         }
@@ -832,17 +334,18 @@ export async function POST(request: NextRequest) {
       // Mesmo carro nos ultimos 30 dias
       if (price < existingByIdentity.price && existingByIdentity.status === "PENDING") {
         // Novo preco e MENOR -- atualiza o registro existente
-        await prisma.vehicle.update({
-          where: { id: existingByIdentity.id },
-          data: {
+        await db
+          .update(veiculos)
+          .set({
             price,
             vehicleHash, // recalcula com novo preco
             fipePrice: fipePrice ?? existingByIdentity.fipePrice,
             rawDescription: textContent ?? existingByIdentity.rawDescription,
             sellerPhone: (vehicleData.sellerPhone as string) || existingByIdentity.sellerPhone,
             capturedAt: new Date(), // refresca a janela
-          },
-        });
+            ...carimboDeEdicao(null),
+          })
+          .where(vivosE(veiculos, eq(veiculos.id, existingByIdentity.id)));
         console.log(`[Webhook] DEDUP: preco menor encontrado, atualizando ${existingByIdentity.id} (${existingByIdentity.price} -> ${price})`);
         return NextResponse.json({
           status: "updated_lower_price",
@@ -884,8 +387,9 @@ export async function POST(request: NextRequest) {
     // VIP detection
     const isVip = await isVipVehicle(model, brand);
 
-    const vehicle = await prisma.vehicle.create({
-      data: {
+    const [vehicle] = await db
+      .insert(veiculos)
+      .values({
         model,
         brand,
         year,
@@ -915,87 +419,33 @@ export async function POST(request: NextRequest) {
         status: autoRejectedReason ? "REJECTED" : "PENDING",
         rejectedAt: autoRejectedReason ? new Date() : null,
         rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
-      },
-    });
+      })
+      .returning();
 
-    // AD CLEANER em BACKGROUND: gera formattedAd ja limpo (sem header de
-    // loja, contatos, etc) no momento da captura. Operador abre o card e
-    // o texto JA esta pronto -- sem precisar clicar 'Regerar com IA'.
-    // So roda em veiculos validos (nao auto-rejeitados) e com texto util.
+    // Anuncio formatado e analise de fotos rodam soltos: chamam IA e nao
+    // precisam segurar a resposta do webhook.
     if (!autoRejectedReason && textContent && textContent.length >= 20) {
-      const vehicleId = vehicle.id;
-      const rawDesc = textContent;
-      const vData = {
+      gerarAnuncioEmBackground(vehicle.id, textContent, {
         model, brand, year, yearModel, km, price, fipePrice,
         transmission, fuel, features,
-      };
-      void (async () => {
-        try {
-          // 1. Limpa via GPT (com cache 24h -- textos similares nao re-pagam)
-          const cleaned = await cleanAdDescription(rawDesc);
-          // 2. Margem padrao do settings
-          const marginSetting = await prisma.setting.findUnique({
-            where: { key: "profit_margin_percent" },
-          });
-          const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
-          // 3. Formata no padrao Cugini
-          const formattedAd = formatVehicleAd(
-            { ...vData, rawDescription: cleaned || rawDesc },
-            { profitMarginPercent: margin }
-          );
-          // 4. Calcula sellingPrice de uma vez
-          const sellingPrice = price * (1 + margin / 100);
-          await prisma.vehicle.update({
-            where: { id: vehicleId },
-            data: { formattedAd, sellingPrice },
-          });
-          console.log(`[Webhook] Auto-formatted ad: ${vehicleId}`);
-        } catch (e) {
-          console.error("[Webhook] Auto ad-cleaner background failed:", e);
-        }
-      })();
+      });
     }
-
-    // GPT Vision picker em BACKGROUND: quando ha 2+ fotos, analisa todas,
-    // categoriza cada uma (exterior/interior/motor/etc) e reordena pra que
-    // a melhor foto destaque fique em [0]. Salva categorias no DB para UI
-    // mostrar warning quando destaque nao for "exterior".
     if (photos.length > 1 && !autoRejectedReason) {
-      const vehicleId = vehicle.id;
-      const originalPhotos = photos;
-      void (async () => {
-        try {
-          const { reordered, categories, originalBestIndex, changed } = await reorderPhotosByBest(originalPhotos);
-          // Sempre salva categorias (mesmo se nao reordenou) -- UI usa elas
-          await prisma.vehicle.update({
-            where: { id: vehicleId },
-            data: {
-              ...(changed ? { photos: JSON.stringify(reordered) } : {}),
-              photoCategories: JSON.stringify(categories),
-            },
-          });
-          console.log(
-            `[Webhook] Photo analyze: ${vehicleId} cats=${categories.join(",")}${changed ? ` (reordered, best was #${originalBestIndex})` : ""}`
-          );
-        } catch (e) {
-          console.error("[Webhook] Photo picker background failed:", e);
-        }
-      })();
+      analisarFotosEmBackground(vehicle.id, photos);
     }
 
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_CAPTURED",
-        entityType: "Vehicle",
-        entityId: vehicle.id,
-        vehicleId: vehicle.id,
-        details: JSON.stringify({
-          source: group.name,
-          groupJid,
-          messageId,
-          sender: pushName,
-        }),
+    await registrarAuditoria({
+      action: "VEHICLE_CAPTURED",
+      entityType: "Vehicle",
+      entityId: vehicle.id,
+      vehicleId: vehicle.id,
+      details: {
+        source: group.name,
+        groupJid,
+        messageId,
+        sender: pushName,
       },
+      request,
     });
 
     return NextResponse.json(

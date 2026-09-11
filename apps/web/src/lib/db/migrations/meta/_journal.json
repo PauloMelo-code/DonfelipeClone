@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788982738370,
+      "tag": "0000_migracao_do_prisma",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789057853882,
+      "tag": "0001_senha_temporaria",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789058585643,
+      "tag": "0002_bloqueio_por_conta",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789060000000,
+      "tag": "0003_segundo_fator",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789061000000,
+      "tag": "0004_passkey",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789062000000,
+      "tag": "0005_sessao_no_banco",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789063000000,
+      "tag": "0006_senha_temporaria_expira",
+      "breakpoints": true
+    }
+  ]
+}

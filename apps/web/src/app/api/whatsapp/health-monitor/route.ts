@@ -1,22 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
+import { checkMachineSecret } from "@/lib/machine-auth";
 
 /**
  * Health monitor for WhatsApp instances.
- * Pings UAZAPI status -- expoe estado de cada instancia.
+ * Pings UAZAPI status -- expoe estado de cada instancia, inclusive o TELEFONE.
  *
  * Trigger via external cron (recommended every 5-10 min) ou consulta manual.
- * Optional shared-secret via HEALTH_MONITOR_SECRET env.
+ *
+ * HEALTH_MONITOR_SECRET e OBRIGATORIO. Antes era opcional: sem a variavel a
+ * rota respondia a qualquer um que passasse pelo middleware, e o middleware so
+ * conferia se o cookie existia.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.HEALTH_MONITOR_SECRET;
-  if (secret) {
-    const provided =
-      request.headers.get("x-health-secret") ||
-      request.nextUrl.searchParams.get("secret");
-    if (provided !== secret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const cred = checkMachineSecret(request, {
+    headerName: "x-health-secret",
+    envVar: "HEALTH_MONITOR_SECRET",
+    queryParam: "secret",
+  });
+  if (!cred.ok) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const checks: Array<{
