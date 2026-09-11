@@ -1,6 +1,6 @@
 ---
 title: Mapeamento Completo — Don Felipe Repasses (ex-Cugini)
-repo: https://github.com/bahtechprojects/Cugini.git (repositório ainda com o nome antigo)
+repo: https://github.com/bahtechprojects/DonFelipe-sistema.git
 branch: main
 gerado_em: 2026-08-31
 periodo_do_projeto: 2026-03-11 a 2026-05-27
@@ -403,7 +403,7 @@ marca, para que um próximo rebranding não exija nova varredura. As utilities
 
 ### Ainda com o nome antigo (fora do código)
 
-- O repositório no GitHub: `bahtechprojects/Cugini.git`
+- ~~O repositório no GitHub~~ — renomeado para `bahtechprojects/DonFelipe-sistema` em 11/09/2026
 - A pasta local: `C:\Users\Paulo\Desktop\Cugini`
 - O arquivo `Cugini-Guia-do-Sistema.docx` (guia do usuário final, 2 MB) — o
   conteúdo interno tem a marca antiga e precisa ser refeito ou editado à mão.
