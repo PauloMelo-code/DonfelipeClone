@@ -1,0 +1,10 @@
+{
+  "key": "don-felipe-repasses",
+  "label": "Don Felipe Repasses",
+  "tokens": {
+    "marca": "#C9973D",
+    "marca-texto": "#6B4E1A"
+  },
+  "logo": { "tipo": "svg" },
+  "avisos": []
+}

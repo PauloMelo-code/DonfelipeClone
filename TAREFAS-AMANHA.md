@@ -1,8 +1,8 @@
 ---
-title: Tarefas para Amanha - Cugini Repasses
+title: Tarefas para Amanha - Don Felipe Repasses
 date: 2026-04-13
 tags:
-  - cugini
+  - donfelipe
   - tarefas
   - producao
 ---
@@ -176,7 +176,7 @@ Resultado: "X de Y veiculos publicados"
 - Grupos por regiao (RS/SC/PR/SP/Nacional) com tags e filtros
 - Disparo por regiao (seleciona RS → envia para 40 grupos de uma vez)
 - Disparo em lote (seleciona 10 carros → publica tudo sequencial)
-- Formato de anuncio Cugini (titulo bold, descricao limpa, FIPE, preco bold)
+- Formato de anuncio Don Felipe (titulo bold, descricao limpa, FIPE, preco bold)
 - Auto-extrator de FIPE (regex no rawDescription)
 - Auto-tagger de regiao (80+ nomes mapeados)
 - Editor de foto (lapis, borracha, blur, recorte) com fullscreen mobile
