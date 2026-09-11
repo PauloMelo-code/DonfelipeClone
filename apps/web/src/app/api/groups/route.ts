@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import {
+  and,
+  or,
+  eq,
+  isNull,
+  ilike,
+  like,
+  asc,
+  desc,
+  count,
+  sql,
+  getTableColumns,
+  type SQL,
+} from "drizzle-orm";
+import { db, gruposWhatsapp, veiculos, historicoPublicacao, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { comoTermoLike } from "@/lib/db/like";
 import { validateBody } from "@/lib/validate";
 import { createGroupSchema } from "@/lib/validations";
 import { invalidateStatsCache } from "./stats/route";
@@ -18,6 +33,36 @@ export function invalidateGroupsCache() {
   invalidateStatsCache();
 }
 
+/** Colunas do grupo + os dois contadores que a tela usa, como subconsulta. */
+const colunasComContagem = {
+  ...getTableColumns(gruposWhatsapp),
+  sourceVehiclesCount: sql<number>`(select count(*)::int from ${veiculos} where ${veiculos.sourceGroupId} = ${gruposWhatsapp.groupId} and ${veiculos.isDeleted} = false)`,
+  targetPostsCount: sql<number>`(select count(*)::int from ${historicoPublicacao} where ${historicoPublicacao.targetGroupId} = ${gruposWhatsapp.groupId} and ${historicoPublicacao.isDeleted} = false)`,
+};
+
+type LinhaGrupo = Record<string, unknown> & {
+  filters?: string | null;
+  sourceVehiclesCount?: number;
+  targetPostsCount?: number;
+};
+
+/** Mesma forma que a tela ja consome: filters parseado e _count aninhado. */
+function paraTela(g: LinhaGrupo, comContagem: boolean) {
+  const { sourceVehiclesCount, targetPostsCount, ...resto } = g;
+  return {
+    ...resto,
+    filters: g.filters ? JSON.parse(g.filters) : null,
+    ...(comContagem
+      ? {
+          _count: {
+            sourceVehicles: sourceVehiclesCount ?? 0,
+            targetPosts: targetPostsCount ?? 0,
+          },
+        }
+      : {}),
+  };
+}
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
@@ -29,10 +74,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search")?.trim() || "";
     const region = searchParams.get("region");
     // type: grupo|canal|comunidade|lista|contato. Sem param = todos.
-    // Filtra server-side pra paginacao funcionar corretamente quando o
-    // usuario escolhe um tipo especifico.
     const type = searchParams.get("type");
-    // ?counts=false skips the expensive _count aggregates.
+    // ?counts=false skips the expensive count aggregates.
     const includeCounts = searchParams.get("counts") !== "false";
     // Pagination is opt-in: if `page` is present, return { groups, pagination }.
     // Otherwise return the legacy flat array (backward compat for publish modal).
@@ -55,24 +98,22 @@ export async function GET(request: NextRequest) {
     ].join("|");
     const cached = groupsCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
-      return NextResponse.json(cached.data, {
-        headers: { "X-Cache": "HIT" },
-      });
+      return NextResponse.json(cached.data, { headers: { "X-Cache": "HIT" } });
     }
 
-    const where: Record<string, unknown> = {};
-    if (role && role !== "ALL") where.role = role;
+    const condicoes: (SQL | undefined)[] = [vivos(gruposWhatsapp)];
+    if (role && role !== "ALL") condicoes.push(eq(gruposWhatsapp.role, role));
     if (active !== null && active !== undefined && active !== "") {
-      where.active = active === "true";
+      condicoes.push(eq(gruposWhatsapp.active, active === "true"));
     }
-    if (search) {
-      where.name = { contains: search, mode: "insensitive" };
-    }
+    if (search) condicoes.push(ilike(gruposWhatsapp.name, comoTermoLike(search)));
     if (region) {
-      where.region = region === "" ? null : region;
+      condicoes.push(
+        region === "" ? isNull(gruposWhatsapp.region) : eq(gruposWhatsapp.region, region)
+      );
     }
 
-    // Filtro de tipo. kindOverride tem prioridade sobre regra automatica.
+    // Filtro de tipo. kindOverride tem prioridade sobre a regra automatica.
     // Regra automatica (quando kindOverride is null):
     //   @newsletter -> canal
     //   @broadcast  -> lista
@@ -80,65 +121,53 @@ export async function GET(request: NextRequest) {
     //   @g.us + isCommunity -> comunidade
     //   @g.us padrao -> grupo
     if (type && type !== "todos") {
-      // Auto-classificacao por tipo (somente quando kindOverride is null)
-      const autoMatch: Record<string, Record<string, unknown>> = {
-        canal: { groupId: { endsWith: "@newsletter" } },
-        comunidade: {
-          AND: [{ groupId: { endsWith: "@g.us" } }, { isCommunity: true }],
-        },
-        lista: { groupId: { endsWith: "@broadcast" } },
-        contato: {
-          OR: [
-            { isContact: true },
-            { groupId: { endsWith: "@s.whatsapp.net" } },
-          ],
-        },
-        grupo: {
-          AND: [
-            { groupId: { endsWith: "@g.us" } },
-            { isCommunity: false },
-            { isContact: false },
-          ],
-        },
+      const autoMatch: Record<string, SQL | undefined> = {
+        canal: like(gruposWhatsapp.groupId, "%@newsletter"),
+        comunidade: and(
+          like(gruposWhatsapp.groupId, "%@g.us"),
+          eq(gruposWhatsapp.isCommunity, true)
+        ),
+        lista: like(gruposWhatsapp.groupId, "%@broadcast"),
+        contato: or(
+          eq(gruposWhatsapp.isContact, true),
+          like(gruposWhatsapp.groupId, "%@s.whatsapp.net")
+        ),
+        grupo: and(
+          like(gruposWhatsapp.groupId, "%@g.us"),
+          eq(gruposWhatsapp.isCommunity, false),
+          eq(gruposWhatsapp.isContact, false)
+        ),
       };
 
       const auto = autoMatch[type];
       if (auto) {
         // (kindOverride = X) OR (kindOverride null AND classificacao natural = X)
-        where.OR = [
-          { kindOverride: type },
-          { AND: [{ kindOverride: null }, auto] },
-        ];
+        condicoes.push(
+          or(eq(gruposWhatsapp.kindOverride, type), and(isNull(gruposWhatsapp.kindOverride), auto))
+        );
       }
     }
 
+    const filtro = and(...condicoes);
+    const colunas = includeCounts ? colunasComContagem : getTableColumns(gruposWhatsapp);
+
     if (paginated) {
-      const [groups, total] = await Promise.all([
-        prisma.whatsAppGroup.findMany({
-          where,
-          ...(includeCounts
-            ? {
-                include: {
-                  _count: { select: { sourceVehicles: true, targetPosts: true } },
-                },
-              }
-            : {}),
+      const [groups, [totalizador]] = await Promise.all([
+        db
+          .select(colunas)
+          .from(gruposWhatsapp)
+          .where(filtro)
           // Ativos sempre primeiro, depois alfabetico.
-          // Vale igual pra SOURCE e TARGET -- desativados nunca misturam com ativos.
-          orderBy: [{ active: "desc" }, { name: "asc" }],
-          skip: (page - 1) * limit,
-          take: limit,
-        }),
-        prisma.whatsAppGroup.count({ where }),
+          // Vale igual pra SOURCE e TARGET: desativados nunca misturam com ativos.
+          .orderBy(desc(gruposWhatsapp.active), asc(gruposWhatsapp.name))
+          .offset((page - 1) * limit)
+          .limit(limit),
+        db.select({ n: count() }).from(gruposWhatsapp).where(filtro),
       ]);
 
-      const parsed = groups.map((g) => ({
-        ...g,
-        filters: g.filters ? JSON.parse(g.filters) : null,
-      }));
-
+      const total = totalizador?.n ?? 0;
       const payload = {
-        groups: parsed,
+        groups: groups.map((g) => paraTela(g as LinhaGrupo, includeCounts)),
         pagination: {
           page,
           limit,
@@ -155,35 +184,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Legacy flat-array path (publish modal, batch publish, etc.)
-    const groups = await prisma.whatsAppGroup.findMany({
-      where,
-      ...(includeCounts
-        ? {
-            include: {
-              _count: { select: { sourceVehicles: true, targetPosts: true } },
-            },
-          }
-        : {}),
-      orderBy: { name: "asc" },
-    });
+    const groups = await db
+      .select(colunas)
+      .from(gruposWhatsapp)
+      .where(filtro)
+      .orderBy(asc(gruposWhatsapp.name));
 
-    const parsed = groups.map((g) => ({
-      ...g,
-      filters: g.filters ? JSON.parse(g.filters) : null,
-    }));
+    const parsed = groups.map((g) => paraTela(g as LinhaGrupo, includeCounts));
 
     groupsCache.set(cacheKey, {
       data: parsed,
       expiresAt: Date.now() + GROUPS_CACHE_TTL_MS,
     });
-
     return NextResponse.json(parsed, { headers: { "X-Cache": "MISS" } });
   } catch (error) {
-    console.error("[Groups] Error listing groups:", error);
-    return NextResponse.json(
-      { error: "Erro ao listar grupos" },
-      { status: 500 }
-    );
+    console.error("[Groups] Error fetching groups:", error);
+    return NextResponse.json({ error: "Erro ao buscar grupos" }, { status: 500 });
   }
 }
 
@@ -198,9 +214,11 @@ export async function POST(request: NextRequest) {
 
     const { groupId, name, role, active, filters, photoUrl, region } = validation.data;
 
-    const existing = await prisma.whatsAppGroup.findUnique({
-      where: { groupId },
-    });
+    const [existing] = await db
+      .select({ id: gruposWhatsapp.id })
+      .from(gruposWhatsapp)
+      .where(eq(gruposWhatsapp.groupId, groupId))
+      .limit(1);
 
     if (existing) {
       return NextResponse.json(
@@ -209,8 +227,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const group = await prisma.whatsAppGroup.create({
-      data: {
+    const [group] = await db
+      .insert(gruposWhatsapp)
+      .values({
         groupId,
         name,
         role,
@@ -218,8 +237,9 @@ export async function POST(request: NextRequest) {
         filters: filters || null,
         photoUrl,
         region: region || null,
-      },
-    });
+        modifiedBy: auth.user.id,
+      })
+      .returning();
 
     invalidateGroupsCache();
 
@@ -232,9 +252,6 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("[Groups] Error creating group:", error);
-    return NextResponse.json(
-      { error: "Erro ao criar grupo" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao criar grupo" }, { status: 500 });
   }
 }

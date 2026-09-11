@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { or, ilike, desc } from "drizzle-orm";
+import { db, veiculos, gruposWhatsapp, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { comoTermoLike } from "@/lib/db/like";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -9,25 +11,43 @@ export async function GET(request: NextRequest) {
   const q = (request.nextUrl.searchParams.get("q") || "").trim();
   if (q.length < 2) return NextResponse.json({ vehicles: [], groups: [] });
 
+  const termo = comoTermoLike(q);
+
   try {
     const [vehicles, groups] = await Promise.all([
-      prisma.vehicle.findMany({
-        where: {
-          OR: [
-            { model: { contains: q, mode: "insensitive" } },
-            { brand: { contains: q, mode: "insensitive" } },
-            { plate: { contains: q, mode: "insensitive" } },
-          ],
-        },
-        select: { id: true, model: true, brand: true, year: true, km: true, price: true, status: true },
-        take: 10,
-        orderBy: { capturedAt: "desc" },
-      }),
-      prisma.whatsAppGroup.findMany({
-        where: { name: { contains: q, mode: "insensitive" } },
-        select: { id: true, name: true, groupId: true, role: true },
-        take: 5,
-      }),
+      db
+        .select({
+          id: veiculos.id,
+          model: veiculos.model,
+          brand: veiculos.brand,
+          year: veiculos.year,
+          km: veiculos.km,
+          price: veiculos.price,
+          status: veiculos.status,
+        })
+        .from(veiculos)
+        .where(
+          vivosE(
+            veiculos,
+            or(
+              ilike(veiculos.model, termo),
+              ilike(veiculos.brand, termo),
+              ilike(veiculos.plate, termo)
+            )
+          )
+        )
+        .orderBy(desc(veiculos.capturedAt))
+        .limit(10),
+      db
+        .select({
+          id: gruposWhatsapp.id,
+          name: gruposWhatsapp.name,
+          groupId: gruposWhatsapp.groupId,
+          role: gruposWhatsapp.role,
+        })
+        .from(gruposWhatsapp)
+        .where(vivosE(gruposWhatsapp, ilike(gruposWhatsapp.name, termo)))
+        .limit(5),
     ]);
 
     return NextResponse.json({ vehicles, groups });

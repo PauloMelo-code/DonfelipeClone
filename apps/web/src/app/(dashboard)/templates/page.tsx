@@ -172,7 +172,7 @@ export default function TemplatesPage() {
           <Button
             size="sm"
             onClick={openCreate}
-            className="gap-1.5 gradient-orange text-white border-0"
+            className="gap-1.5 gradient-gold text-white border-0"
           >
             <Plus className="h-4 w-4" />
             Novo template
@@ -187,7 +187,7 @@ export default function TemplatesPage() {
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium border transition-colors",
                 activeCategory === null
-                  ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                  ? "bg-brand-gold/10 text-brand-gold border-brand-gold/30"
                   : "bg-card text-muted-foreground border-border hover:text-foreground"
               )}
             >
@@ -200,7 +200,7 @@ export default function TemplatesPage() {
                 className={cn(
                   "rounded-full px-3 py-1 text-xs font-medium border transition-colors",
                   activeCategory === cat
-                    ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                    ? "bg-brand-gold/10 text-brand-gold border-brand-gold/30"
                     : "bg-card text-muted-foreground border-border hover:text-foreground"
                 )}
               >
@@ -212,7 +212,7 @@ export default function TemplatesPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
+            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
           </div>
         ) : filteredTemplates.length === 0 ? (
           <EmptyState
@@ -240,7 +240,7 @@ export default function TemplatesPage() {
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         {t.category && (
-                          <Badge className="border bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20 text-[10px]">
+                          <Badge className="border bg-brand-gold/10 text-brand-gold border-brand-gold/20 text-[10px]">
                             {t.category}
                           </Badge>
                         )}
@@ -254,7 +254,7 @@ export default function TemplatesPage() {
                     <div className="flex gap-1 shrink-0">
                       <button
                         onClick={() => handleCopy(t)}
-                        className="rounded-lg p-2 text-muted-foreground hover:text-cugini-orange hover:bg-cugini-orange/10 transition-colors"
+                        className="rounded-lg p-2 text-muted-foreground hover:text-brand-gold hover:bg-brand-gold/10 transition-colors"
                         title="Copiar"
                       >
                         {copiedId === t.id ? (
@@ -356,7 +356,7 @@ export default function TemplatesPage() {
               <Button
                 onClick={handleSubmit}
                 disabled={saving}
-                className="flex-1 gradient-orange text-white border-0"
+                className="flex-1 gradient-gold text-white border-0"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

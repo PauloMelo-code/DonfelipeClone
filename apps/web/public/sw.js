@@ -1,4 +1,4 @@
-const CACHE_NAME = "cugini-v1";
+const CACHE_NAME = "don-felipe-v1";
 const STATIC_ASSETS = ["/", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -37,13 +37,13 @@ self.addEventListener("fetch", (e) => {
 self.addEventListener("push", (e) => {
   if (!e.data) return;
   let data;
-  try { data = e.data.json(); } catch { data = { title: "Cugini", body: e.data.text() }; }
+  try { data = e.data.json(); } catch { data = { title: "Don Felipe", body: e.data.text() }; }
   e.waitUntil(
-    self.registration.showNotification(data.title || "Cugini Repasses", {
+    self.registration.showNotification(data.title || "Don Felipe Repasses", {
       body: data.body || "",
       icon: "/icon.svg",
       badge: "/icon.svg",
-      tag: data.tag || "cugini-notification",
+      tag: data.tag || "don-felipe-notification",
       data: { url: data.url || "/" },
     })
   );

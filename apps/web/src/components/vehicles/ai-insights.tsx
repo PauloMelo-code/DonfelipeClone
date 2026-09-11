@@ -88,8 +88,8 @@ export function AIInsights({ vehicleId, className }: AIInsightsProps) {
 
   if (loading) {
     return (
-      <div className={cn("rounded-2xl border border-white/[0.06] bg-gradient-to-br from-cugini-orange/[0.03] to-transparent p-4 flex items-center gap-2", className)}>
-        <Loader2 className="h-4 w-4 animate-spin text-cugini-orange" />
+      <div className={cn("rounded-2xl border border-white/[0.06] bg-gradient-to-br from-brand-gold/[0.03] to-transparent p-4 flex items-center gap-2", className)}>
+        <Loader2 className="h-4 w-4 animate-spin text-brand-gold" />
         <span className="text-xs text-muted-foreground">Analisando com IA...</span>
       </div>
     );
@@ -116,22 +116,22 @@ export function AIInsights({ vehicleId, className }: AIInsightsProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-cugini-orange/[0.04] via-card to-card p-4 space-y-4",
+        "relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-brand-gold/[0.04] via-card to-card p-4 space-y-4",
         overallColors.glow,
         className
       )}
     >
       {/* Subtle decoration */}
-      <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-cugini-orange/[0.06] blur-3xl" />
+      <div className="pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full bg-brand-gold/[0.06] blur-3xl" />
 
       {/* Header */}
       <div className="relative flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cugini-orange/30 to-cugini-orange/10">
-            <Sparkles className="h-3.5 w-3.5 text-cugini-orange" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-brand-gold/30 to-brand-gold/10">
+            <Sparkles className="h-3.5 w-3.5 text-brand-gold" />
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-cugini-orange">Análise IA</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-gold">Análise IA</p>
             <p className="text-[10px] text-muted-foreground/60">{recommendation}</p>
           </div>
         </div>
@@ -204,7 +204,7 @@ export function AIInsights({ vehicleId, className }: AIInsightsProps) {
               </div>
               <div>
                 <p className="text-[9px] text-muted-foreground/50 uppercase">Média</p>
-                <p className="text-xs font-semibold tabular-nums text-cugini-orange">{formatBRL(data.market.avg)}</p>
+                <p className="text-xs font-semibold tabular-nums text-brand-gold">{formatBRL(data.market.avg)}</p>
               </div>
               <div>
                 <p className="text-[9px] text-muted-foreground/50 uppercase">Máx</p>

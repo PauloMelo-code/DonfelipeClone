@@ -38,9 +38,9 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --color-cugini-orange: var(--cugini-orange);
-  --color-cugini-orange-light: var(--cugini-orange-light);
-  --color-cugini-orange-muted: var(--cugini-orange-muted);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-light: var(--brand-gold-light);
+  --color-brand-gold-muted: var(--brand-gold-muted);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -52,7 +52,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Cugini Dark Theme - Premium */
+/* Don Felipe Dark Theme - Premium */
 :root {
   --background: #09090B;
   --foreground: #FAFAF9;
@@ -60,7 +60,7 @@
   --card-foreground: #FAFAF9;
   --popover: #131316;
   --popover-foreground: #FAFAF9;
-  --primary: #E8731A;
+  --primary: #C9973D;
   --primary-foreground: #FAFAF9;
   --secondary: #1C1C20;
   --secondary-foreground: #FAFAF9;
@@ -71,8 +71,8 @@
   --destructive: #EF4444;
   --border: #232328;
   --input: #232328;
-  --ring: #E8731A;
-  --chart-1: #E8731A;
+  --ring: #C9973D;
+  --chart-1: #C9973D;
   --chart-2: #34D399;
   --chart-3: #60A5FA;
   --chart-4: #FBBF24;
@@ -80,15 +80,15 @@
   --radius: 0.75rem;
   --sidebar: #0C0C0E;
   --sidebar-foreground: #FAFAF9;
-  --sidebar-primary: #E8731A;
+  --sidebar-primary: #C9973D;
   --sidebar-primary-foreground: #FAFAF9;
-  --sidebar-accent: rgba(232, 115, 26, 0.08);
+  --sidebar-accent: rgba(201, 151, 61, 0.08);
   --sidebar-accent-foreground: #FAFAF9;
   --sidebar-border: #1A1A1E;
-  --sidebar-ring: #E8731A;
-  --cugini-orange: #E8731A;
-  --cugini-orange-light: #FF8C2E;
-  --cugini-orange-muted: rgba(232, 115, 26, 0.12);
+  --sidebar-ring: #C9973D;
+  --brand-gold: #C9973D;
+  --brand-gold-light: #E7C67A;
+  --brand-gold-muted: rgba(201, 151, 61, 0.12);
   --success: #34D399;
   --warning: #FBBF24;
 }
@@ -125,18 +125,18 @@
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 1px 0 0 rgba(255,255,255,0.08) inset, 0 8px 32px rgba(0,0,0,0.5);
   }
-  .glow-orange {
-    box-shadow: 0 0 20px rgba(232,115,26,0.4), 0 0 0 1px rgba(232,115,26,0.2);
+  .glow-gold {
+    box-shadow: 0 0 20px rgba(201, 151, 61,0.4), 0 0 0 1px rgba(201, 151, 61,0.2);
   }
-  .glow-orange-sm {
-    box-shadow: 0 0 10px rgba(232,115,26,0.25), 0 0 0 1px rgba(232,115,26,0.1);
+  .glow-gold-sm {
+    box-shadow: 0 0 10px rgba(201, 151, 61,0.25), 0 0 0 1px rgba(201, 151, 61,0.1);
   }
-  .gradient-orange {
-    background: linear-gradient(135deg, #E8731A 0%, #FF8C2E 100%);
-    box-shadow: 0 2px 12px rgba(232, 115, 26, 0.25);
+  .gradient-gold {
+    background: linear-gradient(135deg, #C9973D 0%, #E7C67A 100%);
+    box-shadow: 0 2px 12px rgba(201, 151, 61, 0.25);
   }
-  .text-gradient-orange {
-    background: linear-gradient(135deg, #E8731A 0%, #FF8C2E 100%);
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #C9973D 0%, #E7C67A 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -168,7 +168,7 @@
 
 /* Selection */
 ::selection {
-  background: rgba(232, 115, 26, 0.3);
+  background: rgba(201, 151, 61, 0.3);
   color: #FAFAF9;
 }
 
@@ -181,7 +181,7 @@ body::before {
   transform: translateX(-50%);
   width: 80%;
   height: 400px;
-  background: radial-gradient(ellipse at 50% 0%, rgba(232,115,26,0.06) 0%, transparent 70%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(201, 151, 61,0.06) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }

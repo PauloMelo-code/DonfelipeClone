@@ -188,7 +188,7 @@ export default function PublicacoesPage() {
         {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
+            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
           </div>
         ) : posts.length === 0 ? (
           <EmptyState
@@ -228,7 +228,7 @@ export default function PublicacoesPage() {
                           {post.vehicle.brand && !post.vehicle.model.toUpperCase().startsWith(post.vehicle.brand.toUpperCase()) ? `${post.vehicle.brand} ` : ""}{post.vehicle.model}
                         </p>
                         <p className="text-xs text-muted-foreground">{post.vehicle.year} · {post.vehicle.km.toLocaleString("pt-BR")} km</p>
-                        <p className="text-sm font-semibold text-cugini-orange mt-0.5">
+                        <p className="text-sm font-semibold text-brand-gold mt-0.5">
                           {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
                         </p>
                         <div className="mt-1 flex items-center gap-2">
@@ -320,7 +320,7 @@ export default function PublicacoesPage() {
                         </td>
                         <td className="px-5 py-3.5 text-muted-foreground whitespace-nowrap">{formatDate(post.postedAt)}</td>
                         <td className="px-5 py-3.5">
-                          <span className="font-medium text-cugini-orange">
+                          <span className="font-medium text-brand-gold">
                             {formatPrice(post.vehicle.sellingPrice || post.vehicle.price)}
                           </span>
                         </td>
@@ -445,7 +445,7 @@ function PublicationExpand({ post }: { post: PostRecord }) {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-0.5">Enviado por</p>
             {post.user ? (
               <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-cugini-orange/15 text-[11px] font-semibold text-cugini-orange shrink-0">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-gold/15 text-[11px] font-semibold text-brand-gold shrink-0">
                   {post.user.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">

@@ -93,7 +93,7 @@ export function MobileBottomNav() {
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors",
                       active
-                        ? "bg-cugini-orange/[0.08] text-cugini-orange"
+                        ? "bg-brand-gold/[0.08] text-brand-gold"
                         : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                     )}
                   >
@@ -119,10 +119,10 @@ export function MobileBottomNav() {
                 href={item.href}
                 className={cn(
                   "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
-                  active ? "text-cugini-orange" : "text-muted-foreground/60"
+                  active ? "text-brand-gold" : "text-muted-foreground/60"
                 )}
               >
-                <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_6px_rgba(232,115,26,0.6)]")} />
+                <Icon className={cn("h-5 w-5", active && "drop-shadow-[0_0_6px_rgba(201, 151, 61,0.6)]")} />
                 {item.label}
               </Link>
             );
@@ -133,10 +133,10 @@ export function MobileBottomNav() {
             onClick={() => setMoreOpen((o) => !o)}
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
-              (isMoreActive || moreOpen) ? "text-cugini-orange" : "text-muted-foreground/60"
+              (isMoreActive || moreOpen) ? "text-brand-gold" : "text-muted-foreground/60"
             )}
           >
-            <MoreHorizontal className={cn("h-5 w-5", (isMoreActive || moreOpen) && "drop-shadow-[0_0_6px_rgba(232,115,26,0.6)]")} />
+            <MoreHorizontal className={cn("h-5 w-5", (isMoreActive || moreOpen) && "drop-shadow-[0_0_6px_rgba(201, 151, 61,0.6)]")} />
             Mais
           </button>
         </div>

@@ -95,8 +95,8 @@ export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityCh
               <div
                 className="h-2.5 w-2.5 rounded-full"
                 style={{
-                  background: "linear-gradient(135deg, #E8731A, #FF8C2E)",
-                  boxShadow: "0 0 8px rgba(232,115,26,0.5)",
+                  background: "linear-gradient(135deg, #C9973D, #E7C67A)",
+                  boxShadow: "0 0 8px rgba(201, 151, 61,0.5)",
                 }}
               />
               <span className="text-muted-foreground">Capturas</span>
@@ -123,9 +123,9 @@ export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityCh
           >
             <defs>
               <linearGradient id="gradCapturas" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#FF8C2E" stopOpacity={0.4} />
-                <stop offset="40%" stopColor="#E8731A" stopOpacity={0.15} />
-                <stop offset="100%" stopColor="#E8731A" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#E7C67A" stopOpacity={0.4} />
+                <stop offset="40%" stopColor="#C9973D" stopOpacity={0.15} />
+                <stop offset="100%" stopColor="#C9973D" stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="gradPublicacoes" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#A78BFA" stopOpacity={0.35} />
@@ -181,7 +181,7 @@ export function ActivityChart({ data, dateRange, onDateRangeChange }: ActivityCh
             <Area
               type="monotone"
               dataKey="capturas"
-              stroke="#E8731A"
+              stroke="#C9973D"
               strokeWidth={2.5}
               fill="url(#gradCapturas)"
               // eslint-disable-next-line @typescript-eslint/no-explicit-any

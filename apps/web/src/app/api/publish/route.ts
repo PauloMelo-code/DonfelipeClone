@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, inArray } from "drizzle-orm";
+import { db, veiculos, vivosE } from "@/lib/db";
 import { publishVehicle } from "@/lib/publisher";
 import { requireAuth } from "@/lib/auth";
 
@@ -33,15 +34,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const vehicles = await prisma.vehicle.findMany({
-      where: {
-        id: { in: vehicleIds },
-        status: "APPROVED",
-      },
-      include: {
-        postHistory: true,
-      },
-    });
+    // O include de postHistory foi removido: nada no handler usava a lista,
+    // e ela trazia todo o historico de publicacao de cada veiculo do lote.
+    const vehicles = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, inArray(veiculos.id, vehicleIds), eq(veiculos.status, "APPROVED")));
 
     const approvedIds = new Set(vehicles.map((v) => v.id));
     const results: BatchResult[] = [];

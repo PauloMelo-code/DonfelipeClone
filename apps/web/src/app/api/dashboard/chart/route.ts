@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, gte, lte, eq } from "drizzle-orm";
+import { db, veiculos, historicoPublicacao, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
@@ -31,14 +32,23 @@ export async function GET(request: NextRequest) {
     }
 
     const [captures, publications] = await Promise.all([
-      prisma.vehicle.findMany({
-        where: { capturedAt: { gte: startDate, lte: endDate } },
-        select: { capturedAt: true },
-      }),
-      prisma.postHistory.findMany({
-        where: { postedAt: { gte: startDate, lte: endDate }, success: true },
-        select: { postedAt: true },
-      }),
+      db
+        .select({ capturedAt: veiculos.capturedAt })
+        .from(veiculos)
+        .where(
+          and(vivos(veiculos), gte(veiculos.capturedAt, startDate), lte(veiculos.capturedAt, endDate))
+        ),
+      db
+        .select({ postedAt: historicoPublicacao.postedAt })
+        .from(historicoPublicacao)
+        .where(
+          and(
+            vivos(historicoPublicacao),
+            gte(historicoPublicacao.postedAt, startDate),
+            lte(historicoPublicacao.postedAt, endDate),
+            eq(historicoPublicacao.success, true)
+          )
+        ),
     ]);
 
     // Calculate number of days in range

@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { inArray } from "drizzle-orm";
+import {
+  db,
+  gruposWhatsapp,
+  historicoPublicacao,
+  carimboDeEdicao,
+  marcaDeExclusao,
+  vivos,
+  vivosE,
+} from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
 import { invalidateGroupsCache } from "../route";
@@ -10,12 +19,7 @@ import axios from "axios";
  *
  * Identifica grupos no DB onde NENHUMA das instancias UAZAPI ainda participa
  * (a conta foi removida ou o grupo foi deletado). Marca esses como inativos
- * por padrao; com ?delete=true remove do DB.
- *
- * Detecta via:
- *  - listGroups() de ambas as instancias -> JIDs visiveis
- *  - listChats() de ambas as instancias -> conjunto amplo
- *  - Se nao aparece em NENHUM dos dois, eh orfao.
+ * por padrao; com ?delete=true faz o delete LOGICO.
  */
 export async function POST(request: Request) {
   const auth = await requireAuth("ADMIN");
@@ -42,10 +46,15 @@ export async function POST(request: Request) {
       await collect(async () => (await uazapiSend.listChats()).map((c) => ({ id: c.id })));
     }
 
-    // Pega grupos do DB
-    const dbGroups = await prisma.whatsAppGroup.findMany({
-      select: { id: true, groupId: true, name: true, active: true },
-    });
+    const dbGroups = await db
+      .select({
+        id: gruposWhatsapp.id,
+        groupId: gruposWhatsapp.groupId,
+        name: gruposWhatsapp.name,
+        active: gruposWhatsapp.active,
+      })
+      .from(gruposWhatsapp)
+      .where(vivos(gruposWhatsapp));
 
     const orphans = dbGroups.filter((g) => !seenJids.has(g.groupId));
 
@@ -59,35 +68,39 @@ export async function POST(request: Request) {
     }
 
     let affected = 0;
+    const ids = orphans.map((o) => o.id);
+
     if (shouldDelete) {
-      const ids = orphans.map((o) => o.id);
-      // Limpa referencias antes do delete
+      // Delete LOGICO, aqui tambem. O historico de publicacao acompanha, mas
+      // as linhas continuam no banco para consulta e auditoria.
       const orphanJids = orphans.map((o) => o.groupId);
-      await prisma.vehicle.updateMany({
-        where: { sourceGroupId: { in: orphanJids } },
-        data: { sourceGroupId: null },
-      });
-      await prisma.postHistory.deleteMany({
-        where: { targetGroupId: { in: orphanJids } },
-      });
-      const result = await prisma.whatsAppGroup.deleteMany({ where: { id: { in: ids } } });
-      affected = result.count;
+      await db
+        .update(historicoPublicacao)
+        .set(marcaDeExclusao(auth.user.id))
+        .where(
+          vivosE(historicoPublicacao, inArray(historicoPublicacao.targetGroupId, orphanJids))
+        );
+      const removidos = await db
+        .update(gruposWhatsapp)
+        .set(marcaDeExclusao(auth.user.id))
+        .where(vivosE(gruposWhatsapp, inArray(gruposWhatsapp.id, ids)))
+        .returning({ id: gruposWhatsapp.id });
+      affected = removidos.length;
     } else {
-      // So desativa
-      const ids = orphans.map((o) => o.id);
-      const result = await prisma.whatsAppGroup.updateMany({
-        where: { id: { in: ids } },
-        data: { active: false },
-      });
-      affected = result.count;
+      const desativados = await db
+        .update(gruposWhatsapp)
+        .set({ active: false, ...carimboDeEdicao(auth.user.id) })
+        .where(vivosE(gruposWhatsapp, inArray(gruposWhatsapp.id, ids)))
+        .returning({ id: gruposWhatsapp.id });
+      affected = desativados.length;
     }
 
     invalidateGroupsCache();
 
     return NextResponse.json({
       message: shouldDelete
-        ? `${affected} grupos orfaos REMOVIDOS do DB`
-        : `${affected} grupos orfaos desativados (use ?delete=true pra remover)`,
+        ? `${affected} grupos orfaos marcados como excluidos`
+        : `${affected} grupos orfaos desativados (use ?delete=true pra excluir)`,
       seenInUazapi: seenJids.size,
       totalDb: dbGroups.length,
       orphans: orphans.length,

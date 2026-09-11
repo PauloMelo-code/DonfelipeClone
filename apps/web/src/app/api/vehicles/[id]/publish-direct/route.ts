@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq, or, inArray, isNull, lt } from "drizzle-orm";
+import { db, veiculos, gruposWhatsapp, carimboDeEdicao, vivos, vivosE } from "@/lib/db";
+
+/** Grupos TARGET ativos e vivos, com um filtro extra opcional. */
+async function destinos(extra?: import("drizzle-orm").SQL) {
+  return db
+    .select()
+    .from(gruposWhatsapp)
+    .where(
+      vivosE(gruposWhatsapp, eq(gruposWhatsapp.role, "TARGET"), eq(gruposWhatsapp.active, true), extra)
+    );
+}
+import { prepararAprovacao } from "@/lib/actions/veiculos";
 import { requireAuth } from "@/lib/auth";
-import { formatVehicleAd } from "@/lib/vehicle-formatter";
-import { cleanAdDescription } from "@/lib/ad-cleaner";
-import { publishVehicle } from "@/lib/publisher";
-import { extractRequestMeta } from "@/lib/request-meta";
+import { enfileirarPublicacao } from "@/lib/queue/publicacao";
 
 /**
  * POST /api/vehicles/[id]/publish-direct
@@ -20,19 +29,23 @@ export async function POST(
   const { id } = await params;
 
   // Atomic claim: lock vehicle to prevent double-click race
-  const claim = await prisma.vehicle.updateMany({
-    where: {
-      id,
-      status: { in: ["PENDING", "APPROVED"] },
-      OR: [
-        { publishingLockedAt: null },
-        { publishingLockedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } }, // 5 min stale lock
-      ],
-    },
-    data: { publishingLockedAt: new Date() },
-  });
+  const claim = await db
+    .update(veiculos)
+    .set({ publishingLockedAt: new Date(), ...carimboDeEdicao(auth.user.id) })
+    .where(
+      and(
+        vivos(veiculos),
+        eq(veiculos.id, id),
+        inArray(veiculos.status, ["PENDING", "APPROVED"]),
+        or(
+          isNull(veiculos.publishingLockedAt),
+          lt(veiculos.publishingLockedAt, new Date(Date.now() - 5 * 60 * 1000)) // trava vencida em 5 min
+        )
+      )
+    )
+    .returning({ id: veiculos.id });
 
-  if (claim.count === 0) {
+  if (claim.length === 0) {
     return NextResponse.json({ error: "Veiculo ja em processamento ou ja publicado" }, { status: 409 });
   }
 
@@ -57,13 +70,18 @@ export async function POST(
       `[publish-direct] vehicle=${id} body.photos=${userEditedPhotos ? `[${userEditedPhotos.length}, first=${userEditedPhotos[0]?.slice(0, 30)}...]` : "MISSING"} ad=${userEditedAd ? "yes" : "no"} price=${userEditedPrice ?? "no"} groups=${requestedGroupIds?.length ?? 0}`
     );
     if (userEditedPhotos) {
-      await prisma.vehicle.update({
-        where: { id },
-        data: { photos: JSON.stringify(userEditedPhotos) },
-      }).catch(() => {});
+      await db
+        .update(veiculos)
+        .set({ photos: JSON.stringify(userEditedPhotos), ...carimboDeEdicao(auth.user.id) })
+        .where(vivosE(veiculos, eq(veiculos.id, id)))
+        .catch(() => {});
     }
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
     }
@@ -72,61 +90,29 @@ export async function POST(
     let formattedAd: string | undefined;
     let sellingPrice: number | undefined;
 
-    // Auto-aprovar se PENDING (replica logica do approve/route.ts)
+    // Auto-aprovar se PENDING. FIPE, precificacao e anuncio vem de
+    // lib/actions/veiculos: era copia do approve/route.ts, e as duas
+    // versoes ja tinham divergido no reconhecimento de "procedência".
     if (vehicle.status === "PENDING") {
-      // Auto-extract FIPE
-      let fipePrice = vehicle.fipePrice;
-      if (fipePrice == null && vehicle.rawDescription) {
-        const m = vehicle.rawDescription.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil)?/i);
-        if (m) {
-          let raw = m[1];
-          if (m[2]?.toLowerCase() === "mil") {
-            fipePrice = parseFloat(raw.replace(",", ".")) * 1000;
-          } else {
-            raw = raw.replace(/\./g, "").replace(",", ".");
-            const n = parseFloat(raw);
-            if (!isNaN(n) && n >= 1000) fipePrice = n;
-          }
-        }
-      }
-
-      const marginSetting = await prisma.setting.findUnique({ where: { key: "profit_margin_percent" } });
-      const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
-
-      // Smart pricing -- carro bom perto da FIPE vende sem margem; a margem
-      // de fato eh escolhida pelo operador no modal.
-      let effectiveMargin = margin;
-      if (fipePrice && vehicle.rawDescription) {
-        const discount = 1 - (vehicle.price / fipePrice);
-        const desc = vehicle.rawDescription.toLowerCase();
-        const hasGoodIndicators = vehicle.km < 60000 || /\b(unico\s*dono|único\s*dono|procedencia|sem\s*detalhes|revisado|revisões|revisoes)\b/i.test(desc);
-        const hasNoRedFlags = !/\b(leil[aã]o|sinistro|batido|enchente|recuperado)\b/i.test(desc);
-        if (discount <= 0.12 && hasGoodIndicators && hasNoRedFlags) effectiveMargin = 0;
-      }
-
-      // Preco: usa o editado pelo operador no modal se vier, senao calcula da margem
-      sellingPrice = userEditedPrice ?? vehicle.price * (1 + effectiveMargin / 100);
-
-      let features: string[] = [];
-      try { features = JSON.parse(vehicle.features || "[]"); } catch {}
-
-      // Limpa rawDescription via IA (cache 24h, fallback gracioso)
-      const cleanedDesc = vehicle.rawDescription
-        ? await cleanAdDescription(vehicle.rawDescription)
-        : null;
-
-      // Texto: usa o editado pelo operador se vier, senao gera do rawDescription limpo
-      formattedAd = userEditedAd ?? formatVehicleAd({
-        model: vehicle.model, brand: vehicle.brand, year: vehicle.year,
-        yearModel: vehicle.yearModel, km: vehicle.km, price: vehicle.price,
-        fipePrice, transmission: vehicle.transmission, fuel: vehicle.fuel,
-        features, rawDescription: cleanedDesc || vehicle.rawDescription,
-      }, { profitMarginPercent: effectiveMargin });
-
-      await prisma.vehicle.update({
-        where: { id },
-        data: { status: "APPROVED", sellingPrice, formattedAd, fipePrice, approvedAt: new Date() },
+      const aprovacao = await prepararAprovacao(vehicle, {
+        precoEditado: userEditedPrice,
+        anuncioEditado: userEditedAd,
       });
+      sellingPrice = aprovacao.sellingPrice;
+      formattedAd = aprovacao.formattedAd;
+      const fipePrice = aprovacao.fipePrice;
+
+      await db
+        .update(veiculos)
+        .set({
+          status: "APPROVED",
+          sellingPrice,
+          formattedAd,
+          fipePrice,
+          approvedAt: new Date(),
+          ...carimboDeEdicao(auth.user.id),
+        })
+        .where(vivosE(veiculos, eq(veiculos.id, id)));
     } else {
       // Vehicle already APPROVED -- usa edits do body se vieram, senao pega do DB
       formattedAd = userEditedAd ?? vehicle.formattedAd ?? undefined;
@@ -134,36 +120,29 @@ export async function POST(
 
       // Se houve edicao no modal, persiste no DB pra ficar consistente
       if (userEditedAd || userEditedPrice) {
-        await prisma.vehicle.update({
-          where: { id },
-          data: {
+        await db
+          .update(veiculos)
+          .set({
             ...(userEditedAd ? { formattedAd: userEditedAd } : {}),
             ...(userEditedPrice ? { sellingPrice: userEditedPrice } : {}),
-          },
-        });
+            ...carimboDeEdicao(auth.user.id),
+          })
+          .where(vivosE(veiculos, eq(veiculos.id, id)));
       }
     }
 
     // Selecionar grupos destino: usar requestedGroupIds se fornecido, senao auto-selecionar por estado
     let targetGroups;
     if (requestedGroupIds && requestedGroupIds.length > 0) {
-      targetGroups = await prisma.whatsAppGroup.findMany({
-        where: { role: "TARGET", active: true, groupId: { in: requestedGroupIds } },
-      });
+      targetGroups = await destinos(inArray(gruposWhatsapp.groupId, requestedGroupIds));
     } else if (vehicle.state) {
-      targetGroups = await prisma.whatsAppGroup.findMany({
-        where: { role: "TARGET", active: true, region: vehicle.state },
-      });
+      targetGroups = await destinos(eq(gruposWhatsapp.region, vehicle.state));
       // Fallback: se nao tem grupos da regiao, usa todos
       if (targetGroups.length === 0) {
-        targetGroups = await prisma.whatsAppGroup.findMany({
-          where: { role: "TARGET", active: true },
-        });
+        targetGroups = await destinos();
       }
     } else {
-      targetGroups = await prisma.whatsAppGroup.findMany({
-        where: { role: "TARGET", active: true },
-      });
+      targetGroups = await destinos();
     }
 
     if (targetGroups.length === 0) {
@@ -179,46 +158,23 @@ export async function POST(
     const priceForBg = sellingPrice;
     const photosForBg = userEditedPhotos;
 
-    void (async () => {
-      try {
-        const results = await publishVehicle(id, {
-          targetGroupIds: groupIds,
-          userId,
-          formattedAd: adForBg,
-          sellingPrice: priceForBg,
-          photos: photosForBg,
-          quickPublish: true,
-        });
-
-        const totalSent = results.filter((r) => r.success).length;
-        const totalFailed = results.filter((r) => !r.success && !r.skippedReason).length;
-        const totalSkipped = results.filter((r) => !!r.skippedReason).length;
-
-        await prisma.auditLog.create({
-          data: {
-            action: "VEHICLE_PUBLISHED_DIRECT",
-            entityType: "Vehicle",
-            entityId: id,
-            vehicleId: id,
-            userId,
-            details: JSON.stringify({
-              triggeredBy: "fast-track",
-              sourceState,
-              destinationGroups: groupCount,
-              totalSent,
-              totalFailed,
-              totalSkipped,
-            }),
-          },
-        }).catch(() => {});
-      } catch (err) {
-        console.error("[publish-direct] Background publish failed:", err);
-      } finally {
-        await prisma.vehicle
-          .update({ where: { id }, data: { publishingLockedAt: null } })
-          .catch(() => {});
-      }
-    })();
+    // Vai para a fila. A trilha do disparo direto e gravada pelo worker,
+    // ja com o resultado real do envio.
+    await enfileirarPublicacao({
+      vehicleId: id,
+      targetGroupIds: groupIds,
+      userId,
+      formattedAd: adForBg,
+      sellingPrice: priceForBg,
+      photos: photosForBg,
+      quickPublish: true,
+      trilha: {
+        action: "VEHICLE_PUBLISHED_DIRECT",
+        triggeredBy: "fast-track",
+        sourceState,
+        destinationGroups: groupCount,
+      },
+    });
 
     return NextResponse.json({
       status: "publishing",
@@ -231,8 +187,10 @@ export async function POST(
     });
   } catch (error) {
     console.error("[publish-direct] Error:", error);
-    await prisma.vehicle
-      .update({ where: { id }, data: { publishingLockedAt: null } })
+    await db
+      .update(veiculos)
+      .set({ publishingLockedAt: null })
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
       .catch(() => {});
     return NextResponse.json({ error: "Erro ao publicar direto" }, { status: 500 });
   }

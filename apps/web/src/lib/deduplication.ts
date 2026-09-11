@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
-import { prisma } from "@/lib/prisma";
+import { eq, gte, lte, asc, desc } from "drizzle-orm";
+import { db, veiculos, historicoPublicacao, vivosE } from "@/lib/db";
 import { countBusinessDays } from "@/lib/business-days";
 
 /**
@@ -24,16 +25,26 @@ export async function findFuzzyDuplicate(vehicle: {
   const kmMin = Math.max(0, vehicle.km - Math.max(5000, vehicle.km * 0.2));
   const kmMax = vehicle.km + Math.max(5000, vehicle.km * 0.2);
 
-  const candidates = await prisma.vehicle.findMany({
-    where: {
-      capturedAt: { gte: since },
-      year: { gte: vehicle.year - 1, lte: vehicle.year + 1 },
-      km: { gte: Math.floor(kmMin), lte: Math.ceil(kmMax) },
-    },
-    select: { id: true, model: true, price: true, status: true },
-    orderBy: { price: "asc" }, // pega o mais barato que casar
-    take: 50,
-  });
+  const candidates = await db
+    .select({
+      id: veiculos.id,
+      model: veiculos.model,
+      price: veiculos.price,
+      status: veiculos.status,
+    })
+    .from(veiculos)
+    .where(
+      vivosE(
+        veiculos,
+        gte(veiculos.capturedAt, since),
+        gte(veiculos.year, vehicle.year - 1),
+        lte(veiculos.year, vehicle.year + 1),
+        gte(veiculos.km, Math.floor(kmMin)),
+        lte(veiculos.km, Math.ceil(kmMax))
+      )
+    )
+    .orderBy(asc(veiculos.price)) // pega o mais barato que casar
+    .limit(50);
 
   for (const c of candidates) {
     const cKey = normalizeModelKey(c.model);
@@ -168,14 +179,19 @@ export async function canPostVehicle(
   vehicleHash: string,
   targetGroupId: string
 ): Promise<boolean> {
-  const lastPost = await prisma.postHistory.findFirst({
-    where: {
-      vehicleHash,
-      targetGroupId,
-      success: true,
-    },
-    orderBy: { postedAt: "desc" },
-  });
+  const [lastPost] = await db
+    .select({ postedAt: historicoPublicacao.postedAt })
+    .from(historicoPublicacao)
+    .where(
+      vivosE(
+        historicoPublicacao,
+        eq(historicoPublicacao.vehicleHash, vehicleHash),
+        eq(historicoPublicacao.targetGroupId, targetGroupId),
+        eq(historicoPublicacao.success, true)
+      )
+    )
+    .orderBy(desc(historicoPublicacao.postedAt))
+    .limit(1);
 
   // No previous successful post -- allow
   if (!lastPost) {
@@ -212,15 +228,14 @@ export async function recordPost(
   errorMessage?: string,
   userId?: string | null
 ): Promise<void> {
-  await prisma.postHistory.create({
-    data: {
-      vehicleId,
-      vehicleHash,
-      targetGroupId,
-      messageId: messageId ?? null,
-      success,
-      errorMessage: errorMessage ?? null,
-      userId: userId ?? null,
-    },
+  await db.insert(historicoPublicacao).values({
+    vehicleId,
+    vehicleHash,
+    targetGroupId,
+    messageId: messageId ?? null,
+    success,
+    errorMessage: errorMessage ?? null,
+    userId: userId ?? null,
+    modifiedBy: userId ?? null,
   });
 }

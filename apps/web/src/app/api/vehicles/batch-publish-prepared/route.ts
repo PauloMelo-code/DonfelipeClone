@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, inArray, isNotNull, type SQL } from "drizzle-orm";
+import { db, veiculos, vivos, vivosE } from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
+import { enfileirarPublicacao } from "@/lib/queue/publicacao";
 import { requireAuth } from "@/lib/auth";
-import { publishVehicle } from "@/lib/publisher";
 
 /**
  * POST /api/vehicles/batch-publish-prepared
@@ -29,25 +31,26 @@ export async function POST(request: NextRequest) {
       : undefined;
 
     // Levantar veiculos a publicar
-    const where: Record<string, unknown> = {
-      preparedAt: { not: null },
-      status: "APPROVED",
-    };
+    const condicoes: (SQL | undefined)[] = [
+      vivos(veiculos),
+      isNotNull(veiculos.preparedAt),
+      eq(veiculos.status, "APPROVED"),
+    ];
     if (explicitIds && explicitIds.length > 0) {
-      where.id = { in: explicitIds };
+      condicoes.push(inArray(veiculos.id, explicitIds));
     } else if (stateFilter) {
-      where.state = stateFilter;
+      condicoes.push(eq(veiculos.state, stateFilter));
     }
 
-    const targets = await prisma.vehicle.findMany({
-      where,
-      select: {
-        id: true,
-        formattedAd: true,
-        sellingPrice: true,
-        preparedTargetGroupIds: true,
-      },
-    });
+    const targets = await db
+      .select({
+        id: veiculos.id,
+        formattedAd: veiculos.formattedAd,
+        sellingPrice: veiculos.sellingPrice,
+        preparedTargetGroupIds: veiculos.preparedTargetGroupIds,
+      })
+      .from(veiculos)
+      .where(vivosE(veiculos, ...condicoes.slice(1)));
 
     if (targets.length === 0) {
       return NextResponse.json(
@@ -59,50 +62,34 @@ export async function POST(request: NextRequest) {
     const userId = auth.user.id;
 
     // Fire-and-forget com delays anti-ban entre veiculos
-    void (async () => {
-      const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      for (let i = 0; i < targets.length; i++) {
-        if (i > 0) {
-          await delay(800 + Math.random() * 1200); // 0.8-2s entre carros
-        }
-        const v = targets[i];
-        let groupIds: string[] | undefined = undefined;
-        if (v.preparedTargetGroupIds) {
-          try {
-            const parsed = JSON.parse(v.preparedTargetGroupIds);
-            if (Array.isArray(parsed) && parsed.length > 0) groupIds = parsed;
-          } catch { /* fallback to default groups in publisher */ }
-        }
-        try {
-          await publishVehicle(v.id, {
-            targetGroupIds: groupIds,
-            formattedAd: v.formattedAd ?? undefined,
-            sellingPrice: v.sellingPrice ?? undefined,
-            userId,
-            quickPublish: true,
-          });
-          // Limpa marca de "preparado" apos publicar com sucesso
-          await prisma.vehicle
-            .update({
-              where: { id: v.id },
-              data: { preparedAt: null, preparedTargetGroupIds: null },
-            })
-            .catch(() => {});
-        } catch (err) {
-          console.error(`[BatchPublishPrepared] vehicle ${v.id} failed:`, err);
-        }
+    // Um job por veiculo preparado.
+    for (const v of targets) {
+      let groupIds: string[] | undefined;
+      try {
+        groupIds = v.preparedTargetGroupIds
+          ? (JSON.parse(v.preparedTargetGroupIds) as string[])
+          : undefined;
+      } catch {
+        groupIds = undefined;
       }
-    })();
-
-    await prisma.auditLog.create({
-      data: {
-        action: "BATCH_PUBLISH_PREPARED",
+      await enfileirarPublicacao({
+        vehicleId: v.id,
+        targetGroupIds: groupIds,
+        formattedAd: v.formattedAd ?? undefined,
+        sellingPrice: v.sellingPrice ?? undefined,
         userId,
-        details: JSON.stringify({
-          stateFilter: stateFilter ?? null,
-          queued: targets.length,
-        }),
+        quickPublish: true,
+      });
+    }
+
+    await registrarAuditoria({
+      action: "BATCH_PUBLISH_PREPARED",
+      userId,
+      details: {
+        stateFilter: stateFilter ?? null,
+        queued: targets.length,
       },
+      request,
     });
 
     return NextResponse.json({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, or, eq, ilike, desc, count, type SQL } from "drizzle-orm";
+import { db, trilhaAuditoria, usuarios, veiculos, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { comoTermoLike } from "@/lib/db/like";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth("ADMIN");
@@ -13,41 +15,44 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get("action") || "";
     const search = searchParams.get("search") || "";
 
-    const where: Record<string, unknown> = {};
-
-    if (action) {
-      where.action = action;
-    }
-
+    const condicoes: (SQL | undefined)[] = [vivos(trilhaAuditoria)];
+    if (action) condicoes.push(eq(trilhaAuditoria.action, action));
     if (search) {
-      where.OR = [
-        { entityId: { contains: search, mode: "insensitive" } },
-        { details: { contains: search, mode: "insensitive" } },
-      ];
+      const termo = comoTermoLike(search);
+      condicoes.push(
+        or(ilike(trilhaAuditoria.entityId, termo), ilike(trilhaAuditoria.details, termo))
+      );
     }
+    const filtro = and(...condicoes);
 
-    const [logs, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-          vehicle: { select: { id: true, model: true, brand: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.auditLog.count({ where }),
+    const [linhas, [totalizador]] = await Promise.all([
+      db
+        .select({
+          log: trilhaAuditoria,
+          user: { id: usuarios.id, name: usuarios.name, email: usuarios.email },
+          vehicle: { id: veiculos.id, model: veiculos.model, brand: veiculos.brand },
+        })
+        .from(trilhaAuditoria)
+        .leftJoin(usuarios, eq(usuarios.id, trilhaAuditoria.userId))
+        .leftJoin(veiculos, eq(veiculos.id, trilhaAuditoria.vehicleId))
+        .where(filtro)
+        .orderBy(desc(trilhaAuditoria.createdAt))
+        .offset((page - 1) * limit)
+        .limit(limit),
+      db.select({ n: count() }).from(trilhaAuditoria).where(filtro),
     ]);
+
+    // Mesma forma que a tela ja consome: user e vehicle aninhados no log.
+    const logs = linhas.map((l) => ({
+      ...l.log,
+      user: l.user?.id ? l.user : null,
+      vehicle: l.vehicle?.id ? l.vehicle : null,
+    }));
+    const total = totalizador?.n ?? 0;
 
     return NextResponse.json({
       logs,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     console.error("[AuditLogs] Error:", error);

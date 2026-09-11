@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, inArray } from "drizzle-orm";
+import { db, gruposWhatsapp, carimboDeEdicao, vivosE } from "@/lib/db";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
 import { requireAuth } from "@/lib/auth";
 import { invalidateGroupsCache } from "../route";
@@ -12,7 +13,13 @@ import { invalidateGroupsCache } from "../route";
  * Se um grupo aparece em ambas, mantem o role atual no DB (nao reverte).
  * Se a instancia de envio nao estiver configurada, sincroniza so da captura.
  */
-export async function GET(request: Request) {
+// Escrita e POST, nao GET.
+//
+// Este handler insere e atualiza grupos no banco. Como GET, ele era alcancavel
+// por navegacao de topo -- e `SameSite=Lax` MANDA o cookie nesse caso, entao um
+// link clicado disparava a sincronizacao. A checagem de origem do middleware ja
+// fecha isso, mas metodo que escreve tem que dizer que escreve.
+export async function POST(request: Request) {
   const auth = await requireAuth("ADMIN");
   if (!auth.success) return auth.response;
 
@@ -191,10 +198,20 @@ export async function GET(request: Request) {
     // Look up existing DB names so we don't overwrite a good name with a JID fallback
     const existingByGroupId = new Map(
       (
-        await prisma.whatsAppGroup.findMany({
-          where: { groupId: { in: remoteGroups.map((g) => g.id).filter(Boolean) } },
-          select: { groupId: true, name: true, role: true, nameLocked: true },
-        })
+        await db
+          .select({
+            groupId: gruposWhatsapp.groupId,
+            name: gruposWhatsapp.name,
+            role: gruposWhatsapp.role,
+            nameLocked: gruposWhatsapp.nameLocked,
+          })
+          .from(gruposWhatsapp)
+          .where(
+            vivosE(
+              gruposWhatsapp,
+              inArray(gruposWhatsapp.groupId, remoteGroups.map((g) => g.id).filter(Boolean))
+            )
+          )
       ).map((g) => [g.groupId, g])
     );
 
@@ -245,29 +262,29 @@ export async function GET(request: Request) {
           : name === groupId && existing.name !== groupId
             ? existing.name
             : name;
-        await prisma.whatsAppGroup.update({
-          where: { groupId },
-          data: {
+        await db
+          .update(gruposWhatsapp)
+          .set({
             name: safeName,
             photoUrl,
             isAnnounce: isNewsletter,
             isCommunity,
             isContact,
-          },
-        });
+            ...carimboDeEdicao(auth.user.id),
+          })
+          .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.groupId, groupId)));
         updatedCount++;
       } else {
-        await prisma.whatsAppGroup.create({
-          data: {
-            groupId,
-            name,
-            role: group.defaultRole, // SOURCE se veio da captura, TARGET se veio do envio
-            active: false, // Tudo do sync comeca inativo (admin ativa o que quer)
-            photoUrl,
-            isAnnounce: isNewsletter,
-            isCommunity,
-            isContact,
-          },
+        await db.insert(gruposWhatsapp).values({
+          groupId,
+          name,
+          role: group.defaultRole, // SOURCE se veio da captura, TARGET se veio do envio
+          active: false, // Tudo do sync comeca inativo (admin ativa o que quer)
+          photoUrl,
+          isAnnounce: isNewsletter,
+          isCommunity,
+          isContact,
+          modifiedBy: auth.user.id,
         });
         createdCount++;
       }

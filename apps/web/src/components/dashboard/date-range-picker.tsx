@@ -180,10 +180,10 @@ function MiniCalendar({
               className={cn(
                 "relative h-7 w-full text-[11px] font-medium rounded transition-colors",
                 isFuture && "opacity-25 cursor-not-allowed",
-                !isFuture && !isStart && !isEnd && !inRange && "hover:bg-cugini-orange/20 hover:text-cugini-orange text-muted-foreground",
-                inRange && !isStart && !isEnd && "bg-cugini-orange/10 text-cugini-orange rounded-none",
-                (isStart || isEnd) && "bg-cugini-orange text-white rounded-full z-10",
-                isToday && !isStart && !isEnd && "text-cugini-orange font-bold",
+                !isFuture && !isStart && !isEnd && !inRange && "hover:bg-brand-gold/20 hover:text-brand-gold text-muted-foreground",
+                inRange && !isStart && !isEnd && "bg-brand-gold/10 text-brand-gold rounded-none",
+                (isStart || isEnd) && "bg-brand-gold text-white rounded-full z-10",
+                isToday && !isStart && !isEnd && "text-brand-gold font-bold",
               )}
             >
               {d.getDate()}
@@ -275,9 +275,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground hover:border-cugini-orange/30 hover:bg-cugini-orange/5 transition-all"
+        className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand-gold/30 hover:bg-brand-gold/5 transition-all"
       >
-        <Calendar className="h-3.5 w-3.5 text-cugini-orange" />
+        <Calendar className="h-3.5 w-3.5 text-brand-gold" />
         <span>{value.label}</span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
@@ -305,7 +305,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                   "text-left px-3 py-1.5 text-xs transition-colors rounded-lg",
                   isMobile ? "border border-white/[0.06]" : "w-full",
                   activePreset === p.label
-                    ? "bg-cugini-orange/10 text-cugini-orange font-medium border-cugini-orange/20"
+                    ? "bg-brand-gold/10 text-brand-gold font-medium border-brand-gold/20"
                     : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
                 )}
               >
@@ -317,7 +317,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           {/* Calendars */}
           <div className="p-4 space-y-3">
             {selecting.start && !selecting.end && (
-              <p className="text-[11px] text-cugini-orange text-center">
+              <p className="text-[11px] text-brand-gold text-center">
                 Selecione a data final
               </p>
             )}

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, ne, gte, lte, ilike, inArray, isNotNull, desc as ordemDesc } from "drizzle-orm";
+import { db, veiculos, vivosE } from "@/lib/db";
+import { comoTermoLike } from "@/lib/db/like";
+import { lerConfiguracaoNumero } from "@/lib/settings";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -24,7 +27,11 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
     }
@@ -91,18 +98,26 @@ export async function GET(
     // Mesma marca/modelo (primeira palavra), ano +/- 1, status = APPROVED/PUBLISHED/SOLD
     const modelFirstWord = vehicle.model.split(" ")[0]?.toUpperCase();
     const similar = modelFirstWord
-      ? await prisma.vehicle.findMany({
-          where: {
-            id: { not: id },
-            model: { contains: modelFirstWord, mode: "insensitive" },
-            year: { gte: vehicle.year - 1, lte: vehicle.year + 1 },
-            status: { in: ["APPROVED", "PUBLISHED", "SOLD"] },
-            sellingPrice: { not: null },
-          },
-          select: { sellingPrice: true, km: true, soldAt: true },
-          take: 50,
-          orderBy: { capturedAt: "desc" },
-        })
+      ? await db
+          .select({
+            sellingPrice: veiculos.sellingPrice,
+            km: veiculos.km,
+            soldAt: veiculos.soldAt,
+          })
+          .from(veiculos)
+          .where(
+            vivosE(
+              veiculos,
+              ne(veiculos.id, id),
+              ilike(veiculos.model, comoTermoLike(modelFirstWord)),
+              gte(veiculos.year, vehicle.year - 1),
+              lte(veiculos.year, vehicle.year + 1),
+              inArray(veiculos.status, ["APPROVED", "PUBLISHED", "SOLD"]),
+              isNotNull(veiculos.sellingPrice)
+            )
+          )
+          .orderBy(ordemDesc(veiculos.capturedAt))
+          .limit(50)
       : [];
 
     let marketAvg: number | null = null;
@@ -151,10 +166,7 @@ export async function GET(
     if (vehicle.km > 150000) warnings.push("KM alta");
 
     // Sugestao de preco ideal: media de mercado dos vendidos OU preco atual + margem padrao
-    const profitMarginSetting = await prisma.setting.findUnique({
-      where: { key: "profit_margin_percent" },
-    });
-    const defaultMargin = profitMarginSetting ? parseFloat(profitMarginSetting.value) : 10;
+    const defaultMargin = await lerConfiguracaoNumero("profit_margin_percent", 10);
     const suggestedPrice = marketAvg
       ? Math.round((vehicle.price * (1 + defaultMargin / 100) + marketAvg) / 2)
       : Math.round(vehicle.price * (1 + defaultMargin / 100));

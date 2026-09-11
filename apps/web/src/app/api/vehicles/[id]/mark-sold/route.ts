@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, travaDeColisao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { registrarAuditoria } from "@/lib/audit";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
@@ -13,23 +15,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const soldPrice = typeof body?.soldPrice === "number" ? body.soldPrice : null;
     const soldNotes = typeof body?.soldNotes === "string" ? body.soldNotes.slice(0, 500) : null;
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select({ updatedAt: veiculos.updatedAt })
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
 
-    const updated = await prisma.vehicle.update({
-      where: { id },
-      data: { soldAt: new Date(), soldPrice, soldNotes },
-    });
+    const [updated] = await db
+      .update(veiculos)
+      .set({
+        soldAt: new Date(),
+        soldPrice,
+        soldNotes,
+        ...carimboDeEdicao(auth.user.id),
+      })
+      .where(travaDeColisao(veiculos, id, vehicle.updatedAt))
+      .returning();
 
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_SOLD",
-        entityType: "Vehicle",
-        entityId: id,
-        vehicleId: id,
-        userId: auth.user.id,
-        details: JSON.stringify({ soldPrice, soldNotes }),
-      },
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Veiculo alterado por outro usuario. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
+
+    await registrarAuditoria({
+      action: "VEHICLE_SOLD",
+      entityType: "Vehicle",
+      entityId: id,
+      vehicleId: id,
+      userId: auth.user.id,
+      details: { soldPrice, soldNotes },
+      request,
     });
 
     return NextResponse.json({ ...updated });

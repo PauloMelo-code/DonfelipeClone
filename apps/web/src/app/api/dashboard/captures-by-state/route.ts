@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { gte, lte, count, desc } from "drizzle-orm";
+import { db, veiculos, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -44,24 +45,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached.data, { headers: { "X-Cache": "HIT" } });
     }
 
-    const grouped = await prisma.vehicle.groupBy({
-      by: ["state"],
-      where: { capturedAt: { gte: startDate, lte: endDate } },
-      _count: { _all: true },
-      orderBy: { _count: { state: "desc" } },
-    });
+    const grouped = await db
+      .select({ state: veiculos.state, total: count() })
+      .from(veiculos)
+      .where(vivosE(veiculos, gte(veiculos.capturedAt, startDate), lte(veiculos.capturedAt, endDate)))
+      .groupBy(veiculos.state)
+      .orderBy(desc(count()));
 
     let total = 0;
     let unknownCount = 0;
     const states: { state: string; count: number }[] = [];
 
     for (const g of grouped) {
-      total += g._count._all;
+      total += g.total;
       if (!g.state) {
-        unknownCount += g._count._all;
+        unknownCount += g.total;
         continue;
       }
-      states.push({ state: g.state.toUpperCase(), count: g._count._all });
+      states.push({ state: g.state.toUpperCase(), count: g.total });
     }
 
     states.sort((a, b) => b.count - a.count);

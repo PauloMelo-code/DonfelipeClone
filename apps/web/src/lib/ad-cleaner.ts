@@ -2,7 +2,7 @@
 // Ad Cleaner — limpa descricoes de anuncios via GPT
 // ---------------------------------------------------------------------------
 // Empresas grandes (Vaapty, Repassey, etc) mandam anuncios com MUITO texto
-// promocional, contatos, headers de filial -- nada que entre no padrao Cugini.
+// promocional, contatos, headers de filial -- nada que entre no padrao Don Felipe.
 //
 // Regex no vehicle-formatter cobre os casos comuns, mas vira um jogo de pega-
 // pega sem fim. Essa lib usa GPT-4.1-mini pra extrair apenas o que importa:
@@ -57,13 +57,13 @@ function cacheSet(key: string, value: string) {
   cleanerCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Cugini.
+const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Don Felipe.
 
 Tarefa: receber o texto bagunçado e devolver APENAS o CORPO limpo do
 anuncio. O sistema ja adiciona cabecalho (marca/modelo/ano/km) e rodape
 (Fipe/Por) automaticamente -- voce so cuida do MIOLO.
 
-=== PADRAO CUGINI (CRITICO -- SEGUIR 100%) ===
+=== PADRAO DON FELIPE (CRITICO -- SEGUIR 100%) ===
 Cada informacao em LINHA SEPARADA. SEM prefixos com dois pontos
 (NAO USAR "Opcionais:", "Estado:", "Placa:", "Revisoes:", "Historico:").
 Apenas listar os fatos diretamente, frases curtas e diretas.

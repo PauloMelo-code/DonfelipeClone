@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, travaDeColisao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { registrarAuditoria } from "@/lib/audit";
 
 /**
  * POST /api/vehicles/[id]/undo
  * Reverts last status change to PENDING.
  * Only works if the action was within last 30 seconds AND status is APPROVED or REJECTED.
  */
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
 
   try {
     const { id } = await params;
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
 
     if (vehicle.status === "PENDING") {
@@ -29,9 +35,9 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Tempo limite para desfazer expirou (30s)" }, { status: 400 });
     }
 
-    const updated = await prisma.vehicle.update({
-      where: { id },
-      data: {
+    const [updated] = await db
+      .update(veiculos)
+      .set({
         status: "PENDING",
         approvedAt: null,
         rejectedAt: null,
@@ -40,18 +46,26 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         autoRejectedReason: null,
         sellingPrice: null,
         formattedAd: null,
-      },
-    });
+        ...carimboDeEdicao(auth.user.id),
+      })
+      .where(travaDeColisao(veiculos, id, vehicle.updatedAt))
+      .returning();
 
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_UNDO",
-        entityType: "Vehicle",
-        entityId: id,
-        vehicleId: id,
-        userId: auth.user.id,
-        details: JSON.stringify({ from: vehicle.status }),
-      },
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Veiculo alterado por outro usuario. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
+
+    await registrarAuditoria({
+      action: "VEHICLE_UNDO",
+      entityType: "Vehicle",
+      entityId: id,
+      vehicleId: id,
+      userId: auth.user.id,
+      details: { from: vehicle.status },
+      request,
     });
 
     let f: unknown[] = [];

@@ -1,0 +1,65 @@
+"use client";
+
+import { SwipeStack } from "@/components/vehicles/swipe-stack";
+import type { Vehicle } from "./tipos";
+
+// ---------------------------------------------------------------------------
+// Triagem da aba Pendentes: um carro de cada vez, decisao por swipe.
+//
+// Esquerda rejeita, direita aprova, cima publica direto. O teclado faz o
+// mesmo, e a legenda em cima lembra disso em telas grandes.
+// ---------------------------------------------------------------------------
+
+/** O SwipeStack quer os campos ja como array, nao como JSON em texto. */
+type VeiculoDaPilha = Omit<Vehicle, "features" | "photos"> & { features: string[]; photos: string[] };
+
+interface Props {
+  veiculos: VeiculoDaPilha[];
+  carregandoAcao: string | null;
+  publicandoId: string | null;
+  aoAprovar: (id: string) => void;
+  aoRejeitar: (id: string) => void;
+  aoPublicarDireto: (id: string) => void;
+  aoAbrirGaleria: (id: string) => void;
+  aoEditarFoto: (id: string) => void;
+  aoExcluirFoto: (id: string, indice: number) => void;
+  aoDefinirPrincipal: (id: string, indice: number) => void;
+  aoAtualizarCampo: (id: string, campo: string, valor: string | number) => Promise<void>;
+  aoMostrarAtalhos: () => void;
+}
+
+export function PilhaPendentes({
+  veiculos, carregandoAcao, publicandoId,
+  aoAprovar, aoRejeitar, aoPublicarDireto, aoAbrirGaleria, aoEditarFoto,
+  aoExcluirFoto, aoDefinirPrincipal, aoAtualizarCampo, aoMostrarAtalhos,
+}: Props) {
+  return (
+    <>
+      <div className="hidden sm:flex items-center justify-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
+        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">←</kbd> Rejeitar
+        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">→</kbd> Aprovar
+        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">↑</kbd> Publicar direto
+        <button
+          onClick={aoMostrarAtalhos}
+          className="rounded bg-card border border-border px-1.5 py-0.5 hover:text-foreground transition-colors"
+          title="Atalhos de teclado"
+        >
+          ? Ajuda
+        </button>
+      </div>
+      <SwipeStack
+        vehicles={veiculos}
+        onApprove={aoAprovar}
+        onReject={aoRejeitar}
+        onPhotoClick={(v) => aoAbrirGaleria(v.id)}
+        onDeletePhoto={aoExcluirFoto}
+        onSetMainPhoto={aoDefinirPrincipal}
+        actionLoading={carregandoAcao}
+        onPublishDirect={aoPublicarDireto}
+        onUpdateField={aoAtualizarCampo}
+        publishingDirectId={publicandoId}
+        onEditPhoto={(v) => aoEditarFoto(v.id)}
+      />
+    </>
+  );
+}

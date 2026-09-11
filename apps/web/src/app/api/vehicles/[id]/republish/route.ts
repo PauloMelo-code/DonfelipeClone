@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { publishVehicle } from "@/lib/publisher";
+import { and, eq, or, inArray, isNull, lt } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivos, vivosE } from "@/lib/db";
+import { enfileirarPublicacao } from "@/lib/queue/publicacao";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(
@@ -14,24 +15,32 @@ export async function POST(
 
   // Atomic claim: lock vehicle to prevent double-click race.
   // Republish operates on PUBLISHED vehicles (and APPROVED transient state set below).
-  const claim = await prisma.vehicle.updateMany({
-    where: {
-      id,
-      status: { in: ["PUBLISHED", "APPROVED"] },
-      OR: [
-        { publishingLockedAt: null },
-        { publishingLockedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } }, // 5 min stale lock
-      ],
-    },
-    data: { publishingLockedAt: new Date() },
-  });
+  const claim = await db
+    .update(veiculos)
+    .set({ publishingLockedAt: new Date(), ...carimboDeEdicao(auth.user.id) })
+    .where(
+      and(
+        vivos(veiculos),
+        eq(veiculos.id, id),
+        inArray(veiculos.status, ["PUBLISHED", "APPROVED"]),
+        or(
+          isNull(veiculos.publishingLockedAt),
+          lt(veiculos.publishingLockedAt, new Date(Date.now() - 5 * 60 * 1000)) // trava vencida em 5 min
+        )
+      )
+    )
+    .returning({ id: veiculos.id });
 
-  if (claim.count === 0) {
+  if (claim.length === 0) {
     return NextResponse.json({ error: "Veiculo ja em processamento ou ja publicado" }, { status: 409 });
   }
 
   try {
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
 
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
@@ -56,20 +65,21 @@ export async function POST(
       if (Array.isArray(body.photos) && body.photos.length > 0) {
         photos = body.photos;
         // Persist edited photos sync antes do publish em background
-        await prisma.vehicle.update({
-          where: { id },
-          data: { photos: JSON.stringify(photos) },
-        }).catch(() => {});
+        await db
+          .update(veiculos)
+          .set({ photos: JSON.stringify(photos), ...carimboDeEdicao(auth.user.id) })
+          .where(vivosE(veiculos, eq(veiculos.id, id)))
+          .catch(() => {});
       }
     } catch {
       // Body is optional
     }
 
     // Temporarily set APPROVED so publishVehicle can run
-    await prisma.vehicle.update({
-      where: { id },
-      data: { status: "APPROVED" },
-    });
+    await db
+      .update(veiculos)
+      .set({ status: "APPROVED", ...carimboDeEdicao(auth.user.id) })
+      .where(vivosE(veiculos, eq(veiculos.id, id)));
 
     // Fire-and-forget: respond immediately, run republish in background.
     const userId = auth.user.id;
@@ -78,32 +88,19 @@ export async function POST(
     const photosForBg = photos;
     const ids = targetGroupIds;
 
-    void (async () => {
-      try {
-        const results = await publishVehicle(id, {
-          targetGroupIds: ids,
-          formattedAd: adForBg,
-          sellingPrice: priceForBg,
-          photos: photosForBg,
-          userId,
-          quickPublish: true,
-        });
-        // publishVehicle sets PUBLISHED if any success; if all failed, restore manually
-        const anySuccess = results.some((r) => r.success);
-        if (!anySuccess) {
-          await prisma.vehicle.update({ where: { id }, data: { status: "PUBLISHED" } });
-        }
-      } catch (err) {
-        console.error("[Vehicles] Background republish failed:", err);
-        await prisma.vehicle
-          .update({ where: { id }, data: { status: "PUBLISHED" } })
-          .catch(() => {});
-      } finally {
-        await prisma.vehicle
-          .update({ where: { id }, data: { publishingLockedAt: null } })
-          .catch(() => {});
-      }
-    })();
+    // Vai para a fila. `restaurarPublicado` devolve o status a PUBLISHED
+    // quando nenhum envio deu certo, para o carro nao ficar preso em
+    // APPROVED.
+    await enfileirarPublicacao({
+      vehicleId: id,
+      targetGroupIds: ids,
+      formattedAd: adForBg,
+      sellingPrice: priceForBg,
+      photos: photosForBg,
+      userId,
+      quickPublish: true,
+      restaurarPublicado: true,
+    });
 
     return NextResponse.json({
       message: "Reenvio enfileirado",
@@ -115,8 +112,10 @@ export async function POST(
     });
   } catch (error) {
     console.error("[Vehicles] Error republishing vehicle:", error);
-    await prisma.vehicle
-      .update({ where: { id }, data: { publishingLockedAt: null } })
+    await db
+      .update(veiculos)
+      .set({ publishingLockedAt: null })
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
       .catch(() => {});
     return NextResponse.json({ error: "Erro ao reenviar veiculo" }, { status: 500 });
   }

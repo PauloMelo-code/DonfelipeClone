@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { sql } from "drizzle-orm";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     // Quick DB check
-    await prisma.$queryRaw`SELECT 1`;
+    await db.execute(sql`select 1`);
     return NextResponse.json({
       status: "ok",
       timestamp: new Date().toISOString(),

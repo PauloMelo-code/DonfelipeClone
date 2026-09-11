@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, or, eq, ilike, isNull, isNotNull, asc, desc, count, sql, getTableColumns, type SQL } from "drizzle-orm";
+import { db, veiculos, gruposWhatsapp, historicoPublicacao, vivos } from "@/lib/db";
+import { comoTermoLike } from "@/lib/db/like";
 import { generateVehicleHash } from "@/lib/deduplication";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
@@ -37,40 +39,83 @@ export async function GET(request: NextRequest) {
       : "capturedAt";
     const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
-    const where: Record<string, unknown> = {};
+    const condicoes: (SQL | undefined)[] = [vivos(veiculos)];
 
     if (status && status !== "ALL") {
-      where.status = status;
+      condicoes.push(eq(veiculos.status, status));
     }
 
     if (preparedParam === "true") {
-      where.preparedAt = { not: null };
+      condicoes.push(isNotNull(veiculos.preparedAt));
     } else if (preparedParam === "false") {
-      where.preparedAt = null;
+      condicoes.push(isNull(veiculos.preparedAt));
     }
 
     if (search) {
-      where.OR = [
-        { model: { contains: search, mode: "insensitive" } },
-        { brand: { contains: search, mode: "insensitive" } },
-        { plate: { contains: search, mode: "insensitive" } },
-        { rawDescription: { contains: search, mode: "insensitive" } },
-      ];
+      const termo = comoTermoLike(search);
+      condicoes.push(
+        or(
+          ilike(veiculos.model, termo),
+          ilike(veiculos.brand, termo),
+          ilike(veiculos.plate, termo),
+          ilike(veiculos.rawDescription, termo)
+        )
+      );
     }
 
-    const [vehicles, total] = await Promise.all([
-      prisma.vehicle.findMany({
-        where,
-        include: {
-          sourceGroup: { select: { name: true, groupId: true, isCommunity: true, isAnnounce: true, ownerPhone: true, region: true } },
-          _count: { select: { postHistory: true } },
-        },
-        orderBy: { [sortBy]: sortOrder },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.vehicle.count({ where }),
+    const filtro = and(...condicoes);
+    const colunaOrdem = {
+      capturedAt: veiculos.capturedAt,
+      price: veiculos.price,
+      km: veiculos.km,
+      year: veiculos.year,
+      model: veiculos.model,
+      status: veiculos.status,
+      approvedAt: veiculos.approvedAt,
+      publishedAt: veiculos.publishedAt,
+      preparedAt: veiculos.preparedAt,
+    }[sortBy] ?? veiculos.capturedAt;
+
+    const [linhas, [totalizador]] = await Promise.all([
+      db
+        .select({
+          ...getTableColumns(veiculos),
+          grupoNome: gruposWhatsapp.name,
+          grupoJid: gruposWhatsapp.groupId,
+          grupoComunidade: gruposWhatsapp.isCommunity,
+          grupoCanal: gruposWhatsapp.isAnnounce,
+          grupoTelefone: gruposWhatsapp.ownerPhone,
+          grupoRegiao: gruposWhatsapp.region,
+          totalPublicacoes: sql<number>`(select count(*)::int from ${historicoPublicacao} where ${historicoPublicacao.vehicleId} = ${veiculos.id} and ${historicoPublicacao.isDeleted} = false)`,
+        })
+        .from(veiculos)
+        .leftJoin(gruposWhatsapp, eq(gruposWhatsapp.groupId, veiculos.sourceGroupId))
+        .where(filtro)
+        .orderBy(sortOrder === "asc" ? asc(colunaOrdem) : desc(colunaOrdem))
+        .offset((page - 1) * limit)
+        .limit(limit),
+      db.select({ n: count() }).from(veiculos).where(filtro),
     ]);
+
+    const total = totalizador?.n ?? 0;
+
+    // Mesma forma que a tela ja consome: sourceGroup e _count aninhados.
+    const vehicles = linhas.map(
+      ({ grupoNome, grupoJid, grupoComunidade, grupoCanal, grupoTelefone, grupoRegiao, totalPublicacoes, ...v }) => ({
+        ...v,
+        sourceGroup: grupoJid
+          ? {
+              name: grupoNome as string,
+              groupId: grupoJid,
+              isCommunity: grupoComunidade as boolean,
+              isAnnounce: grupoCanal as boolean,
+              ownerPhone: grupoTelefone,
+              region: grupoRegiao,
+            }
+          : null,
+        _count: { postHistory: totalPublicacoes },
+      })
+    );
 
     const safeParseArray = (s: string | null | undefined): unknown[] => {
       if (!s) return [];
@@ -137,9 +182,11 @@ export async function POST(request: NextRequest) {
       price,
     });
 
-    const existing = await prisma.vehicle.findFirst({
-      where: { vehicleHash },
-    });
+    const [existing] = await db
+      .select({ id: veiculos.id })
+      .from(veiculos)
+      .where(and(vivos(veiculos), eq(veiculos.vehicleHash, vehicleHash)))
+      .limit(1);
 
     if (existing) {
       return NextResponse.json(
@@ -148,8 +195,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const vehicle = await prisma.vehicle.create({
-      data: {
+    const [vehicle] = await db
+      .insert(veiculos)
+      .values({
         model,
         brand,
         year,
@@ -170,8 +218,9 @@ export async function POST(request: NextRequest) {
         sellerPhone,
         vehicleHash,
         status: "PENDING",
-      },
-    });
+        modifiedBy: auth.user.id,
+      })
+      .returning();
 
     return NextResponse.json(vehicle, { status: 201 });
   } catch (error) {

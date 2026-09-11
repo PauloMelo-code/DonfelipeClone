@@ -1,12 +1,12 @@
 {
-  "name": "Cugini Repasses",
-  "short_name": "Cugini",
+  "name": "Don Felipe Repasses",
+  "short_name": "Don Felipe",
   "description": "Plataforma de monitoramento e republicação de veículos",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#09090B",
-  "theme_color": "#E8731A",
+  "theme_color": "#C9973D",
   "icons": [
     {
       "src": "/icon.svg",

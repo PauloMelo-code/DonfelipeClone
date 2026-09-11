@@ -1,46 +1,17 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, isNull, isNotNull } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
+import { lerConfiguracaoNumero } from "@/lib/settings";
+import { extrairFipeDoTexto } from "@/lib/actions/veiculos";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 
 /**
- * Extract FIPE price from rawDescription using regex patterns.
- */
-function extractFipeFromText(text: string): number | null {
-  const clean = text.replace(/[\u{1F000}-\u{1FFFF}]/gu, "").trim();
-
-  const patterns = [
-    /fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil|reais)?/i,
-    /tabela\s+fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil|reais)?/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = clean.match(pattern);
-    if (match) {
-      let raw = match[1];
-      const suffix = match[2]?.toLowerCase();
-
-      if (suffix === "mil") {
-        raw = raw.replace(",", ".");
-        const num = parseFloat(raw);
-        if (!isNaN(num)) return num * 1000;
-      }
-
-      raw = raw.replace(/\./g, "").replace(",", ".");
-      const num = parseFloat(raw);
-      if (!isNaN(num) && num >= 1000) return num;
-    }
-  }
-
-  return null;
-}
-
-/**
  * POST /api/vehicles/backfill-fipe
  *
  * 1. Backfill fipePrice for vehicles where it's null (extract from rawDescription)
- * 2. Regenerate formattedAd for ALL approved vehicles (applies new Cugini format)
+ * 2. Regenerate formattedAd for ALL approved vehicles (applies new Don Felipe format)
  */
 export async function POST() {
   const auth = await requireAuth("ADMIN");
@@ -48,36 +19,33 @@ export async function POST() {
 
   try {
     // --- Step 1: Backfill FIPE prices ---
-    const noFipe = await prisma.vehicle.findMany({
-      where: {
-        fipePrice: null,
-        rawDescription: { not: null },
-      },
-      select: { id: true, rawDescription: true },
-    });
+    const noFipe = await db
+      .select({ id: veiculos.id, rawDescription: veiculos.rawDescription })
+      .from(veiculos)
+      .where(
+        vivosE(veiculos, isNull(veiculos.fipePrice), isNotNull(veiculos.rawDescription))
+      );
 
     let fipeUpdated = 0;
     for (const v of noFipe) {
       if (!v.rawDescription) continue;
-      const fipe = extractFipeFromText(v.rawDescription);
+      const fipe = extrairFipeDoTexto(v.rawDescription);
       if (fipe) {
-        await prisma.vehicle.update({
-          where: { id: v.id },
-          data: { fipePrice: fipe },
-        });
+        await db
+          .update(veiculos)
+          .set({ fipePrice: fipe, ...carimboDeEdicao(auth.user.id) })
+          .where(vivosE(veiculos, eq(veiculos.id, v.id)));
         fipeUpdated++;
       }
     }
 
     // --- Step 2: Regenerate formattedAd for all APPROVED vehicles ---
-    const marginSetting = await prisma.setting.findUnique({
-      where: { key: "profit_margin_percent" },
-    });
-    const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
+    const margin = await lerConfiguracaoNumero("profit_margin_percent", 10);
 
-    const approved = await prisma.vehicle.findMany({
-      where: { status: "APPROVED" },
-    });
+    const approved = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.status, "APPROVED")));
 
     let adsRegenerated = 0;
     for (const v of approved) {
@@ -104,17 +72,17 @@ export async function POST() {
 
       const sellingPrice = v.price * (1 + margin / 100);
 
-      await prisma.vehicle.update({
-        where: { id: v.id },
-        data: { formattedAd: ad, sellingPrice },
-      });
+      await db
+        .update(veiculos)
+        .set({ formattedAd: ad, sellingPrice, ...carimboDeEdicao(auth.user.id) })
+        .where(vivosE(veiculos, eq(veiculos.id, v.id)));
       adsRegenerated++;
     }
 
     return NextResponse.json({
       fipeBackfill: { total: noFipe.length, updated: fipeUpdated },
       adsRegenerated,
-      message: `FIPE: ${fipeUpdated} atualizados. Anúncios: ${adsRegenerated} regenerados no formato Cugini.`,
+      message: `FIPE: ${fipeUpdated} atualizados. Anúncios: ${adsRegenerated} regenerados no formato Don Felipe.`,
     });
   } catch (error) {
     console.error("[backfill-fipe] Error:", error);

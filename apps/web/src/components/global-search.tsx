@@ -97,7 +97,7 @@ export function GlobalSearch() {
                     "rounded-full px-2 py-0.5 text-[10px] font-medium",
                     v.status === "PENDING" && "bg-warning/10 text-warning",
                     v.status === "APPROVED" && "bg-success/10 text-success",
-                    v.status === "PUBLISHED" && "bg-cugini-orange/10 text-cugini-orange",
+                    v.status === "PUBLISHED" && "bg-brand-gold/10 text-brand-gold",
                     v.status === "REJECTED" && "bg-destructive/10 text-destructive",
                   )}>{v.status}</span>
                 </button>

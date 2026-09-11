@@ -29,7 +29,7 @@ const kindStyles: Record<StatusKind, { bg: string; text: string; border: string 
   pending: { bg: "bg-warning/10", text: "text-warning", border: "border-warning/20" },
   approved: { bg: "bg-success/10", text: "text-success", border: "border-success/20" },
   rejected: { bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/20" },
-  published: { bg: "bg-cugini-orange/10", text: "text-cugini-orange", border: "border-cugini-orange/20" },
+  published: { bg: "bg-brand-gold/10", text: "text-brand-gold", border: "border-brand-gold/20" },
   success: { bg: "bg-success/10", text: "text-success", border: "border-success/20" },
   failed: { bg: "bg-destructive/10", text: "text-destructive", border: "border-destructive/20" },
   active: { bg: "bg-success/[0.07]", text: "text-success", border: "border-success/20" },

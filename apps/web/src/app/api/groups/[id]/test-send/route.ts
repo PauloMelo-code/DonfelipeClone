@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, gruposWhatsapp, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { getSendClient } from "@/lib/uazapi";
 
@@ -18,7 +19,11 @@ export async function POST(
 
   try {
     const { id } = await params;
-    const group = await prisma.whatsAppGroup.findUnique({ where: { id } });
+    const [group] = await db
+      .select({ groupId: gruposWhatsapp.groupId })
+      .from(gruposWhatsapp)
+      .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, id)))
+      .limit(1);
     if (!group) {
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
@@ -27,7 +32,7 @@ export async function POST(
     try {
       const result = await getSendClient().sendText({
         number: group.groupId,
-        text: `🧪 Teste de envio Cugini Repasses · ${new Date().toLocaleString("pt-BR")}\n\nEsta mensagem confirma que o sistema consegue publicar nesse destino.`,
+        text: `🧪 Teste de envio Don Felipe Repasses · ${new Date().toLocaleString("pt-BR")}\n\nEsta mensagem confirma que o sistema consegue publicar nesse destino.`,
       });
       return NextResponse.json({
         success: true,

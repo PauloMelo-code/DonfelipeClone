@@ -19,7 +19,7 @@ export default function GlobalError({
       <p className="mt-3 text-muted-foreground">Algo deu errado. Tente novamente.</p>
       <button
         onClick={reset}
-        className="mt-6 rounded-lg bg-cugini-orange px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-cugini-orange-light"
+        className="mt-6 rounded-lg bg-brand-gold px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-gold-light"
       >
         Tentar novamente
       </button>

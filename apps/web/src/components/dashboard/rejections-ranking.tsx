@@ -101,7 +101,7 @@ export function RejectionsRanking() {
                   className={cn(
                     "flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-all",
                     tab === t.id
-                      ? "bg-cugini-orange/10 border-cugini-orange/30 text-cugini-orange"
+                      ? "bg-brand-gold/10 border-brand-gold/30 text-brand-gold"
                       : "bg-card/50 border-border text-muted-foreground hover:border-white/20"
                   )}
                 >

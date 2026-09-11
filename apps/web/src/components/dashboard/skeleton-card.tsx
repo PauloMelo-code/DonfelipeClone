@@ -27,6 +27,22 @@ export function StatCardSkeleton() {
   );
 }
 
+/**
+ * Altura de cada barra do esqueleto, em porcentagem.
+ *
+ * Duas senoides de periodos que nao se encaixam, somadas: o desenho sai
+ * irregular como o de um grafico de verdade, e sai IGUAL no servidor e no
+ * cliente.
+ *
+ * Aqui havia um `Math.random()`. Ele gerava uma altura na renderizacao do
+ * servidor e outra na hidratacao, e o React reclamava de incompatibilidade a
+ * cada abertura do painel -- um erro de console que escondia os proximos.
+ * Nada que entra em `style` durante a renderizacao pode ser sorteado.
+ */
+function alturaDaBarra(i: number): number {
+  return 42 + Math.sin(i * 0.8) * 20 + Math.sin(i * 1.7 + 1.2) * 12;
+}
+
 export function ChartSkeleton() {
   return (
     <div className="glass rounded-2xl p-6">
@@ -39,7 +55,7 @@ export function ChartSkeleton() {
           <div
             key={i}
             className="flex-1 animate-pulse rounded-t-sm bg-white/[0.04]"
-            style={{ height: `${30 + Math.sin(i * 0.8) * 20 + Math.random() * 30}%` }}
+            style={{ height: `${alturaDaBarra(i)}%` }}
           />
         ))}
       </div>

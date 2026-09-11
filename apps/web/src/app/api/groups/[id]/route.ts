@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import {
+  db,
+  gruposWhatsapp,
+  historicoPublicacao,
+  carimboDeEdicao,
+  marcaDeExclusao,
+  travaDeColisao,
+  vivosE,
+} from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { updateGroupSchema } from "@/lib/validations";
@@ -14,7 +23,11 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const group = await prisma.whatsAppGroup.findUnique({ where: { id } });
+    const [group] = await db
+      .select()
+      .from(gruposWhatsapp)
+      .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, id)))
+      .limit(1);
     if (!group) {
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
@@ -41,11 +54,6 @@ export async function PUT(
     const validation = validateBody(updateGroupSchema, body);
     if (!validation.success) return validation.response;
 
-    const group = await prisma.whatsAppGroup.findUnique({ where: { id } });
-    if (!group) {
-      return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
-    }
-
     const { name, role, active, filters, photoUrl, region, kindOverride } = validation.data;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
@@ -63,10 +71,22 @@ export async function PUT(
       data.kindOverride = kindOverride ?? null;
     }
 
-    const updated = await prisma.whatsAppGroup.update({
-      where: { id },
-      data,
-    });
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "Nenhum campo para atualizar" }, { status: 400 });
+    }
+
+    const [updated] = await db
+      .update(gruposWhatsapp)
+      .set({ ...data, ...carimboDeEdicao(auth.user.id) })
+      .where(travaDeColisao(gruposWhatsapp, id, body?.updatedAt))
+      .returning();
+
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Grupo alterado por outro usuario ou nao encontrado. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
 
     invalidateGroupsCache();
 
@@ -89,16 +109,29 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    const group = await prisma.whatsAppGroup.findUnique({ where: { id } });
+    const [group] = await db
+      .select({ groupId: gruposWhatsapp.groupId })
+      .from(gruposWhatsapp)
+      .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, id)))
+      .limit(1);
     if (!group) {
       return NextResponse.json({ error: "Grupo nao encontrado" }, { status: 404 });
     }
 
-    // Unlink vehicles and posts before deleting
-    await prisma.vehicle.updateMany({ where: { sourceGroupId: group.groupId }, data: { sourceGroupId: null } });
-    await prisma.postHistory.deleteMany({ where: { targetGroupId: group.groupId } });
+    // Delete LOGICO. A linha continua no banco, entao a FK dos veiculos segue
+    // valida e a procedencia de cada carro fica preservada -- antes o codigo
+    // zerava vehicles.sourceGroupId e apagava o historico de publicacao para
+    // conseguir remover a linha.
+    await db
+      .update(historicoPublicacao)
+      .set(marcaDeExclusao(auth.user.id))
+      .where(vivosE(historicoPublicacao, eq(historicoPublicacao.targetGroupId, group.groupId)));
 
-    await prisma.whatsAppGroup.delete({ where: { id } });
+    await db
+      .update(gruposWhatsapp)
+      .set(marcaDeExclusao(auth.user.id))
+      .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, id)));
+
     invalidateGroupsCache();
     return NextResponse.json({ message: "Grupo removido com sucesso" });
   } catch (error) {

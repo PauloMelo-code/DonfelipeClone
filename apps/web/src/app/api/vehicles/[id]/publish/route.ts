@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { publishVehicle } from "@/lib/publisher";
+import { and, eq, or, inArray, isNull, lt } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivos, vivosE } from "@/lib/db";
+import { enfileirarPublicacao } from "@/lib/queue/publicacao";
 import { requireAuth } from "@/lib/auth";
 
 export async function POST(
@@ -13,26 +14,32 @@ export async function POST(
   const { id } = await params;
 
   // Atomic claim: lock vehicle to prevent double-click race
-  const claim = await prisma.vehicle.updateMany({
-    where: {
-      id,
-      status: { in: ["PENDING", "APPROVED"] },
-      OR: [
-        { publishingLockedAt: null },
-        { publishingLockedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) } }, // 5 min stale lock
-      ],
-    },
-    data: { publishingLockedAt: new Date() },
-  });
+  const claim = await db
+    .update(veiculos)
+    .set({ publishingLockedAt: new Date(), ...carimboDeEdicao(auth.user.id) })
+    .where(
+      and(
+        vivos(veiculos),
+        eq(veiculos.id, id),
+        inArray(veiculos.status, ["PENDING", "APPROVED"]),
+        or(
+          isNull(veiculos.publishingLockedAt),
+          lt(veiculos.publishingLockedAt, new Date(Date.now() - 5 * 60 * 1000)) // trava vencida em 5 min
+        )
+      )
+    )
+    .returning({ id: veiculos.id });
 
-  if (claim.count === 0) {
+  if (claim.length === 0) {
     return NextResponse.json({ error: "Veiculo ja em processamento ou ja publicado" }, { status: 409 });
   }
 
   try {
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id },
-    });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
 
     if (!vehicle) {
       return NextResponse.json(
@@ -72,10 +79,11 @@ export async function POST(
         // Persist as ja, sincrono, antes do publish em background.
         // Isso garante que o "Publicados" mostra a foto editada e que
         // futuras republicacoes/visualizacoes peguem o estado correto.
-        await prisma.vehicle.update({
-          where: { id },
-          data: { photos: JSON.stringify(photos) },
-        }).catch(() => {});
+        await db
+          .update(veiculos)
+          .set({ photos: JSON.stringify(photos), ...carimboDeEdicao(auth.user.id) })
+          .where(vivosE(veiculos, eq(veiculos.id, id)))
+          .catch(() => {});
       }
       console.log(
         `[publish] vehicle=${id} body.photos=${photos ? `[${photos.length}, first=${photos[0]?.slice(0, 30)}...]` : "MISSING"} ad=${formattedAd ? "yes" : "no"} price=${sellingPrice ?? "no"} groups=${targetGroupIds?.length ?? 0}`
@@ -88,24 +96,17 @@ export async function POST(
     // after() do next/server pode nao executar -- a request retorna 200 mas
     // o callback eh descartado. Promise solta funciona em qualquer Node.
     const userId = auth.user.id;
-    void (async () => {
-      try {
-        await publishVehicle(id, {
-          targetGroupIds,
-          formattedAd,
-          sellingPrice,
-          photos,
-          userId,
-          quickPublish: true,
-        });
-      } catch (err) {
-        console.error("[Vehicles] Background publish failed:", err);
-      } finally {
-        await prisma.vehicle
-          .update({ where: { id }, data: { publishingLockedAt: null } })
-          .catch(() => {});
-      }
-    })();
+    // Vai para a fila: a publicacao leva minutos e nao pode viver dentro
+    // da requisicao. O worker libera a trava ao final, deu certo ou nao.
+    await enfileirarPublicacao({
+      vehicleId: id,
+      targetGroupIds,
+      formattedAd,
+      sellingPrice,
+      photos,
+      userId,
+      quickPublish: true,
+    });
 
     return NextResponse.json({
       message: "Publicacao enfileirada",
@@ -116,8 +117,10 @@ export async function POST(
     });
   } catch (error) {
     console.error("[Vehicles] Error publishing vehicle:", error);
-    await prisma.vehicle
-      .update({ where: { id }, data: { publishingLockedAt: null } })
+    await db
+      .update(veiculos)
+      .set({ publishingLockedAt: null })
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
       .catch(() => {});
     return NextResponse.json(
       { error: "Erro ao publicar veiculo" },

@@ -18,13 +18,13 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cugini Repasses",
+  title: "Don Felipe Repasses",
   description: "Plataforma de Monitoramento e Republicacao de Veiculos",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Cugini",
+    title: "Don Felipe",
   },
   icons: {
     icon: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#E8731A",
+  themeColor: "#C9973D",
 };
 
 export default function RootLayout({

@@ -1,11 +1,24 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq, gte, lt, isNotNull, inArray, count, avg, desc, type SQL } from "drizzle-orm";
+import { db, veiculos, historicoPublicacao, gruposWhatsapp, vivos, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 // 20s cache for the heavy 17-query payload. Multiple tabs/users share one
 // computation cycle; staleness <20s is fine for a dashboard.
 let dashCache: { data: unknown; expiresAt: number } | null = null;
 const DASH_TTL_MS = 20_000;
+
+/** Conta linhas VIVAS de uma tabela com as condicoes dadas. */
+async function contar(
+  tabela: typeof veiculos | typeof historicoPublicacao | typeof gruposWhatsapp,
+  ...condicoes: (SQL | undefined)[]
+): Promise<number> {
+  const [linha] = await db
+    .select({ n: count() })
+    .from(tabela)
+    .where(and(vivos(tabela), ...condicoes));
+  return linha?.n ?? 0;
+}
 
 export async function GET() {
   const auth = await requireAuth();
@@ -17,11 +30,7 @@ export async function GET() {
 
   try {
     const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfWeek = new Date(startOfDay);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -44,67 +53,70 @@ export async function GET() {
       targetGroups,
       vipPending,
       topGroupsRaw,
-      qualityAgg,
+      [qualityAgg],
       highScorePending,
       staleApprovedCount,
     ] = await Promise.all([
-      prisma.vehicle.count(),
-      prisma.vehicle.count({ where: { status: "PENDING" } }),
-      prisma.vehicle.count({ where: { status: "APPROVED" } }),
-      prisma.vehicle.count({ where: { status: "REJECTED" } }),
-      prisma.vehicle.count({ where: { status: "PUBLISHED" } }),
-      prisma.vehicle.count({ where: { capturedAt: { gte: startOfDay } } }),
-      prisma.vehicle.count({ where: { capturedAt: { gte: startOfWeek } } }),
-      prisma.vehicle.count({ where: { capturedAt: { gte: startOfMonth } } }),
-      prisma.postHistory.count({ where: { success: true } }),
-      prisma.postHistory.count({
-        where: { success: true, postedAt: { gte: startOfDay } },
-      }),
-      prisma.whatsAppGroup.count({ where: { role: "SOURCE", active: true } }),
-      prisma.whatsAppGroup.count({ where: { role: "TARGET", active: true } }),
-      prisma.vehicle.count({ where: { status: "PENDING", isVip: true } }),
-      prisma.vehicle.groupBy({
-        by: ["sourceGroupId"],
-        where: {
-          capturedAt: { gte: sevenDaysAgo },
-          sourceGroupId: { not: null },
-        },
-        _count: { _all: true },
-        orderBy: { _count: { sourceGroupId: "desc" } },
-        // Sem limite: cliente quer ver TODOS os fornecedores ativos no
-        // periodo (7 dias) pra acompanhar quem ta enviando. Card no front
-        // tem scroll interno -- nao tem risco de quebrar layout.
-        take: 100,
-      }),
-      prisma.vehicle.aggregate({
-        where: { status: "PENDING", qualityScore: { not: null } },
-        _avg: { qualityScore: true },
-      }),
-      prisma.vehicle.count({
-        where: { status: "PENDING", qualityScore: { gte: 8 } },
-      }),
-      prisma.vehicle.count({
-        where: {
-          status: "APPROVED",
-          approvedAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        },
-      }),
+      contar(veiculos),
+      contar(veiculos, eq(veiculos.status, "PENDING")),
+      contar(veiculos, eq(veiculos.status, "APPROVED")),
+      contar(veiculos, eq(veiculos.status, "REJECTED")),
+      contar(veiculos, eq(veiculos.status, "PUBLISHED")),
+      contar(veiculos, gte(veiculos.capturedAt, startOfDay)),
+      contar(veiculos, gte(veiculos.capturedAt, startOfWeek)),
+      contar(veiculos, gte(veiculos.capturedAt, startOfMonth)),
+      contar(historicoPublicacao, eq(historicoPublicacao.success, true)),
+      contar(
+        historicoPublicacao,
+        eq(historicoPublicacao.success, true),
+        gte(historicoPublicacao.postedAt, startOfDay)
+      ),
+      contar(gruposWhatsapp, eq(gruposWhatsapp.role, "SOURCE"), eq(gruposWhatsapp.active, true)),
+      contar(gruposWhatsapp, eq(gruposWhatsapp.role, "TARGET"), eq(gruposWhatsapp.active, true)),
+      contar(veiculos, eq(veiculos.status, "PENDING"), eq(veiculos.isVip, true)),
+      // Sem limite pequeno: cliente quer ver TODOS os fornecedores ativos no
+      // periodo (7 dias). O card no front tem scroll interno.
+      db
+        .select({ sourceGroupId: veiculos.sourceGroupId, total: count() })
+        .from(veiculos)
+        .where(
+          vivosE(
+            veiculos,
+            gte(veiculos.capturedAt, sevenDaysAgo),
+            isNotNull(veiculos.sourceGroupId)
+          )
+        )
+        .groupBy(veiculos.sourceGroupId)
+        .orderBy(desc(count()))
+        .limit(100),
+      db
+        .select({ media: avg(veiculos.qualityScore) })
+        .from(veiculos)
+        .where(
+          vivosE(veiculos, eq(veiculos.status, "PENDING"), isNotNull(veiculos.qualityScore))
+        ),
+      contar(veiculos, eq(veiculos.status, "PENDING"), gte(veiculos.qualityScore, 8)),
+      contar(
+        veiculos,
+        eq(veiculos.status, "APPROVED"),
+        lt(veiculos.approvedAt, new Date(Date.now() - 24 * 60 * 60 * 1000))
+      ),
     ]);
 
     const topGroupIds = topGroupsRaw
       .map((g) => g.sourceGroupId)
       .filter((id): id is string => !!id);
     const groupNames = topGroupIds.length
-      ? await prisma.whatsAppGroup.findMany({
-          where: { groupId: { in: topGroupIds } },
-          select: { groupId: true, name: true },
-        })
+      ? await db
+          .select({ groupId: gruposWhatsapp.groupId, name: gruposWhatsapp.name })
+          .from(gruposWhatsapp)
+          .where(inArray(gruposWhatsapp.groupId, topGroupIds))
       : [];
     const nameMap = new Map(groupNames.map((g) => [g.groupId, g.name]));
     const topGroupsWeek = topGroupsRaw.map((g) => ({
       groupId: g.sourceGroupId as string,
       name: nameMap.get(g.sourceGroupId as string) || "Grupo desconhecido",
-      count: g._count._all,
+      count: g.total,
     }));
 
     const total = approvedVehicles + publishedVehicles + rejectedVehicles;
@@ -112,6 +124,9 @@ export async function GET() {
       total > 0
         ? (((approvedVehicles + publishedVehicles) / total) * 100).toFixed(1)
         : "0";
+
+    // avg() do Postgres volta como string (numeric); o front espera numero.
+    const avgQualityScore = qualityAgg?.media ? Number(qualityAgg.media) : 0;
 
     const payload = {
       vehicles: {
@@ -139,7 +154,7 @@ export async function GET() {
       },
       vipPending,
       topGroupsWeek,
-      avgQualityScore: qualityAgg._avg.qualityScore ?? 0,
+      avgQualityScore,
       highScorePending,
       staleApproved: staleApprovedCount,
     };

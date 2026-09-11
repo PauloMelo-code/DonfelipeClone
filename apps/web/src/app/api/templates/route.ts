@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { asc } from "drizzle-orm";
+import { db, modelosMensagem, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   const auth = await requireAuth();
   if (!auth.success) return auth.response;
-  const templates = await prisma.messageTemplate.findMany({
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
+
+  const templates = await db
+    .select()
+    .from(modelosMensagem)
+    .where(vivos(modelosMensagem))
+    .orderBy(asc(modelosMensagem.category), asc(modelosMensagem.name));
+
   return NextResponse.json(templates);
 }
 
@@ -23,9 +28,12 @@ export async function POST(request: NextRequest) {
     if (!name || !content) {
       return NextResponse.json({ error: "Nome e conteudo obrigatorios" }, { status: 400 });
     }
-    const t = await prisma.messageTemplate.create({
-      data: { name, content, category, shortcut },
-    });
+
+    const [t] = await db
+      .insert(modelosMensagem)
+      .values({ name, content, category, shortcut, modifiedBy: auth.user.id })
+      .returning();
+
     return NextResponse.json(t, { status: 201 });
   } catch (error) {
     console.error("[templates] POST error:", error);

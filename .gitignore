@@ -17,3 +17,17 @@ pnpm-debug.log*
 .turbo
 prisma/*.db
 prisma/*.db-journal
+
+# Agentes de IA — o que DIRECIONA o agente viaja com o codigo e fica VERSIONADO:
+# AGENTS.md, CLAUDE.md, .agents/{rules,workflows} e
+# .claude/{skills,hooks,settings.json,launch.json}.
+# Sem isso, quem clonar o repo constroi do jeito dele.
+# Fora do git so o que e local de maquina ou de sessao:
+.claude/settings.local.json
+.claude/worktrees/
+.claude/plans/
+.claude/scheduled_tasks.lock
+
+# Cookie jar de curl: nao versionar. Hoje o arquivo esta vazio de dados, mas
+# um `curl -c` grava a sessao real dentro dele.
+apps/web/cookies.txt

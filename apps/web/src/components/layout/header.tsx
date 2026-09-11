@@ -136,8 +136,8 @@ export function Header({ title, subtitle, live }: HeaderProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-full transition-all duration-200 hover:opacity-80 outline-none">
-            <Avatar className="h-8 w-8 border border-white/[0.08] transition-colors duration-200 hover:border-cugini-orange/30">
-              <AvatarFallback className="bg-cugini-orange/[0.08] text-[11px] font-semibold text-cugini-orange">
+            <Avatar className="h-8 w-8 border border-white/[0.08] transition-colors duration-200 hover:border-brand-gold/30">
+              <AvatarFallback className="bg-brand-gold/[0.08] text-[11px] font-semibold text-brand-gold">
                 {initials}
               </AvatarFallback>
             </Avatar>

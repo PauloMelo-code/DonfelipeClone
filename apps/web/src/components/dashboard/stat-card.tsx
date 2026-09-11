@@ -53,7 +53,7 @@ export function StatCard({
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "group glass rounded-2xl p-6 transition-all duration-300",
-        "hover:glow-orange-sm hover:border-white/[0.08] hover:-translate-y-0.5",
+        "hover:glow-gold-sm hover:border-white/[0.08] hover:-translate-y-0.5",
         className
       )}
     >
@@ -86,7 +86,7 @@ export function StatCard({
             </div>
           )}
         </div>
-        <div className="rounded-xl bg-gradient-to-br from-cugini-orange/15 to-cugini-orange/5 p-3 text-cugini-orange transition-transform duration-300 group-hover:scale-105">
+        <div className="rounded-xl bg-gradient-to-br from-brand-gold/15 to-brand-gold/5 p-3 text-brand-gold transition-transform duration-300 group-hover:scale-105">
           {icon}
         </div>
       </div>

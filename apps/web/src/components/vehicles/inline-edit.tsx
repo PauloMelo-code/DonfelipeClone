@@ -91,7 +91,7 @@ export function InlineEdit({
           disabled={saving}
           placeholder={placeholder}
           className={cn(
-            "bg-card/80 border border-cugini-orange/40 rounded px-1.5 py-0.5 outline-none focus:border-cugini-orange max-w-[160px]",
+            "bg-card/80 border border-brand-gold/40 rounded px-1.5 py-0.5 outline-none focus:border-brand-gold max-w-[160px]",
             inputClassName,
           )}
         />

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, isNotNull } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
+import { lerConfiguracaoNumero } from "@/lib/settings";
 import { requireAuth } from "@/lib/auth";
 import { extractVehicleFromTextNoCache } from "@/lib/ai";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -59,25 +61,25 @@ export async function POST(request: Request) {
   try {
     // Busca veiculos suspeitos: model que parece chamada promocional E
     // que tenham rawDescription pra re-extrair.
-    const all = await prisma.vehicle.findMany({
-      where: { rawDescription: { not: null } },
-      select: {
-        id: true,
-        model: true,
-        brand: true,
-        formattedAd: true,
-        rawDescription: true,
-        price: true,
-        fipePrice: true,
-        sellingPrice: true,
-        year: true,
-        yearModel: true,
-        km: true,
-        transmission: true,
-        fuel: true,
-        features: true,
-      },
-    });
+    const all = await db
+      .select({
+        id: veiculos.id,
+        model: veiculos.model,
+        brand: veiculos.brand,
+        formattedAd: veiculos.formattedAd,
+        rawDescription: veiculos.rawDescription,
+        price: veiculos.price,
+        fipePrice: veiculos.fipePrice,
+        sellingPrice: veiculos.sellingPrice,
+        year: veiculos.year,
+        yearModel: veiculos.yearModel,
+        km: veiculos.km,
+        transmission: veiculos.transmission,
+        fuel: veiculos.fuel,
+        features: veiculos.features,
+      })
+      .from(veiculos)
+      .where(vivosE(veiculos, isNotNull(veiculos.rawDescription)));
 
     const isBadKm = (km: number) => km < 1000;
     const isBadYear = (y: number) => y < 1990 || y > new Date().getFullYear() + 1;
@@ -93,10 +95,7 @@ export async function POST(request: Request) {
     );
 
     // Margem global pra regenerar formattedAd
-    const marginSetting = await prisma.setting.findUnique({
-      where: { key: "profit_margin_percent" },
-    });
-    const margin = marginSetting ? parseFloat(marginSetting.value) : 10;
+    const margin = await lerConfiguracaoNumero("profit_margin_percent", 10);
 
     let fixed = 0;
     let skipped = 0;
@@ -190,13 +189,14 @@ export async function POST(request: Request) {
       }
 
       if (!dryRun) {
-        await prisma.vehicle.update({
-          where: { id: v.id },
-          data: {
+        await db
+          .update(veiculos)
+          .set({
             ...updates,
             ...(newFormattedAd ? { formattedAd: newFormattedAd } : {}),
-          },
-        });
+            ...carimboDeEdicao(auth.user.id),
+          })
+          .where(vivosE(veiculos, eq(veiculos.id, v.id)));
       }
       fixed++;
     }

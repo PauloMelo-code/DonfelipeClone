@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, gruposWhatsapp, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { uazapi, uazapiSend, getSendClient } from "@/lib/uazapi";
 
@@ -8,12 +9,9 @@ import { uazapi, uazapiSend, getSendClient } from "@/lib/uazapi";
  *
  * Lists target groups in the database and cross-checks against the SEND
  * instance's group list (the WhatsApp number that publishes). Any TARGET
- * group whose JID is not in the send instance's groups is flagged —
+ * group whose JID is not in the send instance's groups is flagged --
  * the send number was never added there, which is why publishing fails
  * with "Not a participant".
- *
- * If only one UAZAPI instance is configured (send falls back to capture),
- * the response notes that and skips the check.
  */
 export async function GET() {
   const auth = await requireAuth();
@@ -23,7 +21,6 @@ export async function GET() {
     const sendClient = getSendClient();
     const usingSeparateInstance = uazapiSend.isConfigured;
 
-    // List groups visible to each instance
     const [sendGroups, captureGroups, targetDbGroups] = await Promise.all([
       sendClient.listGroups().catch((err) => {
         throw new Error(`Falha ao listar grupos da instancia de envio: ${err instanceof Error ? err.message : String(err)}`);
@@ -31,10 +28,17 @@ export async function GET() {
       uazapi.isConfigured
         ? uazapi.listGroups().catch(() => [])
         : Promise.resolve([]),
-      prisma.whatsAppGroup.findMany({
-        where: { role: "TARGET", active: true },
-        select: { id: true, groupId: true, name: true, region: true },
-      }),
+      db
+        .select({
+          id: gruposWhatsapp.id,
+          groupId: gruposWhatsapp.groupId,
+          name: gruposWhatsapp.name,
+          region: gruposWhatsapp.region,
+        })
+        .from(gruposWhatsapp)
+        .where(
+          vivosE(gruposWhatsapp, eq(gruposWhatsapp.role, "TARGET"), eq(gruposWhatsapp.active, true))
+        ),
     ]);
 
     const sendGroupSet = new Set(sendGroups.map((g) => g.id));
@@ -49,7 +53,6 @@ export async function GET() {
         inSendInstance: inSend,
         inCaptureInstance: inCapture,
         isDM,
-        // DM doesn't require membership; only group/community/broadcast does
         problem: !isDM && !inSend
           ? inCapture
             ? "Numero de envio nao e membro deste grupo (mas captura sim)"

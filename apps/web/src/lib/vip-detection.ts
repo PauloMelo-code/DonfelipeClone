@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { and, eq } from "drizzle-orm";
+import { db, configuracoes, vivos } from "@/lib/db";
 
 const DEFAULT_VIP_PATTERNS = [
   "land rover", "defender", "discovery", "range rover",
@@ -15,7 +16,12 @@ export async function isVipVehicle(model: string, brand?: string | null): Promis
   const text = `${brand || ""} ${model}`.toLowerCase();
 
   // Custom list from settings
-  const setting = await prisma.setting.findUnique({ where: { key: "vip_keywords" } });
+  const [setting] = await db
+    .select({ value: configuracoes.value })
+    .from(configuracoes)
+    .where(and(eq(configuracoes.key, "vip_keywords"), vivos(configuracoes)))
+    .limit(1);
+
   const customPatterns = setting?.value
     ? setting.value.split(",").map((p) => p.trim().toLowerCase()).filter(Boolean)
     : [];

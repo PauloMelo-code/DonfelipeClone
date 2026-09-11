@@ -48,7 +48,7 @@ export function SectionCard({
       {(title || icon || action) && (
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            {icon && <span className="text-cugini-orange shrink-0 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
+            {icon && <span className="text-brand-gold shrink-0 [&>svg]:h-4 [&>svg]:w-4">{icon}</span>}
             <div className="min-w-0">
               {title && (
                 <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 truncate">

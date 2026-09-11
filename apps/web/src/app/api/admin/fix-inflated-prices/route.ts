@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { or, eq, gt } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -30,23 +31,26 @@ export async function POST(request: Request) {
     const SUSPECT = 2_000_000;
 
     // Veiculos com price OU fipePrice acima do limite suspeito
-    const candidates = await prisma.vehicle.findMany({
-      where: {
-        OR: [
-          { price: { gt: SUSPECT } },
-          { fipePrice: { gt: SUSPECT } },
-          { sellingPrice: { gt: SUSPECT } },
-        ],
-      },
-      select: {
-        id: true,
-        model: true,
-        year: true,
-        price: true,
-        fipePrice: true,
-        sellingPrice: true,
-      },
-    });
+    const candidates = await db
+      .select({
+        id: veiculos.id,
+        model: veiculos.model,
+        year: veiculos.year,
+        price: veiculos.price,
+        fipePrice: veiculos.fipePrice,
+        sellingPrice: veiculos.sellingPrice,
+      })
+      .from(veiculos)
+      .where(
+        vivosE(
+          veiculos,
+          or(
+            gt(veiculos.price, SUSPECT),
+            gt(veiculos.fipePrice, SUSPECT),
+            gt(veiculos.sellingPrice, SUSPECT)
+          )
+        )
+      );
 
     const samples: Array<{
       id: string;
@@ -73,14 +77,15 @@ export async function POST(request: Request) {
       }
 
       if (!dryRun) {
-        await prisma.vehicle.update({
-          where: { id: v.id },
-          data: {
+        await db
+          .update(veiculos)
+          .set({
             price: newPrice,
             fipePrice: newFipe,
             sellingPrice: newSelling,
-          },
-        });
+            ...carimboDeEdicao(auth.user.id),
+          })
+          .where(vivosE(veiculos, eq(veiculos.id, v.id)));
         fixed++;
       }
     }

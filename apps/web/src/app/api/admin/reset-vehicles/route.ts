@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq, gte, lt, inArray, count } from "drizzle-orm";
+import {
+  db,
+  veiculos,
+  historicoPublicacao,
+  trilhaAuditoria,
+  arquivosMidia,
+  marcaDeExclusao,
+  vivos,
+  vivosE,
+} from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -40,10 +51,10 @@ export async function POST(request: NextRequest) {
 
   try {
     // 1. Levantar IDs dos veiculos a apagar
-    const targets = await prisma.vehicle.findMany({
-      where: { capturedAt: { lt: keepFrom } },
-      select: { id: true, photos: true },
-    });
+    const targets = await db
+      .select({ id: veiculos.id, photos: veiculos.photos })
+      .from(veiculos)
+      .where(vivosE(veiculos, lt(veiculos.capturedAt, keepFrom)));
     const targetIds = targets.map((v) => v.id);
 
     // 2. Coletar IDs de media referenciados (pra limpeza opcional)
@@ -60,10 +71,25 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Contar registros vinculados
+    const contar = async (
+      tabela: typeof historicoPublicacao | typeof trilhaAuditoria | typeof veiculos,
+      condicao: ReturnType<typeof eq>
+    ) => {
+      const [linha] = await db
+        .select({ n: count() })
+        .from(tabela)
+        .where(and(vivos(tabela), condicao));
+      return linha?.n ?? 0;
+    };
+
     const [postCount, auditCount, kept] = await Promise.all([
-      prisma.postHistory.count({ where: { vehicleId: { in: targetIds } } }),
-      prisma.auditLog.count({ where: { vehicleId: { in: targetIds } } }),
-      prisma.vehicle.count({ where: { capturedAt: { gte: keepFrom } } }),
+      targetIds.length
+        ? contar(historicoPublicacao, inArray(historicoPublicacao.vehicleId, targetIds))
+        : Promise.resolve(0),
+      targetIds.length
+        ? contar(trilhaAuditoria, inArray(trilhaAuditoria.vehicleId, targetIds))
+        : Promise.resolve(0),
+      contar(veiculos, gte(veiculos.capturedAt, keepFrom)),
     ]);
 
     if (dryRun) {
@@ -73,38 +99,55 @@ export async function POST(request: NextRequest) {
         wouldDelete: {
           vehicles: targetIds.length,
           postHistory: postCount,
-          auditLogs: auditCount,
+          // A trilha NAO e apagada: o numero fica so como referencia do
+          // quanto de historico esses veiculos tem.
+          auditLogs: 0,
+          auditLogsPreservados: auditCount,
           mediaFiles: mediaIds.size,
         },
         kept: { vehicles: kept },
       });
     }
 
-    // 4. Apagar em batches (PostgreSQL ok com WHERE id IN (...) ate ~10k)
+    // 4. Marcar como EXCLUIDO em batches. Nada e apagado de verdade, e a
+    //    TRILHA DE AUDITORIA NAO E TOCADA -- o codigo antigo fazia
+    //    auditLog.deleteMany aqui e destruia a prova junto com os veiculos.
     const BATCH = 500;
     let deletedPosts = 0;
-    let deletedAudit = 0;
+    const deletedAudit = 0;
     let deletedVehicles = 0;
     let deletedMedia = 0;
 
     for (let i = 0; i < targetIds.length; i += BATCH) {
       const batch = targetIds.slice(i, i + BATCH);
-      const [posts, audit, vehicles] = await prisma.$transaction([
-        prisma.postHistory.deleteMany({ where: { vehicleId: { in: batch } } }),
-        prisma.auditLog.deleteMany({ where: { vehicleId: { in: batch } } }),
-        prisma.vehicle.deleteMany({ where: { id: { in: batch } } }),
-      ]);
-      deletedPosts += posts.count;
-      deletedAudit += audit.count;
-      deletedVehicles += vehicles.count;
+      await db.transaction(async (tx) => {
+        const posts = await tx
+          .update(historicoPublicacao)
+          .set(marcaDeExclusao(auth.user.id))
+          .where(
+            and(
+              vivos(historicoPublicacao),
+              inArray(historicoPublicacao.vehicleId, batch)
+            )
+          )
+          .returning({ id: historicoPublicacao.id });
+        const marcados = await tx
+          .update(veiculos)
+          .set(marcaDeExclusao(auth.user.id))
+          .where(and(vivos(veiculos), inArray(veiculos.id, batch)))
+          .returning({ id: veiculos.id });
+        deletedPosts += posts.length;
+        deletedVehicles += marcados.length;
+      });
     }
 
     // 5. Apagar media files referenciados pelos veiculos deletados
     //    (so apaga se NENHUM outro veiculo ainda referencia — checagem por seguranca)
     if (mediaIds.size > 0) {
-      const remainingMedia = await prisma.vehicle.findMany({
-        select: { photos: true },
-      });
+      const remainingMedia = await db
+        .select({ photos: veiculos.photos })
+        .from(veiculos)
+        .where(vivos(veiculos));
       const stillReferenced = new Set<string>();
       for (const v of remainingMedia) {
         try {
@@ -118,26 +161,27 @@ export async function POST(request: NextRequest) {
       }
       const mediaToDelete = Array.from(mediaIds).filter((id) => !stillReferenced.has(id));
       if (mediaToDelete.length > 0) {
-        const result = await prisma.mediaFile.deleteMany({
-          where: { id: { in: mediaToDelete } },
-        });
-        deletedMedia = result.count;
+        const removidas = await db
+          .update(arquivosMidia)
+          .set(marcaDeExclusao(auth.user.id))
+          .where(vivosE(arquivosMidia, inArray(arquivosMidia.id, mediaToDelete)))
+          .returning({ id: arquivosMidia.id });
+        deletedMedia = removidas.length;
       }
     }
 
     // 6. Audit log do reset (em registro separado, vinculado ao usuario)
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLES_RESET",
-        userId: auth.user.id,
-        details: JSON.stringify({
-          keepFrom: keepFrom.toISOString(),
-          deletedVehicles,
-          deletedPosts,
-          deletedAudit,
-          deletedMedia,
-        }),
+    await registrarAuditoria({
+      action: "VEHICLES_RESET",
+      userId: auth.user.id,
+      details: {
+        keepFrom: keepFrom.toISOString(),
+        deletedVehicles,
+        deletedPosts,
+        auditLogsPreservados: auditCount,
+        deletedMedia,
       },
+      request,
     });
 
     return NextResponse.json({
@@ -146,9 +190,10 @@ export async function POST(request: NextRequest) {
       deleted: {
         vehicles: deletedVehicles,
         postHistory: deletedPosts,
-        auditLogs: deletedAudit,
+        auditLogs: deletedAudit, // sempre 0: a trilha e append-only
         mediaFiles: deletedMedia,
       },
+      auditLogsPreservados: auditCount,
       kept: { vehicles: kept },
     });
   } catch (error) {

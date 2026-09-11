@@ -13,7 +13,7 @@ export function PushPrompt() {
     setPermission(Notification.permission);
     // Show prompt only if default and after 5s of usage
     if (Notification.permission === "default") {
-      const dismissed = localStorage.getItem("cugini_push_dismissed");
+      const dismissed = localStorage.getItem("donfelipe_push_dismissed");
       if (!dismissed) {
         const t = setTimeout(() => setShow(true), 5000);
         return () => clearTimeout(t);
@@ -26,7 +26,7 @@ export function PushPrompt() {
     setPermission(result);
     if (result === "granted") {
       // Show test
-      new Notification("Cugini Repasses", {
+      new Notification("Don Felipe Repasses", {
         body: "Notificações ativadas! Você será avisado de novos veículos VIP.",
         icon: "/icon.svg",
       });
@@ -41,7 +41,7 @@ export function PushPrompt() {
   };
 
   const dismiss = () => {
-    localStorage.setItem("cugini_push_dismissed", "1");
+    localStorage.setItem("donfelipe_push_dismissed", "1");
     setShow(false);
   };
 
@@ -56,8 +56,8 @@ export function PushPrompt() {
         <X className="h-4 w-4" />
       </button>
       <div className="flex items-start gap-3 pr-6">
-        <div className="rounded-full bg-cugini-orange/15 p-2">
-          <Bell className="h-5 w-5 text-cugini-orange" />
+        <div className="rounded-full bg-brand-gold/15 p-2">
+          <Bell className="h-5 w-5 text-brand-gold" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold">Receber alertas?</p>
@@ -67,7 +67,7 @@ export function PushPrompt() {
           <div className="flex gap-2 mt-3">
             <button
               onClick={enable}
-              className="rounded-lg bg-cugini-orange text-white px-3 py-1.5 text-xs font-medium hover:bg-cugini-orange/90"
+              className="rounded-lg bg-brand-gold text-white px-3 py-1.5 text-xs font-medium hover:bg-brand-gold/90"
             >
               Ativar
             </button>

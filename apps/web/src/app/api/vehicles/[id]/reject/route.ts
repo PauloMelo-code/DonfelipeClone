@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, travaDeColisao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { extractRequestMeta } from "@/lib/request-meta";
+import { registrarAuditoria } from "@/lib/audit";
 
 export async function POST(
   request: NextRequest,
@@ -13,7 +14,11 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) {
       return NextResponse.json(
         { error: "Veiculo nao encontrado" },
@@ -50,34 +55,36 @@ export async function POST(
       // Body is optional for rejection
     }
 
-    const updated = await prisma.vehicle.update({
-      where: { id },
-      data: {
+    const [updated] = await db
+      .update(veiculos)
+      .set({
         status: "REJECTED",
         rejectionReason,
         rejectionTags: rejectionTags ? JSON.stringify(rejectionTags) : null,
         rejectedAt: new Date(),
-      },
-    });
+        ...carimboDeEdicao(auth.user.id),
+      })
+      .where(travaDeColisao(veiculos, id, vehicle.updatedAt))
+      .returning();
 
-    const meta = extractRequestMeta(request);
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_REJECTED",
-        entityType: "Vehicle",
-        entityId: id,
-        vehicleId: id,
-        userId: auth.user.id,
-        ipAddress: meta.ipAddress,
-        userAgent: meta.userAgent,
-        details:
-          rejectionReason || rejectionTags
-            ? JSON.stringify({
-                reason: rejectionReason,
-                tags: rejectionTags,
-              })
-            : null,
-      },
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Veiculo alterado por outro usuario. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
+
+    await registrarAuditoria({
+      action: "VEHICLE_REJECTED",
+      entityType: "Vehicle",
+      entityId: id,
+      vehicleId: id,
+      userId: auth.user.id,
+      details:
+        rejectionReason || rejectionTags
+          ? { reason: rejectionReason, tags: rejectionTags }
+          : undefined,
+      request,
     });
 
     let f: unknown[] = [];

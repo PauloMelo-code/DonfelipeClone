@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, or, eq, like, isNull, count, type SQL } from "drizzle-orm";
+import { db, gruposWhatsapp, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -35,57 +36,49 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cached.data, { headers: { "X-Cache": "HIT" } });
   }
 
-  const baseWhere: Record<string, unknown> = {};
-  if (role && role !== "ALL") baseWhere.role = role;
+  const base: (SQL | undefined)[] = [vivos(gruposWhatsapp)];
+  if (role && role !== "ALL") base.push(eq(gruposWhatsapp.role, role));
+
+  const contar = async (filtro: SQL | undefined) => {
+    const [r] = await db.select({ n: count() }).from(gruposWhatsapp).where(filtro);
+    return r?.n ?? 0;
+  };
+
+  // kindOverride tem prioridade -- conta primeiro por override.
+  // Pro resto (kindOverride null), aplica regra natural por sufixo do JID.
+  const porTipo = (automatico: SQL, chave: string) =>
+    and(...base, or(eq(gruposWhatsapp.kindOverride, chave), and(isNull(gruposWhatsapp.kindOverride), automatico)));
 
   try {
-    // kindOverride tem prioridade -- conta primeiro por override.
-    // Pro resto (kindOverride null), aplica regra natural por sufixo JID.
-    const buildWhere = (auto: Record<string, unknown>, kindKey: string) => ({
-      ...baseWhere,
-      OR: [
-        { kindOverride: kindKey },
-        { AND: [{ kindOverride: null }, auto] },
-      ],
-    });
-
     const [todos, canal, comunidade, lista, contato, grupo] = await Promise.all([
-      prisma.whatsAppGroup.count({ where: baseWhere }),
-      prisma.whatsAppGroup.count({
-        where: buildWhere({ groupId: { endsWith: "@newsletter" } }, "canal"),
-      }),
-      prisma.whatsAppGroup.count({
-        where: buildWhere(
-          { AND: [{ groupId: { endsWith: "@g.us" } }, { isCommunity: true }] },
+      contar(and(...base)),
+      contar(porTipo(like(gruposWhatsapp.groupId, "%@newsletter"), "canal")),
+      contar(
+        porTipo(
+          and(like(gruposWhatsapp.groupId, "%@g.us"), eq(gruposWhatsapp.isCommunity, true)) as SQL,
           "comunidade"
-        ),
-      }),
-      prisma.whatsAppGroup.count({
-        where: buildWhere({ groupId: { endsWith: "@broadcast" } }, "lista"),
-      }),
-      prisma.whatsAppGroup.count({
-        where: buildWhere(
-          {
-            OR: [
-              { isContact: true },
-              { groupId: { endsWith: "@s.whatsapp.net" } },
-            ],
-          },
+        )
+      ),
+      contar(porTipo(like(gruposWhatsapp.groupId, "%@broadcast"), "lista")),
+      contar(
+        porTipo(
+          or(
+            eq(gruposWhatsapp.isContact, true),
+            like(gruposWhatsapp.groupId, "%@s.whatsapp.net")
+          ) as SQL,
           "contato"
-        ),
-      }),
-      prisma.whatsAppGroup.count({
-        where: buildWhere(
-          {
-            AND: [
-              { groupId: { endsWith: "@g.us" } },
-              { isCommunity: false },
-              { isContact: false },
-            ],
-          },
+        )
+      ),
+      contar(
+        porTipo(
+          and(
+            like(gruposWhatsapp.groupId, "%@g.us"),
+            eq(gruposWhatsapp.isCommunity, false),
+            eq(gruposWhatsapp.isContact, false)
+          ) as SQL,
           "grupo"
-        ),
-      }),
+        )
+      ),
     ]);
 
     const stats: StatsByType = { todos, grupo, canal, comunidade, lista, contato };

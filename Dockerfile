@@ -8,7 +8,6 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/web/package.json ./apps/web/package.json
-COPY prisma ./prisma
 
 RUN pnpm install --frozen-lockfile
 
@@ -23,7 +22,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-RUN pnpm db:generate
+# Drizzle nao tem etapa de "generate": o schema E o TypeScript.
 RUN pnpm --filter web build
 
 # ── Runtime ───────────────────────────────────────────────
@@ -43,17 +42,16 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy prisma schema + client runtime
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma ./node_modules/.prisma
+# Migracoes SQL + o runner que as aplica no start.
+COPY --from=builder /app/apps/web/src/lib/db/migrations ./apps/web/src/lib/db/migrations
+COPY --from=builder /app/apps/web/scripts/migrate.mjs ./apps/web/scripts/migrate.mjs
 
-# Install prisma CLI + client + bcryptjs (pnpm symlinks don't copy properly)
-RUN npm install --no-save prisma@6.19.2 @prisma/engines@6.19.2 @prisma/client@6.19.2 bcryptjs@3.0.3
+# O output standalone do Next nao inclui o que so o migrate usa.
+RUN npm install --no-save drizzle-orm@0.45.2 postgres@3.4.9 bcryptjs@3.0.3
 
 # Fix permissions for nextjs user
 RUN mkdir -p /app/apps/web/.next/cache && \
-    chown -R nextjs:nodejs /app/apps/web/.next/cache && \
-    chown -R nextjs:nodejs /app/node_modules/.prisma
+    chown -R nextjs:nodejs /app/apps/web/.next/cache
 
 # Copy entrypoint
 COPY docker-entrypoint.sh ./docker-entrypoint.sh

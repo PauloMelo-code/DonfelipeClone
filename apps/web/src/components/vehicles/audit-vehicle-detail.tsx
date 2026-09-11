@@ -56,7 +56,7 @@ export function AuditVehicleDetail({ vehicleId, className }: AuditVehicleDetailP
   if (loading) {
     return (
       <div className={cn("flex items-center justify-center py-8", className)}>
-        <Loader2 className="h-5 w-5 animate-spin text-cugini-orange" />
+        <Loader2 className="h-5 w-5 animate-spin text-brand-gold" />
       </div>
     );
   }
@@ -87,7 +87,7 @@ export function AuditVehicleDetail({ vehicleId, className }: AuditVehicleDetailP
           </p>
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 text-[10px] text-cugini-orange hover:text-cugini-orange-light transition-colors"
+            className="flex items-center gap-1 text-[10px] text-brand-gold hover:text-brand-gold-light transition-colors"
           >
             <Copy className="h-3 w-3" />
             Copiar texto

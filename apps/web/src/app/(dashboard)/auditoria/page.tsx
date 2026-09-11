@@ -79,8 +79,8 @@ const actionConfig: Record<string, { label: string; color: string; icon: React.E
   VEHICLE_CAPTURED: { label: "Capturado", color: "bg-blue-500/10 text-blue-400 border-blue-500/20", icon: Car },
   VEHICLE_APPROVED: { label: "Aprovado", color: "bg-success/10 text-success border-success/20", icon: Eye },
   VEHICLE_REJECTED: { label: "Rejeitado", color: "bg-destructive/10 text-destructive border-destructive/20", icon: X },
-  VEHICLE_PUBLISH: { label: "Publicado", color: "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20", icon: Send },
-  VEHICLE_PUBLISHED: { label: "Publicado", color: "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/20", icon: Send },
+  VEHICLE_PUBLISH: { label: "Publicado", color: "bg-brand-gold/10 text-brand-gold border-brand-gold/20", icon: Send },
+  VEHICLE_PUBLISHED: { label: "Publicado", color: "bg-brand-gold/10 text-brand-gold border-brand-gold/20", icon: Send },
   SETTINGS_UPDATED: { label: "Config", color: "bg-warning/10 text-warning border-warning/20", icon: Settings },
   USER_CREATED: { label: "Novo Usuário", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
   USER_UPDATED: { label: "Usuário Editado", color: "bg-purple-500/10 text-purple-400 border-purple-500/20", icon: User },
@@ -161,7 +161,7 @@ export default function AuditoriaPage() {
                   className={cn(
                     "rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all border",
                     actionFilter === a
-                      ? "bg-cugini-orange/10 text-cugini-orange border-cugini-orange/30"
+                      ? "bg-brand-gold/10 text-brand-gold border-brand-gold/30"
                       : "bg-card/50 text-muted-foreground border-border hover:text-foreground"
                   )}
                 >
@@ -189,7 +189,7 @@ export default function AuditoriaPage() {
         {/* Table */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
+            <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
           </div>
         ) : logs.length === 0 ? (
           <EmptyState

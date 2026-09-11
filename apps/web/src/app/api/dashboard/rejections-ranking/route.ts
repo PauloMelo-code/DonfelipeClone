@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, gte, lte, desc } from "drizzle-orm";
+import { db, veiculos, gruposWhatsapp, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -56,27 +57,37 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(cached.data, { headers: { "X-Cache": "HIT" } });
     }
 
-    const where = {
-      status: "REJECTED",
-      rejectedAt: { gte: startDate, lte: endDate },
-    } as const;
+    const filtro = vivosE(
+      veiculos,
+      eq(veiculos.status, "REJECTED"),
+      gte(veiculos.rejectedAt, startDate),
+      lte(veiculos.rejectedAt, endDate)
+    );
 
     // Pull a sample of rejected vehicles to extract aggregations
     // Limitado a 2000 pra nao explodir memoria; tipico operador rejeita
     // dezenas/centenas por mes, nao milhares.
-    const rejected = await prisma.vehicle.findMany({
-      where,
-      select: {
-        id: true,
-        model: true,
-        brand: true,
-        rejectionTags: true,
-        sourceGroupId: true,
-        sourceGroup: { select: { groupId: true, name: true } },
-      },
-      take: 2000,
-      orderBy: { rejectedAt: "desc" },
-    });
+    const linhas = await db
+      .select({
+        id: veiculos.id,
+        model: veiculos.model,
+        brand: veiculos.brand,
+        rejectionTags: veiculos.rejectionTags,
+        sourceGroupId: veiculos.sourceGroupId,
+        grupoId: gruposWhatsapp.groupId,
+        grupoNome: gruposWhatsapp.name,
+      })
+      .from(veiculos)
+      .leftJoin(gruposWhatsapp, eq(gruposWhatsapp.groupId, veiculos.sourceGroupId))
+      .where(filtro)
+      .orderBy(desc(veiculos.rejectedAt))
+      .limit(2000);
+
+    // Mesma forma que o restante do handler consome: sourceGroup aninhado.
+    const rejected = linhas.map(({ grupoId, grupoNome, ...v }) => ({
+      ...v,
+      sourceGroup: grupoId ? { groupId: grupoId, name: grupoNome as string } : null,
+    }));
 
     const total = rejected.length;
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, gruposWhatsapp, carimboDeEdicao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
 import { invalidateGroupsCache } from "../route";
@@ -57,10 +58,15 @@ export async function POST() {
     }
 
     // Busca grupos com nome placeholder (respeita nameLocked)
-    const candidates = await prisma.whatsAppGroup.findMany({
-      where: { nameLocked: false },
-      select: { id: true, groupId: true, name: true, isContact: true },
-    });
+    const candidates = await db
+      .select({
+        id: gruposWhatsapp.id,
+        groupId: gruposWhatsapp.groupId,
+        name: gruposWhatsapp.name,
+        isContact: gruposWhatsapp.isContact,
+      })
+      .from(gruposWhatsapp)
+      .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.nameLocked, false)));
 
     let updated = 0;
     let skipped = 0;
@@ -81,10 +87,10 @@ export async function POST() {
         skipped++;
         continue;
       }
-      await prisma.whatsAppGroup.update({
-        where: { id: g.id },
-        data: { name: finalName },
-      });
+      await db
+        .update(gruposWhatsapp)
+        .set({ name: finalName, ...carimboDeEdicao(auth.user.id) })
+        .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, g.id)));
       updated++;
       if (samples.length < 10) {
         samples.push({ jid: g.groupId, from: g.name, to: finalName });

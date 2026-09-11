@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, travaDeColisao, vivosE } from "@/lib/db";
+import { lerConfiguracaoNumero } from "@/lib/settings";
 import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
@@ -43,7 +45,11 @@ export async function POST(
   try { body = await request.json(); } catch { /* sem body */ }
 
   try {
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
     }
@@ -51,10 +57,7 @@ export async function POST(
     // Margem
     let margin = body.margin;
     if (typeof margin !== "number") {
-      const setting = await prisma.setting.findUnique({
-        where: { key: "profit_margin_percent" },
-      });
-      margin = setting ? parseFloat(setting.value) : 10;
+      margin = await lerConfiguracaoNumero("profit_margin_percent", 10);
     }
 
     // Re-extrai modelo + km/year/price quando dados parecem suspeitos.
@@ -151,15 +154,18 @@ export async function POST(
 
     if (body.save) {
       const sellingPrice = price * (1 + margin / 100);
-      await prisma.vehicle.update({
-        where: { id },
-        data: {
+      // Sem carimbo de colisao: a regeracao chama IA e pode demorar; o
+      // updatedAt lido no inicio ja estaria vencido. A trava mantem id + vivo.
+      await db
+        .update(veiculos)
+        .set({
           formattedAd: newAd,
           sellingPrice,
           ...(modelChanged ? { model, brand } : {}),
           ...(dataChanged ? { km, year, yearModel, fipePrice, price } : {}),
-        },
-      });
+          ...carimboDeEdicao(auth.user.id),
+        })
+        .where(travaDeColisao(veiculos, id));
     }
 
     return NextResponse.json({

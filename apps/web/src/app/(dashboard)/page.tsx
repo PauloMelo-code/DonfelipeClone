@@ -78,7 +78,7 @@ export default function DashboardPage() {
           new Notification("🚗 Novo veículo VIP!", {
             body: `${d.vipPending - lastVipCountRef.current} carro(s) premium aguardando revisão`,
             icon: "/icon.svg",
-            tag: "cugini-vip",
+            tag: "don-felipe-vip",
           });
         }
         lastVipCountRef.current = d.vipPending;
@@ -132,7 +132,7 @@ export default function DashboardPage() {
     <>
       <Header
         title={`${greeting()}!`}
-        subtitle="Visão geral do sistema Cugini Repasses"
+        subtitle="Visão geral do sistema Don Felipe Repasses"
         live
       />
 
@@ -247,7 +247,7 @@ export default function DashboardPage() {
                             className={cn(
                               "shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-bold tabular-nums",
                               isTop3
-                                ? "bg-cugini-orange/15 text-cugini-orange"
+                                ? "bg-brand-gold/15 text-brand-gold"
                                 : "bg-white/[0.04] text-muted-foreground/60"
                             )}
                           >
@@ -262,7 +262,7 @@ export default function DashboardPage() {
                                 className={cn(
                                   "h-full rounded-full transition-all",
                                   isTop3
-                                    ? "bg-gradient-to-r from-cugini-orange to-cugini-orange-light"
+                                    ? "bg-gradient-to-r from-brand-gold to-brand-gold-light"
                                     : "bg-muted-foreground/30"
                                 )}
                                 style={{ width: `${pct}%` }}
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                           <div className="shrink-0 text-right">
                             <p className={cn(
                               "text-sm font-semibold tabular-nums",
-                              isTop3 ? "text-cugini-orange" : "text-foreground"
+                              isTop3 ? "text-brand-gold" : "text-foreground"
                             )}>
                               {g.count}
                             </p>
@@ -394,7 +394,7 @@ export default function DashboardPage() {
                 {[
                   { label: "Total capturados", value: data?.vehicles.total ?? 0, color: "text-foreground" },
                   { label: "Aprovados", value: data?.vehicles.approved ?? 0, color: "text-success" },
-                  { label: "Publicados", value: data?.vehicles.published ?? 0, color: "text-cugini-orange" },
+                  { label: "Publicados", value: data?.vehicles.published ?? 0, color: "text-brand-gold" },
                   { label: "Rejeitados", value: data?.vehicles.rejected ?? 0, color: "text-destructive" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
@@ -423,13 +423,13 @@ export default function DashboardPage() {
                 ))}
                 <div className="flex items-center justify-between pt-2 border-t border-white/[0.04]">
                   <span className="text-sm text-muted-foreground">Grupos fonte</span>
-                  <span className="text-sm font-semibold text-cugini-orange tabular-nums">
+                  <span className="text-sm font-semibold text-brand-gold tabular-nums">
                     {data?.groups.source ?? 0}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Grupos destino</span>
-                  <span className="text-sm font-semibold text-cugini-orange tabular-nums">
+                  <span className="text-sm font-semibold text-brand-gold tabular-nums">
                     {data?.groups.target ?? 0}
                   </span>
                 </div>

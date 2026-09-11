@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, like } from "drizzle-orm";
+import { db, gruposWhatsapp, carimboDeEdicao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { invalidateGroupsCache } from "../route";
 
@@ -11,29 +12,29 @@ import { invalidateGroupsCache } from "../route";
  * Em syncs anteriores, grupos @g.us com wa_isGroup_announce=true (grupos
  * restritos onde so admin posta) eram marcados como isAnnounce=true e
  * acabavam na aba "Canais". Mas canal real e SO @newsletter.
- *
- * Esse endpoint corrige o legado sem precisar de sync completo.
  */
 export async function POST() {
   const auth = await requireAuth("ADMIN");
   if (!auth.success) return auth.response;
 
   try {
-    // Desmarca isAnnounce em qualquer @g.us (grupo restrito ou nao,
-    // canal e SO @newsletter)
-    const result = await prisma.whatsAppGroup.updateMany({
-      where: {
-        groupId: { endsWith: "@g.us" },
-        isAnnounce: true,
-      },
-      data: { isAnnounce: false },
-    });
+    const corrigidos = await db
+      .update(gruposWhatsapp)
+      .set({ isAnnounce: false, ...carimboDeEdicao(auth.user.id) })
+      .where(
+        vivosE(
+          gruposWhatsapp,
+          like(gruposWhatsapp.groupId, "%@g.us"),
+          eq(gruposWhatsapp.isAnnounce, true)
+        )
+      )
+      .returning({ id: gruposWhatsapp.id });
 
     invalidateGroupsCache();
 
     return NextResponse.json({
-      message: `${result.count} grupos @g.us foram reclassificados de Canal para Grupo`,
-      fixed: result.count,
+      message: `${corrigidos.length} grupos @g.us foram reclassificados de Canal para Grupo`,
+      fixed: corrigidos.length,
     });
   } catch (error) {
     console.error("[FixClassification] Error:", error);

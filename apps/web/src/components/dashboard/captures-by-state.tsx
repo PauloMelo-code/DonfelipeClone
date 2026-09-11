@@ -54,7 +54,7 @@ export function CapturesByState({ onStateClick }: CapturesByStateProps) {
     <div className="glass rounded-2xl p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-2 min-w-0">
-          <MapPin className="h-4 w-4 text-cugini-orange shrink-0" />
+          <MapPin className="h-4 w-4 text-brand-gold shrink-0" />
           <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
             Capturas por estado
           </h3>
@@ -100,13 +100,13 @@ export function CapturesByState({ onStateClick }: CapturesByStateProps) {
                     <div className="flex-1 relative h-6 bg-card/40 rounded-md overflow-hidden">
                       <div
                         className={cn(
-                          "absolute inset-y-0 left-0 bg-cugini-orange/20 rounded-md transition-all",
-                          onStateClick && "group-hover:bg-cugini-orange/30"
+                          "absolute inset-y-0 left-0 bg-brand-gold/20 rounded-md transition-all",
+                          onStateClick && "group-hover:bg-brand-gold/30"
                         )}
                         style={{ width: `${pct}%` }}
                       />
                       <div className="absolute inset-0 flex items-center px-2">
-                        <span className="text-xs font-bold text-cugini-orange">{s.count}</span>
+                        <span className="text-xs font-bold text-brand-gold">{s.count}</span>
                         <span className="text-[10px] text-muted-foreground ml-2">
                           {sharePct.toFixed(0)}%
                         </span>

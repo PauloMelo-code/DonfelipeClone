@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, historicoPublicacao, marcaDeExclusao, vivos, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 /**
  * POST /api/vehicles/cleanup?mode=no_photo|bad_margin|all
- * Remove vehicles based on cleanup mode.
+ * Marca veiculos como EXCLUIDOS (delete logico) conforme o modo.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAuth("ADMIN");
@@ -13,9 +14,17 @@ export async function POST(request: NextRequest) {
   const mode = request.nextUrl.searchParams.get("mode") || "no_photo";
 
   try {
-    const vehicles = await prisma.vehicle.findMany({
-      select: { id: true, model: true, photos: true, status: true, price: true, fipePrice: true },
-    });
+    const vehicles = await db
+      .select({
+        id: veiculos.id,
+        model: veiculos.model,
+        photos: veiculos.photos,
+        status: veiculos.status,
+        price: veiculos.price,
+        fipePrice: veiculos.fipePrice,
+      })
+      .from(veiculos)
+      .where(vivos(veiculos));
 
     let removed = 0;
     const removedList: { model: string; status: string; reason: string }[] = [];
@@ -52,13 +61,21 @@ export async function POST(request: NextRequest) {
 
       if (shouldRemove) {
         try {
-          await prisma.auditLog.updateMany({ where: { vehicleId: v.id }, data: { vehicleId: null } });
-          await prisma.postHistory.deleteMany({ where: { vehicleId: v.id } });
-          await prisma.vehicle.delete({ where: { id: v.id } });
+          // Delete LOGICO. A trilha de auditoria continua apontando para o
+          // veiculo: antes o codigo zerava audit_logs.vehicleId e apagava o
+          // historico so para conseguir remover a linha.
+          await db
+            .update(historicoPublicacao)
+            .set(marcaDeExclusao(auth.user.id))
+            .where(vivosE(historicoPublicacao, eq(historicoPublicacao.vehicleId, v.id)));
+          await db
+            .update(veiculos)
+            .set(marcaDeExclusao(auth.user.id))
+            .where(vivosE(veiculos, eq(veiculos.id, v.id)));
           removed++;
           removedList.push({ model: v.model, status: v.status, reason });
         } catch (err) {
-          console.warn(`[cleanup] Failed to delete ${v.id} (${v.model}):`, err);
+          console.warn(`[cleanup] Falha ao excluir ${v.id} (${v.model}):`, err);
         }
       }
     }
@@ -70,7 +87,7 @@ export async function POST(request: NextRequest) {
       removed,
       remaining: vehicles.length - removed,
       removedList,
-      message: `${removed} veiculos (${modeLabel}) removidos`,
+      message: `${removed} veiculos (${modeLabel}) marcados como excluidos`,
     });
   } catch (error) {
     console.error("[cleanup] Error:", error);

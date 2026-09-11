@@ -70,7 +70,7 @@ export default function InsightsPage() {
       <>
         <Header title="Insights" subtitle="Análise dos últimos 30 dias" />
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-cugini-orange" />
+          <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
         </div>
       </>
     );
@@ -102,7 +102,7 @@ export default function InsightsPage() {
         {/* Funil */}
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-cugini-orange" />
+            <TrendingUp className="h-4 w-4 text-brand-gold" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Funil de Conversão</h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -116,7 +116,7 @@ export default function InsightsPage() {
         {/* Top fornecedores */}
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Users className="h-4 w-4 text-cugini-orange" />
+            <Users className="h-4 w-4 text-brand-gold" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Top Fornecedores (por taxa aprovação)</h3>
           </div>
           <div className="space-y-2">
@@ -145,7 +145,7 @@ export default function InsightsPage() {
         {/* Motivos de rejeição */}
         <div className="glass rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Tag className="h-4 w-4 text-cugini-orange" />
+            <Tag className="h-4 w-4 text-brand-gold" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Motivos de Rejeição</h3>
           </div>
           <div className="space-y-2">

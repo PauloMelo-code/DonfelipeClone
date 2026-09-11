@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, or, isNull, sql } from "drizzle-orm";
+import { db, gruposWhatsapp, carimboDeEdicao, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
 import { invalidateGroupsCache } from "../route";
@@ -11,20 +12,31 @@ import { invalidateGroupsCache } from "../route";
  * conseguiu resolver), tenta de novo usando TODAS as estrategias:
  *   1. listGroups(force=true) de ambas as instancias
  *   2. getGroupInfo() com varios endpoint shapes
- *
- * Retorna quantos foram reparados e quantos seguem sem nome.
  */
 export async function POST() {
   const auth = await requireAuth("ADMIN");
   if (!auth.success) return auth.response;
 
   try {
-    // Prisma nao tem comparacao entre campos no where direto, entao buscamos
-    // tudo e filtramos em JS. Volume tipico (<300 grupos) torna isso barato.
-    const all = await prisma.whatsAppGroup.findMany({
-      select: { id: true, groupId: true, name: true },
-    });
-    const broken = all.filter((g) => !g.name || g.name === g.groupId || g.name.trim() === "");
+    // O Prisma nao comparava duas colunas no where e a rota trazia a tabela
+    // inteira para filtrar em JS. O Drizzle compara no banco.
+    const broken = await db
+      .select({
+        id: gruposWhatsapp.id,
+        groupId: gruposWhatsapp.groupId,
+        name: gruposWhatsapp.name,
+      })
+      .from(gruposWhatsapp)
+      .where(
+        vivosE(
+          gruposWhatsapp,
+          or(
+            isNull(gruposWhatsapp.name),
+            eq(sql`btrim(${gruposWhatsapp.name})`, sql`''`),
+            eq(gruposWhatsapp.name, gruposWhatsapp.groupId)
+          )
+        )
+      );
 
     if (broken.length === 0) {
       return NextResponse.json({
@@ -54,12 +66,9 @@ export async function POST() {
     const stillBroken: string[] = [];
 
     for (const g of broken) {
-      // Primeira tentativa: dicionario do list
       let newName = subjectByJid.get(g.groupId);
 
-      // Segunda tentativa: getGroupInfo
       if (!newName) {
-        // Tenta na instancia de captura primeiro
         const info = await uazapi.getGroupInfo(g.groupId).catch(() => null);
         newName = info?.subject;
       }
@@ -69,10 +78,10 @@ export async function POST() {
       }
 
       if (newName && newName !== g.groupId) {
-        await prisma.whatsAppGroup.update({
-          where: { id: g.id },
-          data: { name: newName },
-        });
+        await db
+          .update(gruposWhatsapp)
+          .set({ name: newName, ...carimboDeEdicao(auth.user.id) })
+          .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, g.id)));
         repaired++;
       } else {
         stillBroken.push(g.groupId);

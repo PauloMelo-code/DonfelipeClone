@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, gruposWhatsapp, carimboDeEdicao, vivos, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 
 // Known group names mapped to regions (from client list)
@@ -86,9 +87,14 @@ export async function POST() {
 
   try {
     // Tag ALL groups (not just null) — overwrites with better detection
-    const groups = await prisma.whatsAppGroup.findMany({
-      select: { id: true, name: true, region: true },
-    });
+    const groups = await db
+      .select({
+        id: gruposWhatsapp.id,
+        name: gruposWhatsapp.name,
+        region: gruposWhatsapp.region,
+      })
+      .from(gruposWhatsapp)
+      .where(vivos(gruposWhatsapp));
 
     let tagged = 0;
     const results: { name: string; region: string }[] = [];
@@ -96,10 +102,10 @@ export async function POST() {
     for (const g of groups) {
       const region = detectRegion(g.name);
       if (region) {
-        await prisma.whatsAppGroup.update({
-          where: { id: g.id },
-          data: { region },
-        });
+        await db
+          .update(gruposWhatsapp)
+          .set({ region, ...carimboDeEdicao(auth.user.id) })
+          .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.id, g.id)));
         tagged++;
         results.push({ name: g.name, region });
       }

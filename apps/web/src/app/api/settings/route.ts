@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db, configuracoes, carimboDeEdicao, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { registrarAuditoria } from "@/lib/audit";
 import { validateBody } from "@/lib/validate";
 import { updateSettingsSchema } from "@/lib/validations";
 
@@ -9,7 +10,10 @@ export async function GET() {
   if (!auth.success) return auth.response;
 
   try {
-    const settings = await prisma.setting.findMany();
+    const settings = await db
+      .select({ key: configuracoes.key, value: configuracoes.value })
+      .from(configuracoes)
+      .where(vivos(configuracoes));
 
     const settingsMap: Record<string, string> = {};
     for (const setting of settings) {
@@ -36,31 +40,34 @@ export async function PUT(request: NextRequest) {
     if (!validation.success) return validation.response;
 
     const entries = Object.entries(validation.data) as [string, string][];
-
     const results: Record<string, string> = {};
 
     for (const [key, value] of entries) {
       const stringValue = String(value);
 
-      await prisma.setting.upsert({
-        where: { key },
-        update: { value: stringValue },
-        create: { key, value: stringValue },
-      });
+      await db
+        .insert(configuracoes)
+        .values({ key, value: stringValue, modifiedBy: auth.user.id })
+        .onConflictDoUpdate({
+          target: configuracoes.key,
+          set: {
+            value: stringValue,
+            // Reativa a chave se ela tiver sido excluida logicamente.
+            isDeleted: false,
+            deletedAt: null,
+            ...carimboDeEdicao(auth.user.id),
+          },
+        });
 
       results[key] = stringValue;
     }
 
-    await prisma.auditLog.create({
-      data: {
-        action: "SETTINGS_UPDATED",
-        entityType: "Setting",
-        userId: auth.user.id,
-        details: JSON.stringify({
-          keys: Object.keys(results),
-          values: results,
-        }),
-      },
+    await registrarAuditoria({
+      action: "SETTINGS_UPDATED",
+      entityType: "Setting",
+      userId: auth.user.id,
+      details: { keys: Object.keys(results), values: results },
+      request,
     });
 
     return NextResponse.json({

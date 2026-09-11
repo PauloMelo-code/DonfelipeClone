@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { and, eq, gte, lte } from "drizzle-orm";
+import { db, veiculos, configuracoes, vivos, vivosE } from "@/lib/db";
 
 interface RejectionMatch {
   matched: boolean;
@@ -22,16 +23,21 @@ export async function checkRejectionPattern(vehicle: {
 
   // Busca rejeitados similares (mesmo modelo, ano +/- 1, km proximo)
   const modelKey = vehicle.model.toLowerCase().split(" ").slice(0, 3).join(" ");
-  const similarRejected = await prisma.vehicle.findMany({
-    where: {
-      status: "REJECTED",
-      rejectedAt: { gte: thirtyDaysAgo },
-      year: { gte: vehicle.year - 1, lte: vehicle.year + 1 },
-      km: { gte: vehicle.km * 0.8, lte: vehicle.km * 1.2 },
-    },
-    select: { model: true, rejectionTags: true },
-    take: 50,
-  });
+  const similarRejected = await db
+    .select({ model: veiculos.model, rejectionTags: veiculos.rejectionTags })
+    .from(veiculos)
+    .where(
+      vivosE(
+        veiculos,
+        eq(veiculos.status, "REJECTED"),
+        gte(veiculos.rejectedAt, thirtyDaysAgo),
+        gte(veiculos.year, vehicle.year - 1),
+        lte(veiculos.year, vehicle.year + 1),
+        gte(veiculos.km, Math.floor(vehicle.km * 0.8)),
+        lte(veiculos.km, Math.ceil(vehicle.km * 1.2))
+      )
+    )
+    .limit(50);
 
   // Filtra por similaridade de modelo
   const sameModel = similarRejected.filter((v) => {
@@ -68,7 +74,11 @@ export async function checkRejectionPattern(vehicle: {
  * Verifica se modelo do veiculo está em blocklist (palavra-chave).
  */
 export async function checkBlocklist(rawDescription: string): Promise<string | null> {
-  const setting = await prisma.setting.findUnique({ where: { key: "blocklist_keywords" } });
+  const [setting] = await db
+    .select({ value: configuracoes.value })
+    .from(configuracoes)
+    .where(and(eq(configuracoes.key, "blocklist_keywords"), vivos(configuracoes)))
+    .limit(1);
   if (!setting?.value) return null;
   const keywords = setting.value.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
   const lower = rawDescription.toLowerCase();

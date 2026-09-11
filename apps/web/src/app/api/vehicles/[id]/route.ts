@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq, desc } from "drizzle-orm";
+import {
+  db,
+  veiculos,
+  gruposWhatsapp,
+  historicoPublicacao,
+  carimboDeEdicao,
+  marcaDeExclusao,
+  travaDeColisao,
+  vivosE,
+} from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { updateVehicleSchema } from "@/lib/validations";
@@ -14,18 +25,48 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id },
-      include: {
-        sourceGroup: { select: { name: true, groupId: true } },
-        postHistory: {
-          include: {
-            targetGroup: { select: { name: true, groupId: true } },
-          },
-          orderBy: { postedAt: "desc" },
-        },
-      },
-    });
+    const [linha] = await db
+      .select({
+        v: veiculos,
+        grupoNome: gruposWhatsapp.name,
+        grupoJid: gruposWhatsapp.groupId,
+      })
+      .from(veiculos)
+      .leftJoin(gruposWhatsapp, eq(gruposWhatsapp.groupId, veiculos.sourceGroupId))
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
+
+    const historico = linha
+      ? await db
+          .select({
+            post: historicoPublicacao,
+            targetGroupName: gruposWhatsapp.name,
+            targetGroupJid: gruposWhatsapp.groupId,
+          })
+          .from(historicoPublicacao)
+          .leftJoin(
+            gruposWhatsapp,
+            eq(gruposWhatsapp.groupId, historicoPublicacao.targetGroupId)
+          )
+          .where(vivosE(historicoPublicacao, eq(historicoPublicacao.vehicleId, id)))
+          .orderBy(desc(historicoPublicacao.postedAt))
+      : [];
+
+    // Mesma forma que a tela ja consome: sourceGroup e postHistory aninhados.
+    const vehicle = linha
+      ? {
+          ...linha.v,
+          sourceGroup: linha.grupoJid
+            ? { name: linha.grupoNome as string, groupId: linha.grupoJid }
+            : null,
+          postHistory: historico.map((h) => ({
+            ...h.post,
+            targetGroup: h.targetGroupJid
+              ? { name: h.targetGroupName as string, groupId: h.targetGroupJid }
+              : null,
+          })),
+        }
+      : null;
 
     if (!vehicle) {
       return NextResponse.json(
@@ -61,7 +102,11 @@ export async function PUT(
     const validation = validateBody(updateVehicleSchema, body);
     if (!validation.success) return validation.response;
 
-    const existing = await prisma.vehicle.findUnique({ where: { id } });
+    const [existing] = await db
+      .select({ updatedAt: veiculos.updatedAt })
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!existing) {
       return NextResponse.json(
         { error: "Veiculo nao encontrado" },
@@ -90,10 +135,18 @@ export async function PUT(
     if (validated.formattedAd !== undefined) data.formattedAd = validated.formattedAd;
     if (validated.status !== undefined) data.status = validated.status;
 
-    const vehicle = await prisma.vehicle.update({
-      where: { id },
-      data,
-    });
+    const [vehicle] = await db
+      .update(veiculos)
+      .set({ ...data, ...carimboDeEdicao(auth.user.id) })
+      .where(travaDeColisao(veiculos, id, body?.updatedAt ?? existing.updatedAt))
+      .returning();
+
+    if (!vehicle) {
+      return NextResponse.json(
+        { error: "Veiculo alterado por outro usuario. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
 
     return NextResponse.json({
       ...vehicle,
@@ -119,7 +172,11 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const existing = await prisma.vehicle.findUnique({ where: { id } });
+    const [existing] = await db
+      .select({ id: veiculos.id })
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!existing) {
       return NextResponse.json(
         { error: "Veiculo nao encontrado" },
@@ -127,9 +184,27 @@ export async function DELETE(
       );
     }
 
-    await prisma.postHistory.deleteMany({ where: { vehicleId: id } });
-    await prisma.auditLog.deleteMany({ where: { vehicleId: id } });
-    await prisma.vehicle.delete({ where: { id } });
+    // Delete LOGICO, e a TRILHA NAO E TOCADA. O codigo antigo fazia
+    // auditLog.deleteMany aqui: apagar o veiculo apagava junto a prova do que
+    // foi feito com ele.
+    await db
+      .update(historicoPublicacao)
+      .set(marcaDeExclusao(auth.user.id))
+      .where(vivosE(historicoPublicacao, eq(historicoPublicacao.vehicleId, id)));
+
+    await db
+      .update(veiculos)
+      .set(marcaDeExclusao(auth.user.id))
+      .where(vivosE(veiculos, eq(veiculos.id, id)));
+
+    await registrarAuditoria({
+      action: "VEHICLE_DELETED",
+      entityType: "Vehicle",
+      entityId: id,
+      vehicleId: id,
+      userId: auth.user.id,
+      request,
+    });
 
     return NextResponse.json({ message: "Veiculo removido com sucesso" });
   } catch (error) {

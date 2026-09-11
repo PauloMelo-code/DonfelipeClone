@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { eq } from "drizzle-orm";
+import { db, veiculos, carimboDeEdicao, travaDeColisao, vivosE } from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
 import { requireAuth } from "@/lib/auth";
 
 /**
@@ -37,7 +39,11 @@ export async function POST(
       ? body.targetGroupIds
       : undefined;
 
-    const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+    const [vehicle] = await db
+      .select()
+      .from(veiculos)
+      .where(vivosE(veiculos, eq(veiculos.id, id)))
+      .limit(1);
     if (!vehicle) {
       return NextResponse.json({ error: "Veiculo nao encontrado" }, { status: 404 });
     }
@@ -64,22 +70,29 @@ export async function POST(
     if (photos) data.photos = JSON.stringify(photos);
     if (targetGroupIds) data.preparedTargetGroupIds = JSON.stringify(targetGroupIds);
 
-    const updated = await prisma.vehicle.update({
-      where: { id },
-      data,
-    });
+    const [updated] = await db
+      .update(veiculos)
+      .set({ ...data, ...carimboDeEdicao(auth.user.id) })
+      .where(travaDeColisao(veiculos, id, body?.updatedAt ?? vehicle.updatedAt))
+      .returning();
 
-    await prisma.auditLog.create({
-      data: {
-        action: "VEHICLE_PREPARED",
-        entityType: "Vehicle",
-        entityId: id,
-        vehicleId: id,
-        userId: auth.user.id,
-        details: JSON.stringify({
-          previousStatus: vehicle.status,
-          targetGroupCount: targetGroupIds?.length ?? 0,
-        }),
+    if (!updated) {
+      return NextResponse.json(
+        { error: "Veiculo alterado por outro usuario. Recarregue a tela." },
+        { status: 409 }
+      );
+    }
+
+    await registrarAuditoria({
+      action: "VEHICLE_PREPARED",
+      entityType: "Vehicle",
+      entityId: id,
+      vehicleId: id,
+      userId: auth.user.id,
+      request,
+      details: {
+        previousStatus: vehicle.status,
+        targetGroupCount: targetGroupIds?.length ?? 0,
       },
     });
 
@@ -114,10 +127,14 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    await prisma.vehicle.update({
-      where: { id },
-      data: { preparedAt: null, preparedTargetGroupIds: null },
-    });
+    await db
+      .update(veiculos)
+      .set({
+        preparedAt: null,
+        preparedTargetGroupIds: null,
+        ...carimboDeEdicao(auth.user.id),
+      })
+      .where(vivosE(veiculos, eq(veiculos.id, id)));
     return NextResponse.json({ message: "Preparacao cancelada" });
   } catch (error) {
     console.error("[Prepare DELETE] Error:", error);

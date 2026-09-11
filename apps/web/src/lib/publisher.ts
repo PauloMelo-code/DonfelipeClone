@@ -1,4 +1,17 @@
-import { prisma } from "@/lib/prisma";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  db,
+  veiculos,
+  gruposWhatsapp,
+  configuracoes,
+  arquivosMidia,
+  carimboDeEdicao,
+  travaDeColisao,
+  vivos,
+  vivosE,
+} from "@/lib/db";
+import { registrarAuditoria } from "@/lib/audit";
+import { extrairFipeDoTexto } from "@/lib/actions/veiculos";
 import { getSendClient } from "@/lib/uazapi";
 import { canPostVehicle, recordPost } from "@/lib/deduplication";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -27,7 +40,11 @@ async function getSettingNumber(
   key: string,
   defaultValue: number
 ): Promise<number> {
-  const row = await prisma.setting.findUnique({ where: { key } });
+  const [row] = await db
+    .select({ value: configuracoes.value })
+    .from(configuracoes)
+    .where(and(eq(configuracoes.key, key), vivos(configuracoes)))
+    .limit(1);
   if (!row) return defaultValue;
   const parsed = Number(row.value);
   return Number.isNaN(parsed) ? defaultValue : parsed;
@@ -45,7 +62,11 @@ function randomDelay(minMs: number, maxMs: number): Promise<void> {
  * Check if global publishing is paused (kill switch).
  */
 async function isPublishingPaused(): Promise<boolean> {
-  const s = await prisma.setting.findUnique({ where: { key: "publishing_paused" } });
+  const [s] = await db
+    .select({ value: configuracoes.value })
+    .from(configuracoes)
+    .where(and(eq(configuracoes.key, "publishing_paused"), vivos(configuracoes)))
+    .limit(1);
   return s?.value === "true";
 }
 
@@ -90,9 +111,11 @@ export async function publishVehicle(
   }
 
   // --- Load the vehicle ---
-  const vehicle = await prisma.vehicle.findUnique({
-    where: { id: vehicleId },
-  });
+  const [vehicle] = await db
+    .select()
+    .from(veiculos)
+    .where(vivosE(veiculos, eq(veiculos.id, vehicleId)))
+    .limit(1);
 
   if (!vehicle) {
     throw new Error(`Vehicle not found: ${vehicleId}`);
@@ -155,22 +178,16 @@ export async function publishVehicle(
     );
   }
 
-  // Auto-extract FIPE if missing
+  // FIPE ausente: le do texto do anuncio. Implementacao unica em
+  // lib/actions/veiculos -- havia quatro copias disto no projeto.
   let fipePrice = vehicle.fipePrice;
   if (fipePrice == null && vehicle.rawDescription) {
-    const m = vehicle.rawDescription.match(/fipe\s*:?\s*r?\$?\s*([\d.,]+)\s*(mil)?/i);
-    if (m) {
-      let raw = m[1];
-      if (m[2]?.toLowerCase() === "mil") {
-        fipePrice = parseFloat(raw.replace(",", ".")) * 1000;
-      } else {
-        raw = raw.replace(/\./g, "").replace(",", ".");
-        const n = parseFloat(raw);
-        if (!isNaN(n) && n >= 1000) fipePrice = n;
-      }
-      if (fipePrice != null) {
-        await prisma.vehicle.update({ where: { id: vehicle.id }, data: { fipePrice } });
-      }
+    fipePrice = extrairFipeDoTexto(vehicle.rawDescription);
+    if (fipePrice != null) {
+      await db
+        .update(veiculos)
+        .set({ fipePrice, ...carimboDeEdicao(options?.userId ?? null) })
+        .where(vivosE(veiculos, eq(veiculos.id, vehicle.id)));
     }
   }
 
@@ -194,15 +211,19 @@ export async function publishVehicle(
   );
 
   // --- Load target groups (optionally filtered) ---
-  const targetGroups = await prisma.whatsAppGroup.findMany({
-    where: {
-      role: "TARGET",
-      active: true,
-      ...(options?.targetGroupIds?.length
-        ? { groupId: { in: options.targetGroupIds } }
-        : {}),
-    },
-  });
+  const targetGroups = await db
+    .select()
+    .from(gruposWhatsapp)
+    .where(
+      vivosE(
+        gruposWhatsapp,
+        eq(gruposWhatsapp.role, "TARGET"),
+        eq(gruposWhatsapp.active, true),
+        options?.targetGroupIds?.length
+          ? inArray(gruposWhatsapp.groupId, options.targetGroupIds)
+          : undefined
+      )
+    );
 
   if (targetGroups.length === 0) {
     throw new Error("No active TARGET groups configured");
@@ -268,7 +289,11 @@ export async function publishVehicle(
         let photoFile = photos[0];
         if (photoFile.startsWith("/api/media/")) {
           const mediaId = photoFile.replace("/api/media/", "");
-          const media = await prisma.mediaFile.findUnique({ where: { id: mediaId } });
+          const [media] = await db
+            .select({ mimeType: arquivosMidia.mimeType, data: arquivosMidia.data })
+            .from(arquivosMidia)
+            .where(vivosE(arquivosMidia, eq(arquivosMidia.id, mediaId)))
+            .limit(1);
           if (media) {
             const mimeType = media.mimeType === "application/octet-stream" ? "image/jpeg" : media.mimeType;
             photoFile = `data:${mimeType};base64,${media.data}`;
@@ -329,16 +354,21 @@ export async function publishVehicle(
   const anySuccess = results.some((r) => r.success);
 
   if (anySuccess) {
-    await prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: {
+    // Sem carimbo de colisao aqui de proposito: a publicacao leva minutos
+    // (delay anti-ban por grupo) e esta mesma funcao ja pode ter gravado
+    // fipePrice no meio do caminho. Comparar com o updatedAt lido no inicio
+    // reprovaria a propria escrita. A trava mantem id + vivo.
+    await db
+      .update(veiculos)
+      .set({
         status: "PUBLISHED",
         formattedAd: adText,
-        sellingPrice: options?.sellingPrice ??
-          vehicle.price * (1 + profitMarginPercent / 100),
+        sellingPrice:
+          options?.sellingPrice ?? vehicle.price * (1 + profitMarginPercent / 100),
         publishedAt: new Date(),
-      },
-    });
+        ...carimboDeEdicao(options?.userId ?? null),
+      })
+      .where(travaDeColisao(veiculos, vehicleId));
   }
 
   // --- Audit log ---
@@ -348,26 +378,24 @@ export async function publishVehicle(
   ).length;
   const skipCount = results.filter((r) => !!r.skippedReason).length;
 
-  await prisma.auditLog.create({
-    data: {
-      action: "VEHICLE_PUBLISH",
-      entityType: "Vehicle",
-      entityId: vehicleId,
-      vehicleId,
-      userId: options?.userId,
-      details: JSON.stringify({
-        totalGroups: targetGroups.length,
-        success: successCount,
-        failed: failCount,
-        skipped: skipCount,
-        results: results.map((r) => ({
-          group: r.targetGroupName,
-          groupId: r.targetGroupId,
-          success: r.success,
-          skippedReason: r.skippedReason ?? null,
-          errorMessage: r.errorMessage ?? null,
-        })),
-      }),
+  await registrarAuditoria({
+    action: "VEHICLE_PUBLISH",
+    entityType: "Vehicle",
+    entityId: vehicleId,
+    vehicleId,
+    userId: options?.userId ?? null,
+    details: {
+      totalGroups: targetGroups.length,
+      success: successCount,
+      failed: failCount,
+      skipped: skipCount,
+      results: results.map((r) => ({
+        group: r.targetGroupName,
+        groupId: r.targetGroupId,
+        success: r.success,
+        skippedReason: r.skippedReason ?? null,
+        errorMessage: r.errorMessage ?? null,
+      })),
     },
   });
 

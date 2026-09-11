@@ -154,7 +154,7 @@ export function formatVehicleAd(
   ];
 
   if (vehicle.rawDescription?.trim()) {
-    // Clean the raw description into Cugini format:
+    // Clean the raw description into Don Felipe format:
     // - Remove ALL emojis
     // - Remove lines that are: model name, year, km, price, fipe, "pedida", location pin
     // - Remove * bold markers
@@ -198,7 +198,7 @@ export function formatVehicleAd(
         // Bare price: "R$ 360.900" or just "360.900"
         /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
         // Frases de marketing/chamada do vendedor da fonte -- nao entram no
-        // anuncio da Cugini ("Oportunidade menor valor Brasil", etc).
+        // anuncio da Don Felipe ("Oportunidade menor valor Brasil", etc).
         /\b(oportunidade|menor\s*(valor|pre[çc]o)|melhor\s*(valor|pre[çc]o|oferta)|imperd[ií]vel|aproveite|n[ãa]o\s*perc|super\s*oferta|abaixo\s*da\s*(tabela|fipe)|baita\s*(neg[óo]cio|oferta)|promo[çc][ãa]o|ultim[ao]s?\s*(unidade|dia))\b/i.test(l) ||
         // Frases de NEGOCIACAO do vendedor da fonte -- nao entram no anuncio
         // ("Analisa proposta", "Aceito troca", "Comigo", "Negociavel"...).
