@@ -6,8 +6,17 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+# O .npmrc precisa vir junto: ele fixa auto-install-peers=false, e o lockfile
+# grava essa configuracao. Sem o arquivo, o pnpm do container usa o padrao
+# (true), nao bate com o lockfile e --frozen-lockfile aborta com
+# ERR_PNPM_LOCKFILE_CONFIG_MISMATCH. E o mesmo .npmrc que mantem o Prisma fora
+# da arvore, que foi como os advisories altos foram fechados.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
+# TODOS os package.json do workspace, senao --frozen-lockfile falha: o
+# lockfile declara 3 projetos (raiz, apps/web e packages/shared) e o pnpm
+# recusa instalar quando um deles nao existe em disco.
 COPY apps/web/package.json ./apps/web/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
 
 RUN pnpm install --frozen-lockfile
 

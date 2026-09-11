@@ -1,16 +1,24 @@
-node_modules
-.next
+# Padrao sem "**/" so casa a RAIZ do contexto. Num monorepo isso deixa passar
+# apps/web/node_modules e apps/web/.next, que entao sobrescrevem o que o
+# estagio "deps" instalou -- e o build quebra com "Cannot find module next".
+# No servidor o contexto e um clone limpo e o problema nao aparece; na maquina
+# de quem desenvolve, aparece sempre.
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/out
+**/build
+
 .git
 .gitignore
 .env
 .env.*
 *.md
-.turbo
 .vscode
 .claude
-dist
-out
-build
-*.db
-npm-debug.log
+.agents
+.tmp_guia
+**/*.db
+**/npm-debug.log
 .DS_Store
