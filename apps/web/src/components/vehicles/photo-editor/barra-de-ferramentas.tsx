@@ -32,7 +32,7 @@ export function BarraDeFerramentas({ editor, temEdicao }: Props) {
             size="sm"
             variant={ativa ? "default" : "outline"}
             onClick={() => editor.escolherFerramenta(f.id)}
-            className={cn("gap-1.5 text-xs", ativa && "gradient-gold text-white border-0")}
+            className={cn("gap-1.5 text-xs", ativa && "gradient-gold text-black border-0")}
           >
             <f.icone className="h-3.5 w-3.5" />
             {f.rotulo}

@@ -8,7 +8,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, Lock, Eye, EyeOff, ShieldCheck, Sparkles, Fingerprint } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Fingerprint, Loader2, Lock, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
@@ -106,7 +106,7 @@ export default function LoginPage() {
             y: [0, -20, 30, 0],
           }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute left-1/2 top-[-10%] h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-brand-gold/[0.10] blur-[140px]"
+          className="absolute left-1/2 top-[-10%] h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-brand-gold/[0.07] blur-[150px]"
         />
         <motion.div
           animate={{
@@ -114,7 +114,7 @@ export default function LoginPage() {
             y: [0, 30, -10, 0],
           }}
           transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-[-15%] left-[-10%] h-[500px] w-[600px] rounded-full bg-amber-600/[0.06] blur-[120px]"
+          className="absolute bottom-[-15%] left-[-10%] h-[500px] w-[600px] rounded-full bg-amber-600/[0.02] blur-[130px]"
         />
         <motion.div
           animate={{
@@ -122,10 +122,10 @@ export default function LoginPage() {
             y: [0, 20, -20, 0],
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute right-[-10%] top-[20%] h-[400px] w-[500px] rounded-full bg-amber-500/[0.04] blur-[140px]"
+          className="absolute right-[-10%] top-[20%] h-[400px] w-[500px] rounded-full bg-amber-500/[0.015] blur-[150px]"
         />
         {/* Vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(7,7,9,0.85)_75%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.88)_75%)]" />
         {/* Grid pattern */}
         <div
           className="absolute inset-0 opacity-[0.015]"
@@ -201,8 +201,8 @@ export default function LoginPage() {
           className="relative"
         >
           {/* Glow border (animated) */}
-          <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-b from-brand-gold/30 via-white/[0.04] to-transparent opacity-60" />
-          <div className="pointer-events-none absolute -inset-px rounded-2xl bg-[radial-gradient(circle_at_top,rgba(201, 151, 61,0.15),transparent_60%)]" />
+          <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-b from-brand-gold/20 via-white/[0.03] to-transparent opacity-55" />
+          <div className="pointer-events-none absolute -inset-px rounded-2xl bg-[radial-gradient(circle_at_top,rgba(201,151,61,0.08),transparent_62%)]" />
 
           <form
             onSubmit={handleSubmit}
@@ -323,7 +323,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading || !email || !password}
                 className={cn(
-                  "relative h-12 w-full overflow-hidden gradient-gold text-white font-semibold tracking-wide",
+                  "relative h-12 w-full overflow-hidden gradient-gold text-black font-semibold tracking-wide",
                   "transition-all duration-200",
                   "hover:shadow-[0_8px_30px_rgba(201, 151, 61,0.35)] hover:scale-[1.01]",
                   "active:scale-[0.99]",
@@ -338,7 +338,7 @@ export default function LoginPage() {
                 ) : (
                   <span className="flex items-center gap-2">
                     Entrar
-                    <span aria-hidden className="text-sm">→</span>
+                    <ArrowRight aria-hidden className="h-4 w-4" />
                   </span>
                 )}
                 {/* Shine effect on hover */}

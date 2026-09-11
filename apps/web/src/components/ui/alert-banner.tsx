@@ -3,7 +3,7 @@
 import { ReactNode } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type AlertVariant = "info" | "success" | "warning" | "destructive" | "vip";
@@ -80,14 +80,14 @@ export function AlertBanner({
       href={actionHref}
       className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors", styles.action)}
     >
-      {actionLabel} →
+      <span className="inline-flex items-center gap-1.5">{actionLabel}<ArrowRight className="h-3 w-3" /></span>
     </Link>
   ) : onAction ? (
     <button
       onClick={onAction}
       className={cn("rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors", styles.action)}
     >
-      {actionLabel} →
+      <span className="inline-flex items-center gap-1.5">{actionLabel}<ArrowRight className="h-3 w-3" /></span>
     </button>
   ) : null;
 

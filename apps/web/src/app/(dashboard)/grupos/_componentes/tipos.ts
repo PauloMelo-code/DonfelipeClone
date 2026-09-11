@@ -6,6 +6,8 @@
 // e o sufixo do JID -- e o operador pode discordar da leitura automatica.
 // ---------------------------------------------------------------------------
 
+import { Building2, Megaphone, Radio, User, Users, type LucideIcon } from "lucide-react";
+
 export interface Group {
   id: string;
   groupId: string;
@@ -43,22 +45,22 @@ export const REGIONS = ["SC", "RS", "PR", "SP", "Nacional"] as const;
 export const PAGE_SIZE = 20;
 
 /** Os tipos que o filtro oferece, na ordem em que aparecem na tela. */
-export const TIPOS = [
-  { id: "todos", label: "Todos", key: "todos" as const },
-  { id: "grupo", label: "👥 Grupos", key: "grupo" as const },
-  { id: "comunidade", label: "🏘️ Comunidades", key: "comunidade" as const },
-  { id: "canal", label: "📡 Canais", key: "canal" as const },
-  { id: "lista", label: "📢 Listas", key: "lista" as const },
-  { id: "contato", label: "👤 Contatos", key: "contato" as const },
+export const TIPOS: { id: string; label: string; key: keyof TypeStats; icone: LucideIcon | null }[] = [
+  { id: "todos", label: "Todos", key: "todos", icone: null },
+  { id: "grupo", label: "Grupos", key: "grupo", icone: Users },
+  { id: "comunidade", label: "Comunidades", key: "comunidade", icone: Building2 },
+  { id: "canal", label: "Canais", key: "canal", icone: Radio },
+  { id: "lista", label: "Listas", key: "lista", icone: Megaphone },
+  { id: "contato", label: "Contatos", key: "contato", icone: User },
 ];
 
 /** As opcoes do menu de reclassificacao manual. */
-export const TIPOS_RECLASSIFICAVEIS = [
-  { id: "grupo", label: "👥 Grupo" },
-  { id: "canal", label: "📡 Canal" },
-  { id: "comunidade", label: "🏘️ Comunidade" },
-  { id: "lista", label: "📢 Lista" },
-  { id: "contato", label: "👤 Contato" },
+export const TIPOS_RECLASSIFICAVEIS: { id: string; label: string; icone: LucideIcon }[] = [
+  { id: "grupo", label: "Grupo", icone: Users },
+  { id: "canal", label: "Canal", icone: Radio },
+  { id: "comunidade", label: "Comunidade", icone: Building2 },
+  { id: "lista", label: "Lista", icone: Megaphone },
+  { id: "contato", label: "Contato", icone: User },
 ];
 
 /**
@@ -78,12 +80,14 @@ export function tipoDoGrupo(g: Group): string {
   return "grupo";
 }
 
-export function iconeDoTipo(tipo: string): string {
+/** O icone do tipo. Devolve o componente, nao um glifo -- quem renderiza
+ *  escolhe o tamanho e a cor. */
+export function iconeDoTipo(tipo: string): LucideIcon {
   switch (tipo) {
-    case "canal": return "📡";
-    case "comunidade": return "🏘️";
-    case "lista": return "📢";
-    case "contato": return "👤";
-    default: return "👥";
+    case "canal": return Radio;
+    case "comunidade": return Building2;
+    case "lista": return Megaphone;
+    case "contato": return User;
+    default: return Users;
   }
 }

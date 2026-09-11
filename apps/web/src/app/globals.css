@@ -38,9 +38,17 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --font-display: var(--font-display);
   --color-brand-gold: var(--brand-gold);
   --color-brand-gold-light: var(--brand-gold-light);
   --color-brand-gold-muted: var(--brand-gold-muted);
+  --color-gold-200: var(--gold-200);
+  --color-gold-300: var(--gold-300);
+  --color-gold-400: var(--gold-400);
+  --color-gold-500: var(--gold-500);
+  --color-gold-600: var(--gold-600);
+  --color-gold-700: var(--gold-700);
+  --color-gold-800: var(--gold-800);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -52,45 +60,75 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Don Felipe Dark Theme - Premium */
+/* ===========================================================================
+   Design System — Don Felipe Repasses
+   Fundacao derivada do logotipo oficial (dourado metalico sobre preto).
+   A rampa de dourado foi AMOSTRADA dos pixels da arte, nao escolhida no olho.
+   Contraste de todos os tons sobre o fundo esta em docs/design-system.md.
+   =========================================================================== */
 :root {
-  --background: #09090B;
+  /* --- Rampa de dourado (amostrada do logotipo) --- */
+  --gold-800: #594E21;   /* bronze profundo — filete, borda de foco fraca   */
+  --gold-700: #7A5C2E;
+  --gold-600: #9D7144;   /* AA  4,88:1 — so para elemento grande            */
+  --gold-500: #C9973D;   /* AAA 7,98:1 — PRIMARIA                           */
+  --gold-400: #D9A157;   /* AAA 9,19:1 — hover                              */
+  --gold-300: #E7C67A;   /* AAA 12,8:1 — texto dourado sobre preto          */
+  --gold-200: #F7D097;   /* AAA 14,4:1 — realce do brilho metalico          */
+
+  /* --- Superficies --- */
+  /* O logotipo tem fundo PRETO PURO. O fundo da pagina acompanha, senao     */
+  /* aparece uma emenda visivel atras do PNG do logo no login e na sidebar.  */
+  --background: #000000;
   --foreground: #FAFAF9;
-  --card: #131316;
+  --card: #0B0B0C;
   --card-foreground: #FAFAF9;
-  --popover: #131316;
+  --popover: #0E0E10;
   --popover-foreground: #FAFAF9;
-  --primary: #C9973D;
-  --primary-foreground: #FAFAF9;
-  --secondary: #1C1C20;
+  --primary: var(--gold-500);
+  /* PRETO, nao branco: texto branco sobre o dourado da 2,52:1 e reprova. */
+  --primary-foreground: #0A0A0A;
+  --secondary: #151517;
   --secondary-foreground: #FAFAF9;
-  --muted: #1C1C20;
-  --muted-foreground: #8B8B8F;
-  --accent: #18181C;
+  --muted: #151517;
+  --muted-foreground: #9A9A9F;   /* AAA 7,5:1 (era #8B8B8F, so AA)          */
+  --accent: #111113;
   --accent-foreground: #FAFAF9;
   --destructive: #EF4444;
-  --border: #232328;
-  --input: #232328;
-  --ring: #C9973D;
-  --chart-1: #C9973D;
+  --border: #1E1E21;
+  --input: #1E1E21;
+  --ring: var(--gold-500);
+
+  /* --- Marca (aliases estaveis: o codigo usa brand-gold em ~200 lugares) --- */
+  --brand-gold: var(--gold-500);
+  --brand-gold-light: var(--gold-300);
+  --brand-gold-muted: rgba(201, 151, 61, 0.12);
+
+  /* --- Graficos: dourado primeiro, depois tons que nao competem com ele --- */
+  --chart-1: var(--gold-500);
   --chart-2: #34D399;
   --chart-3: #60A5FA;
-  --chart-4: #FBBF24;
+  --chart-4: #F7D097;
   --chart-5: #A78BFA;
-  --radius: 0.75rem;
-  --sidebar: #0C0C0E;
-  --sidebar-foreground: #FAFAF9;
-  --sidebar-primary: #C9973D;
-  --sidebar-primary-foreground: #FAFAF9;
-  --sidebar-accent: rgba(201, 151, 61, 0.08);
-  --sidebar-accent-foreground: #FAFAF9;
-  --sidebar-border: #1A1A1E;
-  --sidebar-ring: #C9973D;
-  --brand-gold: #C9973D;
-  --brand-gold-light: #E7C67A;
-  --brand-gold-muted: rgba(201, 151, 61, 0.12);
+
   --success: #34D399;
   --warning: #FBBF24;
+
+  --radius: 0.75rem;
+
+  --sidebar: #050506;
+  --sidebar-foreground: #FAFAF9;
+  --sidebar-primary: var(--gold-500);
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: rgba(201, 151, 61, 0.08);
+  --sidebar-accent-foreground: #FAFAF9;
+  --sidebar-border: #161618;
+  --sidebar-ring: var(--gold-500);
+
+  /* --- Brilho metalico do logotipo, reutilizavel --- */
+  --metal: linear-gradient(135deg,
+            var(--gold-700) 0%, var(--gold-500) 32%, var(--gold-200) 52%,
+            var(--gold-500) 72%, var(--gold-600) 100%);
 }
 
 @layer base {
@@ -99,27 +137,45 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    /* A fonte vai no BODY, nao no html: o next/font declara --font-sans na
+       className do body, entao em html a variavel nao existe e o navegador
+       caia no serifado padrao. O app inteiro rodou em Times New Roman por
+       isso — nunca chegou a usar Inter. */
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   html {
-    @apply font-sans;
     color-scheme: dark;
+  }
+  /* Titulos no serifado da marca; corpo e tabela continuam em Inter, que le
+     melhor em lista densa de veiculo. */
+  h1, h2, h3 {
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 }
 
 /* Premium glassmorphism */
 @layer utilities {
   .glass {
-    background: linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+    /* O brilho dourado do fundo NAO pode atravessar o cartao: sem um piso
+       opaco, o conteudo boia sobre a luz e o cartao inteiro fica marrom.
+       O reflexo de vidro fica POR CIMA de uma superficie definida. */
+    background:
+      linear-gradient(145deg, rgba(255,255,255,0.030) 0%, rgba(255,255,255,0.012) 100%),
+      color-mix(in srgb, var(--card) 93%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255,255,255,0.06);
     box-shadow: 0 1px 0 0 rgba(255,255,255,0.05) inset, 0 4px 24px rgba(0,0,0,0.4);
   }
   .glass-strong {
-    background: linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+    background:
+      linear-gradient(145deg, rgba(255,255,255,0.048) 0%, rgba(255,255,255,0.022) 100%),
+      color-mix(in srgb, var(--popover) 95%, transparent);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid rgba(255,255,255,0.08);
@@ -131,15 +187,28 @@
   .glow-gold-sm {
     box-shadow: 0 0 10px rgba(201, 151, 61,0.25), 0 0 0 1px rgba(201, 151, 61,0.1);
   }
+  /* Preenchimento metalico: mesma curva de brilho do logotipo. */
   .gradient-gold {
-    background: linear-gradient(135deg, #C9973D 0%, #E7C67A 100%);
-    box-shadow: 0 2px 12px rgba(201, 151, 61, 0.25);
+    background: var(--metal);
+    /* A cor do texto vem junto de proposito: texto claro sobre o dourado da
+       2,52:1 e reprova em WCAG. Estava assim em 28 lugares do codigo. */
+    color: #0A0A0A;
+    box-shadow: 0 2px 12px rgba(201, 151, 61, 0.28);
   }
   .text-gradient-gold {
-    background: linear-gradient(135deg, #C9973D 0%, #E7C67A 100%);
+    background: var(--metal);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+  /* Filete dourado de 1px — separa secao sem peso de borda. */
+  .rule-gold {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-600), transparent);
+  }
+  /* Serifado da marca, para numero grande e rotulo de destaque. */
+  .font-display {
+    font-family: var(--font-display), Georgia, "Times New Roman", serif;
   }
 }
 
@@ -181,7 +250,7 @@ body::before {
   transform: translateX(-50%);
   width: 80%;
   height: 400px;
-  background: radial-gradient(ellipse at 50% 0%, rgba(201, 151, 61,0.06) 0%, transparent 70%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(201, 151, 61,0.045) 0%, transparent 72%);
   pointer-events: none;
   z-index: 0;
 }

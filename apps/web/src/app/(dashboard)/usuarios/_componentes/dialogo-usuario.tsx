@@ -96,7 +96,7 @@ export function DialogoUsuario({ form }: { form: Formulario }) {
             <Button
               onClick={form.salvar}
               disabled={form.salvando}
-              className="flex-1 gradient-gold text-white border-0"
+              className="flex-1 gradient-gold text-black border-0"
             >
               {form.salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : editando ? "Salvar" : "Criar"}
             </Button>

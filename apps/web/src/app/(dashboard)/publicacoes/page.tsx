@@ -7,20 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Send,
-  Search,
-  CheckCircle2,
-  XCircle,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Loader2,
-  Car,
-  ExternalLink,
-  User,
-  MessageCircle,
-} from "lucide-react";
+import { Car, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Loader2, MessageCircle, Search, Send, User, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/ui/page-container";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -467,10 +454,10 @@ function PublicationExpand({ post }: { post: PostRecord }) {
           <div className="pt-2 border-t border-white/[0.04]">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Resultado</p>
             {post.success ? (
-              <p className="text-sm text-success">✓ Enviado com sucesso</p>
+              <p className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="h-3.5 w-3.5" />Enviado com sucesso</p>
             ) : (
               <div>
-                <p className="text-sm text-destructive">✕ Falha no envio</p>
+                <p className="inline-flex items-center gap-1.5 text-sm text-destructive"><X className="h-3.5 w-3.5" />Falha no envio</p>
                 {post.errorMessage && (
                   <p className="text-[11px] text-destructive/70 mt-0.5 break-words">{post.errorMessage}</p>
                 )}

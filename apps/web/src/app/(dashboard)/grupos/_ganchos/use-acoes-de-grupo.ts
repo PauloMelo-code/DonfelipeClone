@@ -156,9 +156,9 @@ export function useAcoesDeGrupo({ buscar, buscarStats }: Opcoes) {
       const res = await fetch(`/api/groups/${group.id}/test-send`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        toast.success(`✓ ${group.name}: enviou em ${data.durationMs}ms`, { duration: 6000 });
+        toast.success(`${group.name}: enviou em ${data.durationMs}ms`, { duration: 6000 });
       } else {
-        toast.error(`✗ ${group.name}: ${data.error || "erro desconhecido"}`, { duration: 12000 });
+        toast.error(`${group.name}: ${data.error || "erro desconhecido"}`, { duration: 12000 });
       }
     } catch (e) {
       toast.error(`Erro de conexão: ${e instanceof Error ? e.message : String(e)}`, { duration: 8000 });

@@ -172,7 +172,7 @@ export default function TemplatesPage() {
           <Button
             size="sm"
             onClick={openCreate}
-            className="gap-1.5 gradient-gold text-white border-0"
+            className="gap-1.5 gradient-gold text-black border-0"
           >
             <Plus className="h-4 w-4" />
             Novo template
@@ -356,7 +356,7 @@ export default function TemplatesPage() {
               <Button
                 onClick={handleSubmit}
                 disabled={saving}
-                className="flex-1 gradient-gold text-white border-0"
+                className="flex-1 gradient-gold text-black border-0"
               >
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

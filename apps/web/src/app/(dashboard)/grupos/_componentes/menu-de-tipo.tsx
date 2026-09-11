@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { Check } from "lucide-react";
+import { Check, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AcoesDeGrupo } from "../_ganchos/use-acoes-de-grupo";
 import { TIPOS_RECLASSIFICAVEIS, tipoDoGrupo } from "./tipos";
@@ -30,6 +30,7 @@ export function MenuDeTipo({ acoes }: { acoes: AcoesDeGrupo }) {
       </div>
       {TIPOS_RECLASSIFICAVEIS.map((opt) => {
         const ehAtual = atual === opt.id;
+        const Icone = opt.icone;
         return (
           <button
             key={opt.id}
@@ -39,7 +40,10 @@ export function MenuDeTipo({ acoes }: { acoes: AcoesDeGrupo }) {
               ehAtual ? "bg-brand-gold/10 text-brand-gold" : "text-foreground hover:bg-white/[0.04]"
             )}
           >
-            <span>{opt.label}</span>
+            <span className="inline-flex items-center gap-2">
+              <Icone className="h-3.5 w-3.5 shrink-0" />
+              {opt.label}
+            </span>
             {ehAtual && <Check className="h-3 w-3" />}
           </button>
         );
@@ -51,7 +55,10 @@ export function MenuDeTipo({ acoes }: { acoes: AcoesDeGrupo }) {
             onClick={() => acoes.reclassificar(menu.group, null)}
             className="w-full text-left px-3 py-2 text-xs text-muted-foreground hover:bg-white/[0.04] hover:text-foreground transition-colors"
           >
-            ↩ Voltar automático
+            <span className="inline-flex items-center gap-2">
+              <Undo2 className="h-3.5 w-3.5" />
+              Voltar automático
+            </span>
           </button>
         </>
       )}

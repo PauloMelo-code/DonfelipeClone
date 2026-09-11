@@ -1,5 +1,5 @@
-const CACHE_NAME = "don-felipe-v1";
-const STATIC_ASSETS = ["/", "/manifest.json", "/icon.svg"];
+const CACHE_NAME = "don-felipe-v2";
+const STATIC_ASSETS = ["/", "/manifest.json", "/brand/icon-192.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -41,8 +41,8 @@ self.addEventListener("push", (e) => {
   e.waitUntil(
     self.registration.showNotification(data.title || "Don Felipe Repasses", {
       body: data.body || "",
-      icon: "/icon.svg",
-      badge: "/icon.svg",
+      icon: "/brand/icon-192.png",
+      badge: "/brand/icon-192.png",
       tag: data.tag || "don-felipe-notification",
       data: { url: data.url || "/" },
     })

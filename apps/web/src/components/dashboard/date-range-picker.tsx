@@ -182,7 +182,7 @@ function MiniCalendar({
                 isFuture && "opacity-25 cursor-not-allowed",
                 !isFuture && !isStart && !isEnd && !inRange && "hover:bg-brand-gold/20 hover:text-brand-gold text-muted-foreground",
                 inRange && !isStart && !isEnd && "bg-brand-gold/10 text-brand-gold rounded-none",
-                (isStart || isEnd) && "bg-brand-gold text-white rounded-full z-10",
+                (isStart || isEnd) && "bg-brand-gold text-black rounded-full z-10",
                 isToday && !isStart && !isEnd && "text-brand-gold font-bold",
               )}
             >

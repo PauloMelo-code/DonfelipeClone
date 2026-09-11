@@ -93,7 +93,7 @@ export function DialogoAdicionar({ manutencao }: { manutencao: Manutencao }) {
             </div>
           </div>
 
-          <Button onClick={adicionar} disabled={adicionando} className="w-full gradient-gold text-white border-0">
+          <Button onClick={adicionar} disabled={adicionando} className="w-full gradient-gold text-black border-0">
             {adicionando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
           </Button>
         </div>

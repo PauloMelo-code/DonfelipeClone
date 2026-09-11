@@ -28,7 +28,7 @@ export function BarraDeLote({ quantidade, aoLimpar, aoAbrir }: Props) {
         <button onClick={aoLimpar} className="text-xs text-muted-foreground hover:text-foreground">
           Limpar
         </button>
-        <Button onClick={aoAbrir} size="sm" className="gap-1.5 gradient-gold text-white border-0 shrink-0">
+        <Button onClick={aoAbrir} size="sm" className="gap-1.5 gradient-gold text-black border-0 shrink-0">
           <Send className="h-3.5 w-3.5" />
           Publicar em lote
         </Button>

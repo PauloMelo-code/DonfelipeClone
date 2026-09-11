@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
-            className="gap-2 gradient-gold text-white border-0"
+            className="gap-2 gradient-gold text-black border-0"
           >
             <RefreshCw className="h-4 w-4" />
             Recarregar

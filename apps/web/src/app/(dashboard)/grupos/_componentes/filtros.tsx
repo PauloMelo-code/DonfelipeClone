@@ -74,6 +74,7 @@ export function Filtros({
         {TIPOS.map((t) => {
           const contagem = (statsFonte?.[t.key] ?? 0) + (statsDestino?.[t.key] ?? 0);
           const ativo = tipo === t.id;
+          const Icone = t.icone;
           return (
             <button
               key={t.id}
@@ -84,6 +85,7 @@ export function Filtros({
                 ativo ? PILULA_ATIVA : `${PILULA_INATIVA} hover:text-foreground`
               )}
             >
+              {Icone && <Icone className="h-3.5 w-3.5 shrink-0" />}
               <span>{t.label}</span>
               {temContagem && (
                 <span
@@ -111,7 +113,7 @@ export function Filtros({
             onClick={() => setAbaDoCelular(aba.papel)}
             className={cn(
               "flex-1 py-2.5 text-xs font-medium transition-all text-center",
-              abaDoCelular === aba.papel ? "bg-brand-gold text-white" : "bg-card/50 text-muted-foreground"
+              abaDoCelular === aba.papel ? "bg-brand-gold text-black" : "bg-card/50 text-muted-foreground"
             )}
           >
             {aba.rotulo} ({aba.total})

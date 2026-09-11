@@ -57,7 +57,7 @@ export function BarraDeAcoes({ manutencao }: { manutencao: Manutencao }) {
       <Button
         onClick={() => m.setModalSync(true)}
         disabled={m.sincronizando}
-        className="gap-2 gradient-gold text-white"
+        className="gap-2 gradient-gold text-black"
       >
         {m.sincronizando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
         Sincronizar UAZAPI

@@ -28,7 +28,7 @@ export function PushPrompt() {
       // Show test
       new Notification("Don Felipe Repasses", {
         body: "Notificações ativadas! Você será avisado de novos veículos VIP.",
-        icon: "/icon.svg",
+        icon: "/brand/icon-192.png",
       });
       toast.success("Notificações ativadas");
 
@@ -67,7 +67,7 @@ export function PushPrompt() {
           <div className="flex gap-2 mt-3">
             <button
               onClick={enable}
-              className="rounded-lg bg-brand-gold text-white px-3 py-1.5 text-xs font-medium hover:bg-brand-gold/90"
+              className="rounded-lg bg-brand-gold text-black px-3 py-1.5 text-xs font-medium hover:bg-brand-gold/90"
             >
               Ativar
             </button>

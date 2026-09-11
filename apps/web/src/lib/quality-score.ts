@@ -39,7 +39,7 @@ export function calculateQualityScore(v: QualityInput): { score: number; reasons
   if (v.rawDescription) {
     const desc = v.rawDescription.toLowerCase();
     if (/\b(leil[aã]o|sinistro|batido|enchente|recuperado)\b/i.test(desc)) {
-      score -= 5; reasons.push("⚠️ Sinais de risco (leilao/sinistro)");
+      score -= 5; reasons.push("Sinais de risco (leilao/sinistro)");
     }
     if (/\b(unico\s*dono|único\s*dono|procedencia)\b/i.test(desc)) {
       score += 1; reasons.push("Único dono");

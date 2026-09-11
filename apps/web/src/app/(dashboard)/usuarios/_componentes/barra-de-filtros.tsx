@@ -54,7 +54,7 @@ export function BarraDeFiltros({ lista, aoCriar }: { lista: Usuarios; aoCriar: (
         <Button
           size="sm"
           onClick={aoCriar}
-          className="gap-1.5 gradient-gold text-white border-0 hover:shadow-[0_4px_20px_rgba(201,151,61,0.3)] transition-all"
+          className="gap-1.5 gradient-gold text-black border-0 hover:shadow-[0_4px_20px_rgba(201,151,61,0.3)] transition-all"
         >
           <Plus className="h-4 w-4" />
           Novo usuário

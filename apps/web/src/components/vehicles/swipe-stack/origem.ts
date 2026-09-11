@@ -1,3 +1,4 @@
+import { Building2, Megaphone, Radio, User, Users, type LucideIcon } from "lucide-react";
 import type { SwipeVehicle } from "./tipos";
 
 // ---------------------------------------------------------------------------
@@ -18,7 +19,7 @@ type GrupoDeOrigem = NonNullable<SwipeVehicle["sourceGroup"]>;
 
 export interface Origem {
   rotulo: string;
-  icone: string;
+  icone: LucideIcon;
   /** Nome do grupo; caindo pro telefone do dono e depois pro JID sem sufixo. */
   nome: string;
 }
@@ -27,11 +28,11 @@ export function lerOrigem(sg: GrupoDeOrigem): Origem {
   const jid = sg.groupId || "";
 
   const { rotulo, icone } =
-    sg.isAnnounce || jid.endsWith("@newsletter") ? { rotulo: "Canal", icone: "📡" }
-    : sg.isCommunity                             ? { rotulo: "Comunidade", icone: "🏘️" }
-    : jid.endsWith("@broadcast")                 ? { rotulo: "Lista de transmissão", icone: "📢" }
-    : jid.endsWith("@s.whatsapp.net")            ? { rotulo: "Contato", icone: "👤" }
-    :                                              { rotulo: "Grupo", icone: "👥" };
+    sg.isAnnounce || jid.endsWith("@newsletter") ? { rotulo: "Canal", icone: Radio }
+    : sg.isCommunity                             ? { rotulo: "Comunidade", icone: Building2 }
+    : jid.endsWith("@broadcast")                 ? { rotulo: "Lista de transmissão", icone: Megaphone }
+    : jid.endsWith("@s.whatsapp.net")            ? { rotulo: "Contato", icone: User }
+    :                                              { rotulo: "Grupo", icone: Users };
 
   // Lista de transmissao costuma chegar sem nome; o numero do dono identifica.
   const nome = sg.name || (sg.ownerPhone ? `+${sg.ownerPhone}` : jid.replace(/@.*/, ""));

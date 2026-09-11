@@ -132,11 +132,11 @@ export function PhotoEditor(props: PhotoEditorProps) {
         </div>
 
         {podeRecortar ? (
-          <Button size="sm" onClick={editor.aplicarRecorte} className="w-full gradient-gold text-white border-0">
+          <Button size="sm" onClick={editor.aplicarRecorte} className="w-full gradient-gold text-black border-0">
             Aplicar recorte
           </Button>
         ) : podeBorrar ? (
-          <Button size="sm" onClick={editor.aplicarBlur} className="w-full gradient-gold text-white border-0">
+          <Button size="sm" onClick={editor.aplicarBlur} className="w-full gradient-gold text-black border-0">
             Aplicar blur
           </Button>
         ) : (

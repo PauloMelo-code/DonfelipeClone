@@ -55,7 +55,7 @@ export default function ConfiguracoesPage() {
 
         <Ferramentas ferramentas={ferramentas} />
 
-        <Button onClick={cfg.salvar} disabled={cfg.salvando} className="gap-2 gradient-gold text-white">
+        <Button onClick={cfg.salvar} disabled={cfg.salvando} className="gap-2 gradient-gold text-black">
           {cfg.salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar Configurações
         </Button>

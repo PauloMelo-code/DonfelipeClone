@@ -92,7 +92,7 @@ export function CartaoDeConexao({
               size="sm"
               onClick={gerarQr}
               disabled={carregandoQr}
-              className="gap-2 gradient-gold text-white border-0"
+              className="gap-2 gradient-gold text-black border-0"
             >
               {carregandoQr ? <Loader2 className="h-4 w-4 animate-spin" /> : iconeDoBotao}
               Gerar QR Code

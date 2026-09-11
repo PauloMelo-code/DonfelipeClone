@@ -32,7 +32,7 @@ export async function POST(
     try {
       const result = await getSendClient().sendText({
         number: group.groupId,
-        text: `🧪 Teste de envio Don Felipe Repasses · ${new Date().toLocaleString("pt-BR")}\n\nEsta mensagem confirma que o sistema consegue publicar nesse destino.`,
+        text: `Teste de envio Don Felipe Repasses · ${new Date().toLocaleString("pt-BR")}\n\nEsta mensagem confirma que o sistema consegue publicar nesse destino.`,
       });
       return NextResponse.json({
         success: true,

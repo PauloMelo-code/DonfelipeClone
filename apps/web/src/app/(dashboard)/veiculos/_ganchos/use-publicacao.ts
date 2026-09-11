@@ -150,7 +150,7 @@ export function usePublicacao({
           const msgs: string[] = [];
           if (data.modelChanged) msgs.push(`Modelo: ${data.model}`);
           if (data.dataChanged) msgs.push("dados corrigidos");
-          toast.success(`✓ ${msgs.join(" · ")}`, { duration: 5000 });
+          toast.success(msgs.join(" · "), { duration: 5000 });
         } else {
           toast.success("Texto regerado com IA");
         }

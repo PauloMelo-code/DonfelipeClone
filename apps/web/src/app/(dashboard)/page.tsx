@@ -75,9 +75,9 @@ export default function DashboardPage() {
           d.vipPending > lastVipCountRef.current &&
           lastVipCountRef.current > 0
         ) {
-          new Notification("🚗 Novo veículo VIP!", {
+          new Notification("Novo veículo VIP", {
             body: `${d.vipPending - lastVipCountRef.current} carro(s) premium aguardando revisão`,
-            icon: "/icon.svg",
+            icon: "/brand/icon-192.png",
             tag: "don-felipe-vip",
           });
         }

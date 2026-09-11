@@ -136,7 +136,7 @@ export function FotoDoCard({
       {isTop && onEditPhoto && temFoto && (
         <BotaoSobreFoto
           posicao="top-12 left-3"
-          cor="bg-brand-gold/90 text-white hover:bg-brand-gold"
+          cor="bg-brand-gold/90 text-black hover:bg-brand-gold"
           titulo="Editar foto (cortar/pintar)"
           aoClicar={() => onEditPhoto(vehicle)}
         >

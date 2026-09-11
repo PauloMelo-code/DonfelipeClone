@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, ArrowRight, ArrowUp } from "lucide-react";
 import { SwipeStack } from "@/components/vehicles/swipe-stack";
 import type { Vehicle } from "./tipos";
 
@@ -36,9 +37,9 @@ export function PilhaPendentes({
   return (
     <>
       <div className="hidden sm:flex items-center justify-center gap-3 text-[11px] text-muted-foreground/70 mt-2">
-        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">←</kbd> Rejeitar
-        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">→</kbd> Aprovar
-        <kbd className="rounded bg-card border border-border px-1.5 py-0.5">↑</kbd> Publicar direto
+        <kbd className="inline-flex items-center rounded bg-card border border-border px-1.5 py-1"><ArrowLeft className="h-3 w-3" /></kbd> Rejeitar
+        <kbd className="inline-flex items-center rounded bg-card border border-border px-1.5 py-1"><ArrowRight className="h-3 w-3" /></kbd> Aprovar
+        <kbd className="inline-flex items-center rounded bg-card border border-border px-1.5 py-1"><ArrowUp className="h-3 w-3" /></kbd> Publicar direto
         <button
           onClick={aoMostrarAtalhos}
           className="rounded bg-card border border-border px-1.5 py-0.5 hover:text-foreground transition-colors"

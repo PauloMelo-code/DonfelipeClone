@@ -356,7 +356,7 @@ export function DialogoPublicacao({
               size="sm"
               onClick={pub.publicar}
               disabled={ocupado || !pub.texto.trim() || semDestino}
-              className="flex-1 gap-1.5 gradient-gold text-white border-0"
+              className="flex-1 gap-1.5 gradient-gold text-black border-0"
             >
               {ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               {pub.modoReenvio ? "Confirmar e reenviar" : "Confirmar e publicar"}

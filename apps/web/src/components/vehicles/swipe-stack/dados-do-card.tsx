@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin } from "lucide-react";
+import { Flame, MapPin, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
@@ -30,12 +30,12 @@ function Selos({ vehicle }: Pick<CardProps, "vehicle">) {
             : score >= 5 ? "bg-warning/15 border-warning/40 text-warning"
               : "bg-destructive/10 border-destructive/30 text-destructive"
         )}>
-          {score >= 8 ? "🔥 " : ""}Score {score}/10
+          {score >= 8 && <Flame className="mr-1 inline h-3 w-3 align-[-2px]" />}Score {score}/10
         </span>
       )}
       {vehicle.isVip && (
         <span className="rounded-full border border-yellow-400/60 bg-yellow-400/15 px-2 py-0.5 text-xs font-bold text-yellow-400">
-          ⭐ VIP
+          <Star className="mr-1 inline h-3 w-3 align-[-2px] fill-current" />VIP
         </span>
       )}
       {vehicle.fuel === "HIBRIDO" && (
@@ -63,7 +63,7 @@ export function DadosDoCard({ vehicle, onUpdateField }: Props) {
 
       {origem && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80 -mt-1">
-          <span>{origem.icone}</span>
+          <origem.icone className="h-3 w-3 shrink-0" />
           <span className="font-medium text-muted-foreground">{origem.rotulo}:</span>
           <span className="truncate flex-1 text-foreground/70">{origem.nome}</span>
         </div>

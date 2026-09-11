@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
     // Clone para nao poluir cache de extracao da AI (mesmo objeto e reutilizado)
     const features = [...((vehicleData.features as string[]) || [])];
     if (plate) {
-      features.push("⚠️ PLACA VISÍVEL");
+      features.push("PLACA VISIVEL");
     }
     // Foto principal + extras vindas do buffer (album: vendedor mandou
     // varias fotos antes/junto da legenda). Limita a 12 pra nao explodir.

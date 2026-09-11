@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, Car, Users, Loader2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Car, Command, Loader2, Search, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -125,9 +125,9 @@ export function GlobalSearch() {
           )}
         </div>
         <div className="border-t border-white/[0.06] px-4 py-2 flex items-center gap-3 text-[10px] text-muted-foreground/60">
-          <span>↑↓ navegar</span>
+          <span className="inline-flex items-center gap-1"><ArrowUp className="h-3 w-3" /><ArrowDown className="h-3 w-3" />navegar</span>
           <span>Enter abrir</span>
-          <span className="ml-auto">⌘K abrir</span>
+          <span className="ml-auto inline-flex items-center gap-1"><Command className="h-3 w-3" />K abrir</span>
         </div>
       </DialogContent>
     </Dialog>

@@ -177,7 +177,7 @@ export default function CadastroDoSegundoFator() {
                     <Button
                       type="submit"
                       disabled={enviando || codigo.length < 6}
-                      className="h-12 w-full gradient-gold font-semibold text-white"
+                      className="h-12 w-full gradient-gold font-semibold text-black"
                     >
                       {enviando ? (
                         <span className="flex items-center gap-2">
@@ -280,7 +280,7 @@ function ListaDeResgate({
         type="button"
         disabled={!guardei}
         onClick={() => signOut({ callbackUrl: "/login" })}
-        className="h-12 w-full gradient-gold font-semibold text-white"
+        className="h-12 w-full gradient-gold font-semibold text-black"
       >
         Entrar de novo
       </Button>

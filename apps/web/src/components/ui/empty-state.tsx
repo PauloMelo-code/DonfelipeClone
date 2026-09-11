@@ -32,8 +32,8 @@ export function EmptyState({
 }: EmptyStateProps) {
   const ActionBtn = (actionLabel && (actionHref || onAction))
     ? actionHref
-      ? <Link href={actionHref} className="mt-4 inline-flex items-center gap-1.5 rounded-lg gradient-gold px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-[0_4px_20px_rgba(201, 151, 61,0.3)]">{actionLabel}</Link>
-      : <button onClick={onAction} className="mt-4 inline-flex items-center gap-1.5 rounded-lg gradient-gold px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-[0_4px_20px_rgba(201, 151, 61,0.3)]">{actionLabel}</button>
+      ? <Link href={actionHref} className="mt-4 inline-flex items-center gap-1.5 rounded-lg gradient-gold px-4 py-2 text-sm font-medium text-black transition-all hover:shadow-[0_4px_20px_rgba(201, 151, 61,0.3)]">{actionLabel}</Link>
+      : <button onClick={onAction} className="mt-4 inline-flex items-center gap-1.5 rounded-lg gradient-gold px-4 py-2 text-sm font-medium text-black transition-all hover:shadow-[0_4px_20px_rgba(201, 151, 61,0.3)]">{actionLabel}</button>
     : null;
 
   return (

@@ -74,7 +74,7 @@ export function DialogoLote({ aberto, quantidade, grupos, publicando, aoFechar, 
                 Cancelar
               </Button>
               <Button
-                className="flex-1 gradient-gold text-white border-0 gap-1.5"
+                className="flex-1 gradient-gold text-black border-0 gap-1.5"
                 onClick={aoConfirmar}
                 disabled={grupos.selecionados.length === 0}
               >

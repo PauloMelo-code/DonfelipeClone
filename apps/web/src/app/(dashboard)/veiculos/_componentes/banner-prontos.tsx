@@ -42,7 +42,7 @@ export function BannerProntos({ veiculos, publicando, aoPublicar }: Props) {
         <Button
           size="sm"
           onClick={() => aoPublicar()}
-          className="gap-1.5 gradient-gold text-white border-0 shrink-0"
+          className="gap-1.5 gradient-gold text-black border-0 shrink-0"
           disabled={publicando}
         >
           {publicando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

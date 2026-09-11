@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/providers/session-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -8,6 +8,15 @@ import "./globals.css";
 const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
+});
+
+// Serifado da marca: acompanha o logotipo nos titulos. Corpo e tabela seguem
+// em Inter, que le melhor em lista densa.
+const cormorant = Cormorant_Garamond({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
@@ -27,15 +36,12 @@ export const metadata: Metadata = {
     title: "Don Felipe",
   },
   icons: {
-    icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico" },
-    ],
+    icon: [{ url: "/favicon.ico", sizes: "any" }],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#C9973D",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -46,7 +52,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${inter.variable} ${cormorant.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <AuthProvider>
           <TooltipProvider>

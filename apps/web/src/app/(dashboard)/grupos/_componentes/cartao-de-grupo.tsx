@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, ChevronDown, Loader2, Pencil, Send, Trash2, X } from "lucide-react";
+import { createElement } from "react";
+import { Check, ChevronDown, Loader2, Pencil, Pin, Send, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -74,7 +75,7 @@ export function CartaoDeGrupo({ group, acoes }: { group: Group; acoes: AcoesDeGr
                 )}
                 title={`Tipo: ${tipo}${group.kindOverride ? " (manual)" : ""} — clique para mudar`}
               >
-                <span>{iconeDoTipo(tipo)}</span>
+                {createElement(iconeDoTipo(tipo), { className: "h-3 w-3" })}
                 <ChevronDown className="h-2.5 w-2.5 text-muted-foreground/60" />
                 {group.kindOverride && (
                   <span
@@ -85,7 +86,7 @@ export function CartaoDeGrupo({ group, acoes }: { group: Group; acoes: AcoesDeGr
               </button>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{group.name}</span>
               {group.nameLocked && (
-                <span title="Nome fixado manualmente" className="text-[9px] text-brand-gold shrink-0">📌</span>
+                <Pin className="h-2.5 w-2.5 text-brand-gold shrink-0" aria-label="Nome fixado manualmente" />
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); acoes.comecarRenome(group); }}
