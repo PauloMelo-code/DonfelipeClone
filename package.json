@@ -12,7 +12,8 @@
     "db:push": "pnpm --filter web exec drizzle-kit push",
     "db:studio": "pnpm --filter web exec drizzle-kit studio",
     "db:seed": "pnpm --filter web exec tsx scripts/seed.ts",
-    "audit": "pnpm audit --prod --audit-level high"
+    "audit": "pnpm audit --prod --audit-level high",
+    "db:provisionar": "pnpm --filter web exec node scripts/provisionar.mjs"
   },
   "packageManager": "pnpm@10.30.3",
   "dependencies": {
