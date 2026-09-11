@@ -10,7 +10,7 @@ Plataforma que monitora grupos de WhatsApp de repasse de veículos, extrai os da
 
 **Publica anúncio com preço em grupo real.** Erro de extração vira carro anunciado pelo valor da FIPE em vez do de venda; erro de anti-ban derruba o número da operação.
 
-Monorepo pnpm + Turborepo · Next.js 16 + React 19 + TypeScript · **Prisma + PostgreSQL** · NextAuth v4 (JWT) · UAZAPI (WhatsApp) · **OpenAI GPT-4o** (extração) + **Gemini 2.5 Flash** (foto e fallback) · shadcn/ui + Tremor + Framer Motion · tema dark preto/cinza/laranja.
+Monorepo pnpm + Turborepo · Next.js 16 + React 19 + TypeScript · **Drizzle + PostgreSQL** · NextAuth v4 (JWT) · UAZAPI (WhatsApp) · **OpenAI GPT-4o** (extração) + **Gemini 2.5 Flash** (foto e fallback) · shadcn/ui + Tremor + Framer Motion · tema dark preto + dourado (ver `docs/design-system.md`).
 
 ## Ordem de leitura
 

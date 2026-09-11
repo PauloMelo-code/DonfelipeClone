@@ -6,7 +6,7 @@ Sistema automatizado que monitora grupos de WhatsApp de repasse de veiculos, ext
 ## Stack
 - Monorepo pnpm + Turborepo
 - Next.js 16 + React 19 + TypeScript
-- Prisma ORM + **PostgreSQL** (dev e prod — o `schema.prisma` nao tem mais SQLite)
+- **Drizzle ORM + PostgreSQL** (dev e prod). O Prisma foi removido em set/2026
 - NextAuth v4 (JWT)
 - UAZAPI (WhatsApp API)
 - **OpenAI GPT-4o** (extracao) + **Gemini 2.5 Flash** (escolha de foto e fallback de qualidade)
@@ -14,7 +14,7 @@ Sistema automatizado que monitora grupos de WhatsApp de repasse de veiculos, ext
     escolhe a foto destaque (Gemini primeiro, GPT-4o-mini como fallback) · `lib/gemini.ts` e o
     cliente de fallback: sem `GEMINI_API_KEY` devolve `null` e o texto original e mantido
 - shadcn/ui + Magic UI + Tremor + Framer Motion
-- Tema dark com paleta preto/cinza/laranja
+- Tema dark: preto puro + dourado da marca. Tokens e regras em `docs/design-system.md`
 
 ## Comandos
 ```bash
