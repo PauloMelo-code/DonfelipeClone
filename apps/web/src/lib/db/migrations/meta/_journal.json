@@ -50,6 +50,13 @@
       "when": 1789063000000,
       "tag": "0006_senha_temporaria_expira",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789064000000,
+      "tag": "0007_default_de_updated_at",
+      "breakpoints": true
     }
   ]
 }
