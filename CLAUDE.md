@@ -30,7 +30,21 @@ pnpm build            # Build de producao
 ## Primeiro Acesso
 
 NUNCA escreva senha neste arquivo — ele e versionado. A senha do primeiro
-administrador vem de `SEED_ADMIN_PASSWORD` e o seed nao roda sozinho:
+administrador vem de `SEED_ADMIN_PASSWORD`.
+
+**Producao (base nova):** rode no console do container, uma vez:
+
+```bash
+SEED_ADMIN_PASSWORD='<senha forte, 15+ caracteres>' node apps/web/scripts/provisionar.mjs
+```
+
+Cria so o admin e as configuracoes padrao. Nao apaga nada e, se ja existe
+usuario, para sem tocar no banco. `ADMIN_EMAIL` troca o login padrao
+(`admin@donfelipe.com.br`).
+
+**Desenvolvimento:** `pnpm db:seed` monta uma operacao ficticia inteira, com
+grupos de WhatsApp que nao existem, e **apaga a base antes**. Por isso ele se
+recusa a rodar com `NODE_ENV=production`. Nunca use em producao.
 
 ```bash
 SEED_ADMIN_PASSWORD='<senha forte, 15+ caracteres>' pnpm db:seed

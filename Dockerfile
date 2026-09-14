@@ -54,8 +54,12 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 # Migracoes SQL + o runner que as aplica no start.
 COPY --from=builder /app/apps/web/src/lib/db/migrations ./apps/web/src/lib/db/migrations
 COPY --from=builder /app/apps/web/scripts/migrate.mjs ./apps/web/scripts/migrate.mjs
+# Cria o primeiro administrador numa base nova. Roda-se a mao, pelo console do
+# container -- nao entra no entrypoint. Sem esta linha o script nao existe na
+# imagem e o comando falha com "Cannot find module".
+COPY --from=builder /app/apps/web/scripts/provisionar.mjs ./apps/web/scripts/provisionar.mjs
 
-# O output standalone do Next nao inclui o que so o migrate usa.
+# O output standalone do Next nao inclui o que so o migrate e o provisionar usam.
 RUN npm install --no-save drizzle-orm@0.45.2 postgres@3.4.9 bcryptjs@3.0.3
 
 # Fix permissions for nextjs user
