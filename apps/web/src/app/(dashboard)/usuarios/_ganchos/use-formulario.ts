@@ -20,9 +20,10 @@ interface Campos {
   email: string;
   senha: string;
   papel: Papel;
+  motivo: string;
 }
 
-const VAZIO: Campos = { nome: "", email: "", senha: "", papel: "OPERATOR" };
+const VAZIO: Campos = { nome: "", email: "", senha: "", papel: "OPERATOR", motivo: "" };
 
 export function useFormulario(aoSalvar: () => void) {
   const [aberto, setAberto] = useState(false);
@@ -45,10 +46,18 @@ export function useFormulario(aoSalvar: () => void) {
   const abrirEdicao = useCallback((user: User) => {
     setEditando(user);
     // Senha em branco: o campo vazio significa "mantenha a atual".
-    setCampos({ nome: user.name, email: user.email, senha: "", papel: user.role as Papel });
+    setCampos({ nome: user.name, email: user.email, senha: "", papel: user.role as Papel, motivo: "" });
     setMostrarSenha(false);
     setAberto(true);
   }, []);
+
+  // A API cobra justificativa escrita de quem cria um admin ou muda o papel de
+  // alguem -- fica na trilha de auditoria. O formulario nao mandava o campo,
+  // entao as duas operacoes devolviam 400 e nao havia como ter um segundo
+  // administrador pela aplicacao.
+  const precisaMotivo = editando
+    ? campos.papel !== editando.role
+    : campos.papel === "ADMIN";
 
   const salvar = useCallback(async () => {
     if (!campos.nome.trim() || !campos.email.trim()) {
@@ -71,12 +80,19 @@ export function useFormulario(aoSalvar: () => void) {
               role: campos.papel,
               // So manda a senha se o operador digitou uma nova.
               ...(campos.senha.trim() ? { password: campos.senha } : {}),
+              ...(precisaMotivo ? { motivo: campos.motivo } : {}),
             },
           ]
         : [
             "/api/users",
             "POST",
-            { name: campos.nome, email: campos.email, password: campos.senha, role: campos.papel },
+            {
+              name: campos.nome,
+              email: campos.email,
+              password: campos.senha,
+              role: campos.papel,
+              ...(precisaMotivo ? { motivo: campos.motivo } : {}),
+            },
           ];
 
       const res = await fetch(rota as string, {
@@ -98,13 +114,14 @@ export function useFormulario(aoSalvar: () => void) {
     } finally {
       setSalvando(false);
     }
-  }, [campos, editando, aoSalvar]);
+  }, [campos, editando, precisaMotivo, aoSalvar]);
 
   return {
     aberto, setAberto,
     editando, campos, alterar,
     mostrarSenha, setMostrarSenha,
     salvando, abrirNovo, abrirEdicao, salvar,
+    precisaMotivo,
   };
 }
 

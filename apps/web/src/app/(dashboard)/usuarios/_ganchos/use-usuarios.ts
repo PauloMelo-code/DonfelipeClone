@@ -55,11 +55,19 @@ export function useUsuarios() {
 
   /** Liga e desliga o acesso. Ninguem e apagado: a auditoria aponta pra ele. */
   const alternarAtivo = useCallback(async (user: User) => {
+    // A API exige justificativa para mudar o acesso de alguem -- vai para a
+    // trilha de auditoria. Sem ela este botao devolvia 400 toda vez.
+    const motivo = window.prompt(
+      `Motivo para ${user.active ? "desativar" : "reativar"} o acesso de ${user.name} ` +
+        "(mínimo 8 caracteres, fica registrado na auditoria):"
+    );
+    if (motivo === null) return; // cancelou
+
     try {
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !user.active }),
+        body: JSON.stringify({ active: !user.active, motivo }),
       });
       if (res.ok) {
         toast.success(user.active ? "Usuário desativado" : "Usuário ativado");

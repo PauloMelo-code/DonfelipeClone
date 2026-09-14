@@ -89,6 +89,26 @@ export function DialogoUsuario({ form }: { form: Formulario }) {
             </div>
           </div>
 
+          {form.precisaMotivo && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Motivo</label>
+              <Input
+                value={form.campos.motivo}
+                onChange={(e) => form.alterar("motivo", e.target.value)}
+                placeholder={
+                  editando
+                    ? "Por que mudar o papel desta conta?"
+                    : "Por que esta conta precisa ser administradora?"
+                }
+                maxLength={255}
+                className="bg-card border-border"
+              />
+              <p className="text-xs text-muted-foreground">
+                Fica registrado na trilha de auditoria. Mínimo de 8 caracteres.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <Button variant="outline" className="flex-1 border-border" onClick={() => form.setAberto(false)}>
               Cancelar
