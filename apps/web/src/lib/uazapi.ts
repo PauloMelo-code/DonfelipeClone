@@ -276,8 +276,11 @@ class UazapiClient {
         return { id, name, kind, isCommunity, isAnnounce };
       });
     } catch (err) {
-      console.error(`[UAZAPI:${this.label}] listChats failed:`, err);
-      return [];
+      // Relanca: lista vazia e "falhou" nao podem parecer a mesma coisa. A
+      // limpeza de orfaos apagaria todo contato e lista achando que sumiram.
+      // Quem tolera a falha (sync, resolve-names) ja tem o proprio catch.
+      console.error(`[UAZAPI:${this.label}] listChats failed:`, axios.isAxiosError(err) ? err.message : err);
+      throw err;
     }
   }
 

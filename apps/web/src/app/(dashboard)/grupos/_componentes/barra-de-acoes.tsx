@@ -7,8 +7,10 @@ import type { Manutencao } from "../_ganchos/use-manutencao";
 // ---------------------------------------------------------------------------
 // As acoes que valem pra lista inteira.
 //
-// "Limpar orfaos" tem dois estagios de proposito: o clique simples so desativa,
-// e so o clique duplo (com confirmacao) apaga de vez.
+// "Limpar orfaos" tem dois estagios de proposito: o clique so desativa, e quem
+// apaga de vez e o botao "Apagar de vez" da notificacao, com confirmacao.
+// Era um clique duplo, que nunca funcionou: o primeiro clique ja desabilita o
+// botao e o segundo cai num botao morto.
 // ---------------------------------------------------------------------------
 
 export function BarraDeAcoes({ manutencao }: { manutencao: Manutencao }) {
@@ -45,10 +47,9 @@ export function BarraDeAcoes({ manutencao }: { manutencao: Manutencao }) {
       <Button
         variant="outline"
         onClick={() => m.limparOrfaos(false)}
-        onDoubleClick={() => m.limparOrfaos(true)}
         disabled={m.limpandoOrfaos}
         className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10"
-        title="Desativa grupos onde nenhuma instância UAZAPI participa mais. Click duplo (com confirmação) pra apagar."
+        title="Desativa grupos onde nenhuma instância UAZAPI participa mais. Para apagar de vez, use o botão da notificação."
       >
         {m.limpandoOrfaos ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
         Limpar órfãos

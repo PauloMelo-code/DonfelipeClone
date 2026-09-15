@@ -143,7 +143,9 @@ export function useManutencao(buscar: () => void) {
    * vez junto com o historico de publicacoes. Assim da pra conferir a lista
    * antes de perder dado.
    */
-  const limparOrfaos = useCallback(async (apagar: boolean) => {
+  // Funcao NOMEADA: o botao da notificacao chama `limpar(true)` sem depender
+  // da propria constante, que o useCallback nao pode listar.
+  const limparOrfaos = useCallback(async function limpar(apagar: boolean): Promise<void> {
     if (apagar && !confirm("Apagar permanentemente os grupos órfãos (onde nenhuma instância UAZAPI participa)?\n\nIsso também limpa o histórico de publicações desses grupos.")) {
       return;
     }
@@ -155,13 +157,15 @@ export function useManutencao(buscar: () => void) {
         toast.error(data.error || "Erro ao limpar órfãos");
       } else if (data.orphans === 0) {
         toast.success("Nenhum grupo órfão encontrado");
+      } else if (apagar) {
+        toast.success(`${data.affected} grupos órfãos removidos`);
+        buscar();
       } else {
-        toast.success(
-          apagar
-            ? `${data.affected} grupos órfãos removidos do banco`
-            : `${data.affected} grupos órfãos desativados — clique novamente em modo apagar pra remover de vez`,
-          { duration: 10000 }
-        );
+        toast.success(`${data.affected} grupos órfãos desativados`, {
+          description: "Confira a lista. Para remover de vez, clique em Apagar de vez.",
+          duration: 20000,
+          action: { label: "Apagar de vez", onClick: () => void limpar(true) },
+        });
         buscar();
       }
     } catch (e) {

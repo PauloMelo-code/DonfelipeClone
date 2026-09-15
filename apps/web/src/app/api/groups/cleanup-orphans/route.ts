@@ -31,19 +31,36 @@ export async function POST(request: Request) {
   try {
     // Pega todos os grupos vistos pelas instancias
     const seenJids = new Set<string>();
-    const collect = async (list: () => Promise<Array<{ id: string }>>) => {
+    const falhas: string[] = [];
+    const collect = async (rotulo: string, list: () => Promise<Array<{ id: string }>>) => {
       try {
         const items = await list();
         for (const it of items) if (it.id) seenJids.add(it.id);
       } catch (e) {
-        if (!axios.isAxiosError(e)) console.error(e);
+        falhas.push(rotulo);
+        console.error(`[CleanupOrphans] ${rotulo} falhou:`, axios.isAxiosError(e) ? e.message : e);
       }
     };
-    await collect(() => uazapi.listGroups(true));
-    await collect(async () => (await uazapi.listChats()).map((c) => ({ id: c.id })));
+    await collect("grupos da captura", () => uazapi.listGroups(true));
+    await collect("conversas da captura", async () => (await uazapi.listChats()).map((c) => ({ id: c.id })));
     if (uazapiSend.isConfigured) {
-      await collect(() => uazapiSend.listGroups(true));
-      await collect(async () => (await uazapiSend.listChats()).map((c) => ({ id: c.id })));
+      await collect("grupos do envio", () => uazapiSend.listGroups(true));
+      await collect("conversas do envio", async () => (await uazapiSend.listChats()).map((c) => ({ id: c.id })));
+    }
+
+    // FAIL-CLOSED. Orfao e "nenhuma instancia viu", entao uma listagem que
+    // falhou faria TODO grupo dela parecer orfao -- e o modo apagar levaria a
+    // base inteira. Com a visao incompleta, nada e marcado.
+    if (falhas.length > 0 || seenJids.size === 0) {
+      return NextResponse.json(
+        {
+          error:
+            falhas.length > 0
+              ? `A UAZAPI não respondeu (${falhas.join(", ")}). Nada foi alterado.`
+              : "Nenhuma instância devolveu grupos. Nada foi alterado.",
+        },
+        { status: 502 }
+      );
     }
 
     const dbGroups = await db
