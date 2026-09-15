@@ -32,5 +32,23 @@ export const gruposWhatsapp = pgTable(
   ]
 );
 
+/**
+ * O que um grupo EXCLUIDO recebe ao ser cadastrado de novo.
+ *
+ * `group_id` e unico na tabela inteira, excluidos inclusive -- e precisa ser,
+ * porque vehicles e post_history apontam para ele. Inserir de novo um JID
+ * apagado estourava a trava: a sincronizacao morria no primeiro grupo e o
+ * webhook perdia os carros dele. Quem insere usa `onConflictDoUpdate` com isto,
+ * e o grupo volta como novo, sem a configuracao de antes.
+ */
+export const GRUPO_REVIVIDO = {
+  isDeleted: false,
+  deletedAt: null,
+  nameLocked: false,
+  region: null,
+  filters: null,
+  kindOverride: null,
+} as const;
+
 export type GrupoWhatsapp = typeof gruposWhatsapp.$inferSelect;
 export type NovoGrupoWhatsapp = typeof gruposWhatsapp.$inferInsert;

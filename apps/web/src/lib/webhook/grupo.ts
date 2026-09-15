@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   db,
   gruposWhatsapp,
+  GRUPO_REVIVIDO,
   carimboDeEdicao,
   vivosE,
   type GrupoWhatsapp,
@@ -57,17 +58,23 @@ export async function resolverGrupo(e: EntradaGrupo): Promise<GrupoWhatsapp | un
           : isCommunity
             ? "Comunidade: "
             : "";
+    const novo = {
+      groupId: groupJid,
+      name: prefix + chatName,
+      role: "SOURCE",
+      active: true,
+      isCommunity,
+      isAnnounce,
+      isContact: !!isContact,
+      ownerPhone: chat?.owner || null,
+    };
     [group] = await db
       .insert(gruposWhatsapp)
-      .values({
-        groupId: groupJid,
-        name: prefix + chatName,
-        role: "SOURCE",
-        active: true,
-        isCommunity,
-        isAnnounce,
-        isContact: !!isContact,
-        ownerPhone: chat?.owner || null,
+      .values(novo)
+      // Grupo excluido que volta a mandar mensagem revive, ver GRUPO_REVIVIDO.
+      .onConflictDoUpdate({
+        target: gruposWhatsapp.groupId,
+        set: { ...GRUPO_REVIVIDO, ...novo, ...carimboDeEdicao(null) },
       })
       .returning();
     const tipo = isContact

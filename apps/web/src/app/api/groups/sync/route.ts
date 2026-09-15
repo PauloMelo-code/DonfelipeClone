@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
-import { db, gruposWhatsapp, carimboDeEdicao, vivosE } from "@/lib/db";
+import { db, gruposWhatsapp, GRUPO_REVIVIDO, carimboDeEdicao, vivosE } from "@/lib/db";
 import { uazapi, uazapiSend } from "@/lib/uazapi";
 import { requireAuth } from "@/lib/auth";
 import { invalidateGroupsCache } from "../route";
@@ -275,7 +275,7 @@ export async function POST(request: Request) {
           .where(vivosE(gruposWhatsapp, eq(gruposWhatsapp.groupId, groupId)));
         updatedCount++;
       } else {
-        await db.insert(gruposWhatsapp).values({
+        const novo = {
           groupId,
           name,
           role: group.defaultRole, // SOURCE se veio da captura, TARGET se veio do envio
@@ -284,8 +284,15 @@ export async function POST(request: Request) {
           isAnnounce: isNewsletter,
           isCommunity,
           isContact,
-          modifiedBy: auth.user.id,
-        });
+        };
+        await db
+          .insert(gruposWhatsapp)
+          .values({ ...novo, modifiedBy: auth.user.id })
+          // Grupo excluido que reaparece na instancia revive, ver GRUPO_REVIVIDO.
+          .onConflictDoUpdate({
+            target: gruposWhatsapp.groupId,
+            set: { ...GRUPO_REVIVIDO, ...novo, ...carimboDeEdicao(auth.user.id) },
+          });
         createdCount++;
       }
 

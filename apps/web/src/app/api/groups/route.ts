@@ -13,7 +13,15 @@ import {
   getTableColumns,
   type SQL,
 } from "drizzle-orm";
-import { db, gruposWhatsapp, veiculos, historicoPublicacao, vivos } from "@/lib/db";
+import {
+  db,
+  gruposWhatsapp,
+  GRUPO_REVIVIDO,
+  carimboDeEdicao,
+  veiculos,
+  historicoPublicacao,
+  vivos,
+} from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { comoTermoLike } from "@/lib/db/like";
 import { validateBody } from "@/lib/validate";
@@ -217,7 +225,8 @@ export async function POST(request: NextRequest) {
     const [existing] = await db
       .select({ id: gruposWhatsapp.id })
       .from(gruposWhatsapp)
-      .where(eq(gruposWhatsapp.groupId, groupId))
+      // So grupo VIVO bloqueia: o excluido e cadastrado de novo logo abaixo.
+      .where(and(vivos(gruposWhatsapp), eq(gruposWhatsapp.groupId, groupId)))
       .limit(1);
 
     if (existing) {
@@ -227,17 +236,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const novo = {
+      groupId,
+      name,
+      role,
+      active: active ?? true,
+      filters: filters || null,
+      photoUrl,
+      region: region || null,
+    };
     const [group] = await db
       .insert(gruposWhatsapp)
-      .values({
-        groupId,
-        name,
-        role,
-        active: active ?? true,
-        filters: filters || null,
-        photoUrl,
-        region: region || null,
-        modifiedBy: auth.user.id,
+      .values({ ...novo, modifiedBy: auth.user.id })
+      // Revive o grupo excluido com o mesmo JID, ver GRUPO_REVIVIDO.
+      .onConflictDoUpdate({
+        target: gruposWhatsapp.groupId,
+        set: { ...GRUPO_REVIVIDO, ...novo, ...carimboDeEdicao(auth.user.id) },
       })
       .returning();
 
