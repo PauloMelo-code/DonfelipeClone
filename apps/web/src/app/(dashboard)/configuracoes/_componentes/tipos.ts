@@ -48,9 +48,11 @@ export const ESTADO_DA_CONEXAO: Record<WaState, { label: string; color: string; 
   connecting:     { label: "Conectando...",   color: "text-warning border-warning/20 bg-warning/10",             icon: Loader2 },
   close:          { label: "Desconectado",    color: "text-destructive border-destructive/20 bg-destructive/10", icon: WifiOff },
   error:          { label: "Erro",            color: "text-destructive border-destructive/20 bg-destructive/10", icon: WifiOff },
-  unknown:        { label: "Verificando...",  color: "text-muted-foreground border-border bg-card",              icon: Loader2 },
+  // So aparece DEPOIS da consulta (durante ela o cartao mostra o spinner), entao
+  // nao gira: "Verificando..." aqui parecia travado.
+  unknown:        { label: "Sem status",      color: "text-muted-foreground border-border bg-card",              icon: WifiOff },
   not_configured: { label: "Não configurado", color: "text-muted-foreground border-border bg-card",              icon: WifiOff },
 };
 
 /** Os estados em que o icone gira. */
-export const ESTADOS_EM_MOVIMENTO: WaState[] = ["connecting", "unknown"];
+export const ESTADOS_EM_MOVIMENTO: WaState[] = ["connecting"];

@@ -430,7 +430,11 @@ class UazapiClient {
     const { data } = await this.client.get("/instance/status");
     const instanceStatus = data?.instance?.status;
     const isConnected = data?.status?.connected || data?.status?.loggedIn;
-    const state = isConnected ? "open" : instanceStatus === "connected" ? "open" : instanceStatus ?? data?.state ?? "unknown";
+    // A UAZAPI fala connected/connecting/disconnected; a tela, open/connecting/close.
+    // Sem traduzir, "disconnected" caia no rotulo "Verificando..." e parecia travado.
+    const traduzido =
+      instanceStatus === "connected" ? "open" : instanceStatus === "disconnected" ? "close" : instanceStatus;
+    const state = isConnected ? "open" : traduzido ?? data?.state ?? "unknown";
     const phone = data?.instance?.owner ?? data?.phone ?? data?.number ?? undefined;
     return { state, phone };
   }
