@@ -135,12 +135,20 @@ async function extractWithGPT(text: string): Promise<VehicleData | null> {
  * Hoje cobre: KM suspeito (< 1000) quando texto tem CV/HP -> tenta regex.
  */
 function validateAndFix(parsed: VehicleData, text: string): VehicleData {
-  if (parsed.km != null && parsed.km < 1000 && /\b(cv|hp|cavalos)\b/i.test(text)) {
+  // "450HP" colado no numero tambem e potencia.
+  if (parsed.km != null && parsed.km < 1000 && /\d\s*(cv|hp)\b|\b(cv|hp|cavalos)\b/i.test(text)) {
     const regexKm = extractKmFromText(text);
     if (regexKm !== null && regexKm >= 1000) {
       console.warn(`[ai] GPT retornou km=${parsed.km} suspeito (texto tem CV/HP); usando regex=${regexKm}`);
       parsed.km = regexKm;
     }
+  }
+  // "97km" em carro usado e 97 mil: ninguem repassa uma Hilux 2022 com 97 km.
+  // Carro do ano corrente fica como veio -- ali km baixo pode ser real.
+  const anoAtual = new Date().getFullYear();
+  if (parsed.km != null && parsed.km > 0 && parsed.km < 1000 && parsed.year && parsed.year < anoAtual) {
+    console.warn(`[ai] km=${parsed.km} num carro de ${parsed.year}: lendo como ${parsed.km * 1000}`);
+    parsed.km *= 1000;
   }
   return parsed;
 }
@@ -150,13 +158,56 @@ function validateAndFix(parsed: VehicleData, text: string): VehicleData {
  * modelos errados de carros ja capturados (queremos rodar o extractor
  * com a regra/prompt NOVOS, nao retornar resultado antigo do cache).
  */
+// ---------------------------------------------------------------------------
+// Cambio pelo modelo
+//
+// Muito anuncio nao diz o cambio ("A45 AMG 2.0T 4MATIC"), e o titulo padrao
+// termina nele. Quando o texto nao diz, pergunta se aquele modelo e versao SO
+// existem com um cambio no Brasil. Se existir mais de um, fica sem.
+// ---------------------------------------------------------------------------
+
+const CAMBIO_PROMPT = `Voce conhece o mercado brasileiro de carros. Recebe marca, modelo e versao de um anuncio.
+Responda com UMA palavra, sem pontuacao:
+- AUTOMATICO, MANUAL ou CVT, somente se TODAS as unidades desse modelo e versao vendidas no Brasil tiverem esse cambio (ex.: eletricos, AMG, Porsche, Compass, Corolla Cross -> AUTOMATICO);
+- DESCONHECIDO, se o mesmo modelo e versao existir com cambios diferentes ou se voce nao tiver certeza.`;
+
+const _cacheCambio = new Map<string, string | null>();
+
+async function inferirCambio(modelo: string, marca?: string): Promise<string | undefined> {
+  if (!process.env.OPENAI_API_KEY || !modelo) return undefined;
+  const chave = `${marca ?? ""} ${modelo}`.trim().toUpperCase();
+  if (_cacheCambio.has(chave)) return _cacheCambio.get(chave) ?? undefined;
+  try {
+    const completion = await getOpenAI().chat.completions.create({
+      model: "gpt-4.1-mini", temperature: 0,
+      messages: [
+        { role: "system", content: CAMBIO_PROMPT },
+        { role: "user", content: chave },
+      ],
+    });
+    const resposta = (completion.choices[0]?.message?.content ?? "").trim().toUpperCase();
+    const cambio = ["AUTOMATICO", "MANUAL", "CVT"].includes(resposta) ? resposta : null;
+    if (_cacheCambio.size >= CACHE_MAX) _cacheCambio.clear();
+    _cacheCambio.set(chave, cambio);
+    return cambio ?? undefined;
+  } catch (erro) {
+    console.warn("[ai] Inferencia de cambio falhou:", erro instanceof Error ? erro.message : erro);
+    return undefined;
+  }
+}
+
+async function completarCambio(v: VehicleData | null): Promise<VehicleData | null> {
+  if (v && !v.transmission) v.transmission = await inferirCambio(v.model, v.brand);
+  return v;
+}
+
 export async function extractVehicleFromTextNoCache(text: string): Promise<VehicleData | null> {
   const regexResult = extractWithRegex(text);
-  if (regexResult) return validateAndFix(regexResult, text);
+  if (regexResult) return completarCambio(validateAndFix(regexResult, text));
   const gptResult = await extractWithGPT(text);
   if (gptResult) {
     gptResult.rawDescription = text;
-    return validateAndFix(gptResult, text);
+    return completarCambio(validateAndFix(gptResult, text));
   }
   return gptResult;
 }
@@ -171,14 +222,14 @@ export async function extractVehicleFromText(
   const regexResult = extractWithRegex(text);
   if (regexResult) {
     console.log("[ai] Regex extraction succeeded for:", regexResult.model);
-    const validated = validateAndFix(regexResult, text);
+    const validated = await completarCambio(validateAndFix(regexResult, text));
     setCache(text, validated);
     return validated;
   }
 
   // 2. Fallback to GPT if regex failed and AI is enabled
   console.log("[ai] Regex failed, trying GPT fallback...");
-  const gptResult = await extractWithGPT(text);
+  const gptResult = await completarCambio(await extractWithGPT(text));
   if (gptResult) {
     gptResult.rawDescription = text;
     setCache(text, gptResult);

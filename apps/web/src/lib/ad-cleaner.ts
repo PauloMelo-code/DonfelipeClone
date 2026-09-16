@@ -119,11 +119,19 @@ EXEMPLO 3 (Sportage 2021):
    - Emojis e simbolos decorativos
    - Linhas vazias excessivas
 
-5. PLACA: so incluir se realmente houver placa valida (ABC1D23 ou
+5. LINGUAGEM: reescreva girias, abreviacoes e erros em portugues claro e
+   profissional, SEM inventar informacao. Frase que nao diz nada sobre o
+   carro ("chama", "bora", "carro bom demais") sai.
+   ERRADO: "Filé" / "rev na css" / "pneus 0" / "ipva 26 pg" / "sem retoq"
+   CERTO:  "Muito conservado" / "Revisões na concessionária" /
+           "Pneus novos" / "IPVA 2026 pago" / "Sem retoques"
+   "Manual e chave cópia" e "Manual do proprietário" sao itens e ficam.
+
+6. PLACA: so incluir se realmente houver placa valida (ABC1D23 ou
    ABC-1234). NAO escrever "Placa: i" ou "Placa a confirmar" se nao
    tiver placa real -- omita a linha.
 
-6. SAIDA:
+7. SAIDA:
    - Maximo 7 linhas
    - SEM linhas em branco no meio (linhas devem ser CONSECUTIVAS, sem
      espacos entre elas -- o template ja cuida do espacamento global)

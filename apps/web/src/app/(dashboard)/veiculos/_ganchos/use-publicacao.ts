@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { anuncioParaExibir } from "@/lib/vehicle-formatter";
 import { parseArray, textoDoAnuncio, type Vehicle, type WhatsAppGroup } from "../_componentes/tipos";
 
 // ---------------------------------------------------------------------------
@@ -104,8 +105,8 @@ export function usePublicacao({
     } catch { /* mantem o padrao 10 */ }
     setMargem(m);
 
-    const salvo = v.formattedAd?.trim();
-    setTexto(salvo && salvo.length > 0 ? salvo : textoDoAnuncio(v, m));
+    // O salvo vale, com o titulo no padrao atual se ninguem editou.
+    setTexto(anuncioParaExibir(v) ?? textoDoAnuncio(v, m));
   }, [carregarGrupos, setGruposSelecionados]);
 
   const abrirParaReenviar = useCallback(async (v: Vehicle) => {

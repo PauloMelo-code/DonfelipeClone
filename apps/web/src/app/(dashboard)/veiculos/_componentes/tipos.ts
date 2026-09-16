@@ -5,7 +5,7 @@
 // compartilham. Nada aqui tem estado nem toca a rede -- e o que pode ser
 // importado de qualquer lado sem criar ciclo.
 // ---------------------------------------------------------------------------
-import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { anuncioParaExibir, formatVehicleAd } from "@/lib/vehicle-formatter";
 
 export interface WhatsAppGroup {
   id: string;
@@ -33,6 +33,8 @@ export interface Vehicle {
   photos: string | string[];
   status: string;
   formattedAd: string | null;
+  /** Quando o operador editou o texto do anuncio. Nulo = texto gerado. */
+  adEditedAt?: string | null;
   rejectionReason: string | null;
   rawDescription: string | null;
   internalNotes?: string | null;
@@ -103,7 +105,7 @@ export function textoDoAnuncio(v: Vehicle, marginOverride?: number) {
   );
 }
 
-/** O texto salvo pelo operador tem prioridade sobre o gerado. */
+/** O texto salvo tem prioridade sobre o gerado -- com o titulo no padrao atual. */
 export function textoDePreview(v: Vehicle) {
-  return v.formattedAd || textoDoAnuncio(v);
+  return anuncioParaExibir(v) ?? textoDoAnuncio(v);
 }

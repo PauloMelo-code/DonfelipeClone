@@ -132,7 +132,11 @@ export async function PUT(
     if (validated.features !== undefined) data.features = JSON.stringify(validated.features);
     if (validated.photos !== undefined) data.photos = JSON.stringify(validated.photos);
     if (validated.rawDescription !== undefined) data.rawDescription = validated.rawDescription;
-    if (validated.formattedAd !== undefined) data.formattedAd = validated.formattedAd;
+    if (validated.formattedAd !== undefined) {
+      data.formattedAd = validated.formattedAd;
+      // Texto escrito pelo operador: aprovar e publicar nao regeram por cima.
+      data.adEditedAt = validated.formattedAd ? new Date() : null;
+    }
     if (validated.status !== undefined) data.status = validated.status;
 
     const [vehicle] = await db

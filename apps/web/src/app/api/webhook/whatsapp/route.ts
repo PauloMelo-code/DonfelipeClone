@@ -25,6 +25,7 @@ import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning"
 import { calculateQualityScore } from "@/lib/quality-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
+import { normalizarEstado } from "@/lib/estados";
 
 const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 
@@ -249,7 +250,7 @@ export async function POST(request: NextRequest) {
     const color = (vehicleData.color as string) || null;
     const plate = (vehicleData.plate as string) || null;
     const location = (vehicleData.location as string) || null;
-    const state = (vehicleData.state as string) || null;
+    const state = normalizarEstado(vehicleData.state as string | null);
     // Clone para nao poluir cache de extracao da AI (mesmo objeto e reutilizado)
     const features = [...((vehicleData.features as string[]) || [])];
     if (plate) {

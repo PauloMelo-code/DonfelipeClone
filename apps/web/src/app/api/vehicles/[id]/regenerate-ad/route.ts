@@ -160,6 +160,8 @@ export async function POST(
         .update(veiculos)
         .set({
           formattedAd: newAd,
+          // Texto gerado de novo: deixa de ser edicao do operador.
+          adEditedAt: null,
           sellingPrice,
           ...(modelChanged ? { model, brand } : {}),
           ...(dataChanged ? { km, year, yearModel, fipePrice, price } : {}),

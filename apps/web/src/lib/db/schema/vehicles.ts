@@ -86,6 +86,8 @@ export const veiculos = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true, precision: 3 }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true, precision: 3 }),
     preparedAt: timestamp("prepared_at", { withTimezone: true, precision: 3 }),
+    /** O operador editou o texto do anuncio: aprovar e publicar nao regeram. */
+    adEditedAt: timestamp("ad_edited_at", { withTimezone: true, precision: 3 }),
     soldAt: timestamp("sold_at", { withTimezone: true, precision: 3 }),
 
     ...colunasAuditoria,

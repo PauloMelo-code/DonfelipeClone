@@ -1,5 +1,6 @@
 import { applyFilters } from "@/lib/vehicle-parser";
 import { lerConfiguracao, lerConfiguracaoNumero } from "@/lib/settings";
+import { estadoAtendido, normalizarEstado } from "@/lib/estados";
 
 // ---------------------------------------------------------------------------
 // Filtros de captura: o que entra na fila de revisao e o que e descartado.
@@ -90,29 +91,33 @@ export async function aplicarFiltros(e: EntradaFiltros): Promise<ResultadoFiltro
     }
   }
 
-  // ── Grupo "Nacional" ─────────────────────────────────────────────────
-  // Recebe carro do Brasil inteiro e a maioria dos anuncios de fora da regiao
-  // nao menciona o estado. Regra do cliente: "se nao colocar nada, esta fora".
-  if ((grupo.region || "").toUpperCase() === "NACIONAL") {
-    const servedSetting = await lerConfiguracao("served_states");
-    const servedStates = (servedSetting || "RS,SC,PR,SP")
-      .split(",")
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
+  // ── Estados atendidos ────────────────────────────────────────────────
+  // Vale para TODA origem. Antes so o grupo "Nacional" conferia, e carro do
+  // ES ou do Nordeste postado num grupo marcado SC (ou sem marca) passava.
+  // Estado nao identificado so e recusado no grupo "Nacional" -- regra do
+  // cliente: "se nao colocar nada, esta fora". No grupo regional, fica com a
+  // regiao do grupo.
+  const nacional = (grupo.region || "").toUpperCase() === "NACIONAL";
+  const servedSetting = await lerConfiguracao("served_states");
+  const servedStates = (servedSetting || "RS,SC,PR,SP")
+    .split(",")
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean);
+  const detectedState = normalizarEstado(state);
 
-    const detectedState = state ? state.toUpperCase() : null;
-    if (!detectedState || !servedStates.includes(detectedState)) {
-      console.log(
-        `[Webhook] FILTERED national group: estado=${detectedState ?? "NAO_DETECTADO"} (atendidos: ${servedStates.join(",")})`
-      );
-      return recusa({
-        reason: detectedState
+  if (detectedState ? !estadoAtendido(detectedState, servedStates) : nacional) {
+    console.log(
+      `[Webhook] FILTERED estado=${detectedState ?? "NAO_DETECTADO"} grupo=${nacional ? "nacional" : "regional"} (atendidos: ${servedStates.join(",")})`
+    );
+    return recusa({
+      reason: !detectedState
+        ? "national_group_no_state_mentioned"
+        : nacional
           ? "national_group_state_not_served"
-          : "national_group_no_state_mentioned",
-        state: detectedState ?? "nao_detectado",
-        servedStates,
-      });
-    }
+          : "state_not_served",
+      state: detectedState ?? "nao_detectado",
+      servedStates,
+    });
   }
 
   // ── Filtros proprios do grupo ────────────────────────────────────────

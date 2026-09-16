@@ -1,4 +1,5 @@
 import type { VehicleData } from "./tipos";
+import { normalizarEstado } from "../estados";
 
 // ---------------------------------------------------------------------------
 // O contrato com o modelo de linguagem.
@@ -26,12 +27,20 @@ Extraia os seguintes campos do texto ou imagem fornecida:
 - km: quilometragem (numero inteiro)
 - price: PRECO DE VENDA / OFERTA em reais (numero decimal) -- ver regras criticas abaixo
 - fipePrice: preco da TABELA FIPE em reais se mencionado (numero decimal ou null)
-- transmission: tipo de cambio - "AUTOMATICO", "MANUAL" ou "CVT"
+- transmission: tipo de cambio - "AUTOMATICO", "MANUAL" ou "CVT".
+  "Manual do proprietario", "manual e chave reserva", "sem manual" sao ITENS
+  de documentacao, NAO cambio. So use MANUAL se o anuncio disser que o
+  cambio e manual. "Ar automatico" e "farol automatico" tambem nao sao cambio.
+  Carro eletrico e sempre AUTOMATICO.
 - fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO"
 - color: cor do veiculo
 - plate: placa se mencionada (formato ABC1D23 ou ABC-1234)
 - location: cidade/regiao mencionada
-- state: sigla do estado brasileiro
+- state: sigla (UF) do estado SOMENTE se o anuncio disser o estado ou a cidade
+  (ex.: "Vitória - ES" -> "ES", "Curitiba" -> "PR"). Se disser so a regiao
+  ("Nordeste", "Norte", "Sudeste", "Centro-Oeste", "Sul"), use o nome da
+  regiao em maiusculas (ex.: "NORDESTE"). NUNCA deduza pelo DDD do telefone,
+  pelo nome da loja ou do grupo. Sem informacao de local, null.
 - features: lista de opcionais/caracteristicas como array de strings
 - sellerPhone: telefone do vendedor se mencionado
 
@@ -162,7 +171,7 @@ export function parseGptResponse(raw: string): VehicleData | null {
       km: parsed.km, price: parsed.price, fipePrice: parsed.fipePrice ?? undefined,
       transmission: parsed.transmission ?? undefined, fuel: parsed.fuel ?? undefined,
       color: parsed.color ?? undefined, plate: parsed.plate ?? undefined,
-      location: parsed.location ?? undefined, state: parsed.state ?? undefined,
+      location: parsed.location ?? undefined, state: normalizarEstado(parsed.state) ?? undefined,
       features: parsed.features ?? [], photos: [],
       rawDescription: undefined, sellerPhone: parsed.sellerPhone ?? undefined,
     };

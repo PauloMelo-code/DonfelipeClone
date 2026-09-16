@@ -23,6 +23,9 @@ export interface SwipeVehicle {
   location?: string | null;
   state?: string | null;
   rawDescription?: string | null;
+  /** O anuncio como vai para o grupo, e quando o operador o editou. */
+  formattedAd?: string | null;
+  adEditedAt?: string | null;
   internalNotes?: string | null;
   capturedAt?: string;
   qualityScore?: number | null;

@@ -1,6 +1,6 @@
 import { lerConfiguracaoNumero } from "@/lib/settings";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
-import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { formatVehicleAd, trocarPrecoDeVenda } from "@/lib/vehicle-formatter";
 import type { Veiculo } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -133,12 +133,21 @@ export async function prepararAprovacao(
     features = [];
   }
 
+  // Texto que o operador escreveu no card vale como esta: regerar jogaria a
+  // edicao fora. So a linha "Por:" acompanha o preco calculado agora.
+  const editadoNoCard = vehicle.adEditedAt && vehicle.formattedAd?.trim()
+    ? trocarPrecoDeVenda(vehicle.formattedAd, opcoes?.precoEditado ?? preco.sellingPrice)
+    : null;
+
   // Limpa o texto do vendedor antes de formatar: tira cabecalho de loja,
   // contato e frase promocional que regex nao pega. Tem cache de 24 h.
-  const limpo = vehicle.rawDescription ? await cleanAdDescription(vehicle.rawDescription) : null;
+  const limpo = opcoes?.anuncioEditado || editadoNoCard || !vehicle.rawDescription
+    ? null
+    : await cleanAdDescription(vehicle.rawDescription);
 
   const formattedAd =
     opcoes?.anuncioEditado ??
+    editadoNoCard ??
     formatVehicleAd(
       {
         model: vehicle.model,

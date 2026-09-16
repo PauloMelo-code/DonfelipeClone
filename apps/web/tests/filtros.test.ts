@@ -55,6 +55,26 @@ async function main() {
     assert.equal(nacionalSemEstado.resposta.reason, "national_group_no_state_mentioned");
   }
 
+  // Estados atendidos valem para TODA origem, nao so para o grupo Nacional.
+  const esNoGrupoRegional = await aplicarFiltros({ ...base, state: "ES" });
+  assert.equal(esNoGrupoRegional.passou, false, "carro do ES em grupo RS deve ser recusado");
+  if (!esNoGrupoRegional.passou) assert.equal(esNoGrupoRegional.resposta.reason, "state_not_served");
+
+  const nordeste = await aplicarFiltros({ ...base, state: "NORDESTE" });
+  assert.equal(nordeste.passou, false, "carro do Nordeste deve ser recusado");
+
+  const semEstadoNoRegional = await aplicarFiltros({ ...base, state: null });
+  assert.equal(semEstadoNoRegional.passou, true, "sem estado, o grupo regional vale");
+
+  const sul = await aplicarFiltros({ ...base, state: "sul" });
+  assert.equal(sul.passou, true, "Sul inteiro e atendido");
+
+  const nacionalEs = await aplicarFiltros({
+    ...base, state: "ES", grupo: { region: "NACIONAL", filters: null, name: "Nacional" },
+  });
+  assert.equal(nacionalEs.passou, false);
+  if (!nacionalEs.passou) assert.equal(nacionalEs.resposta.reason, "national_group_state_not_served");
+
   console.log("OK — filtros de captura preservam todas as regras.");
 }
 // O pool do Postgres segura o processo vivo: encerra explicitamente.

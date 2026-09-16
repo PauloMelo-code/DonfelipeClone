@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Car, Pencil, Trash2, ZoomIn } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tituloDoAnuncio } from "@/lib/vehicle-formatter";
 import type { CardProps } from "./tipos";
 
 // ---------------------------------------------------------------------------
@@ -147,8 +148,7 @@ export function FotoDoCard({
 
       <div className="absolute bottom-3 left-4 right-4">
         <h3 className="text-lg font-bold text-white drop-shadow-lg">
-          {vehicle.brand && `${vehicle.brand} `}
-          {vehicle.model}
+          {tituloDoAnuncio(vehicle)}
         </h3>
       </div>
     </div>
