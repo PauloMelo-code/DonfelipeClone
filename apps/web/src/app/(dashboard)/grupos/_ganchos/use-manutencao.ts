@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import type { Group, Papel } from "../_componentes/tipos";
+import { TIPOS, type Group, type Papel } from "../_componentes/tipos";
 
 // ---------------------------------------------------------------------------
 // As operacoes de manutencao da lista inteira, nao de um grupo so.
@@ -81,15 +81,19 @@ export function useManutencao(buscar: () => void) {
   }, [buscar]);
 
   /**
-   * Liga ou desliga todos os grupos de um papel.
+   * Liga ou desliga todos os grupos de um papel, dentro da aba aberta.
    *
    * Busca a lista sem paginacao de proposito: o operador espera que "ativar
-   * todos" valha pra base inteira, nao so pra pagina que esta vendo.
+   * todos" valha pra base inteira, nao so pra pagina que esta vendo. Mas vale
+   * a ABA: em Contatos liga so os contatos (quem manda lista de transmissao
+   * chega como contato), sem religar os grupos que foram desligados de proposito.
    */
-  const ligarTodos = useCallback(async (papel: Papel, ativo: boolean) => {
+  const ligarTodos = useCallback(async (papel: Papel, ativo: boolean, tipo = "todos") => {
     let alvos: Group[] = [];
     try {
-      const res = await fetch(`/api/groups?${new URLSearchParams({ role: papel, counts: "false" })}`);
+      const params = new URLSearchParams({ role: papel, counts: "false" });
+      if (tipo !== "todos") params.set("type", tipo);
+      const res = await fetch(`/api/groups?${params}`);
       if (res.ok) {
         const todos: Group[] = await res.json();
         alvos = todos.filter((g) => g.active !== ativo);
@@ -98,7 +102,11 @@ export function useManutencao(buscar: () => void) {
       toast.error("Erro ao carregar grupos");
       return;
     }
-    if (alvos.length === 0) return;
+    const onde = tipo === "todos" ? "" : ` em ${TIPOS.find((t) => t.id === tipo)?.label ?? tipo}`;
+    if (alvos.length === 0) {
+      toast.info(`Nada para ${ativo ? "ativar" : "desativar"}${onde}`);
+      return;
+    }
 
     try {
       await Promise.all(
@@ -110,7 +118,7 @@ export function useManutencao(buscar: () => void) {
           })
         )
       );
-      toast.success(`${alvos.length} grupos ${ativo ? "ativados" : "desativados"}`);
+      toast.success(`${alvos.length} ${ativo ? "ativados" : "desativados"}${onde}`);
       buscar();
     } catch {
       toast.error("Erro ao atualizar grupos");

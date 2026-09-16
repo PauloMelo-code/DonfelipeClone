@@ -78,7 +78,7 @@ export default function GruposPage() {
                 grupos={lista.gruposFonte}
                 acoes={acoes}
                 aoTrocarPagina={lista.setPaginaFonte}
-                aoLigarTodos={manutencao.ligarTodos}
+                aoLigarTodos={(papel, ativo) => manutencao.ligarTodos(papel, ativo, lista.tipo)}
               />
               <ColunaDeGrupos
                 papel="TARGET"
@@ -86,7 +86,7 @@ export default function GruposPage() {
                 grupos={lista.gruposDestino}
                 acoes={acoes}
                 aoTrocarPagina={lista.setPaginaDestino}
-                aoLigarTodos={manutencao.ligarTodos}
+                aoLigarTodos={(papel, ativo) => manutencao.ligarTodos(papel, ativo, lista.tipo)}
               />
             </div>
 
@@ -98,7 +98,7 @@ export default function GruposPage() {
                 grupos={ehFonteNoCelular ? lista.gruposFonte : lista.gruposDestino}
                 acoes={acoes}
                 aoTrocarPagina={ehFonteNoCelular ? lista.setPaginaFonte : lista.setPaginaDestino}
-                aoLigarTodos={manutencao.ligarTodos}
+                aoLigarTodos={(papel, ativo) => manutencao.ligarTodos(papel, ativo, lista.tipo)}
               />
             </div>
           </>

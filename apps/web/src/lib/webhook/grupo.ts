@@ -44,7 +44,9 @@ export async function resolverGrupo(e: EntradaGrupo): Promise<GrupoWhatsapp | un
 
   // Flags de tipo que a UAZAPI manda no payload.
   const isCommunity = chat?.wa_isGroup_community === true;
-  const isAnnounce = chat?.wa_isGroup_announce === true;
+  // Canal (@newsletter) nao traz wa_isGroup_announce no payload. Sem o sufixo,
+  // canal novo nascia "Lista: ..." e o canal da sincronizacao perdia a marca.
+  const isAnnounce = chat?.wa_isGroup_announce === true || groupJid.endsWith("@newsletter");
   const chatName =
     chat?.wa_name || chat?.name || e.groupName || pushName || groupJid.replace(/@.*/, "");
 
