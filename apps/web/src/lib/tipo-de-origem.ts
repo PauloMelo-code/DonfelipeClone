@@ -22,7 +22,8 @@ export interface OrigemBruta {
 
 export function tipoDaOrigem(g: OrigemBruta): TipoDeOrigem {
   if (g.kindOverride) return g.kindOverride as TipoDeOrigem;
-  if (g.isContact || g.groupId.endsWith("@s.whatsapp.net")) return "contato";
+  // `@lid` e o endereco novo da conversa 1-1.
+  if (g.isContact || g.groupId.endsWith("@s.whatsapp.net") || g.groupId.endsWith("@lid")) return "contato";
   if (g.groupId.endsWith("@newsletter")) return "canal";
   if (g.groupId.endsWith("@broadcast")) return "lista";
   if (g.isCommunity) return "comunidade";

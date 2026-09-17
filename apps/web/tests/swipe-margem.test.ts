@@ -78,6 +78,9 @@ import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos"
   assert.equal(grupo({ groupId: "123@broadcast" }).rotulo, "Lista de transmissão");
   assert.equal(grupo({ groupId: "5551999@s.whatsapp.net" }).rotulo, "Contato");
   assert.equal(grupo({ isContact: true }).rotulo, "Contato");
+  // `@lid` e o endereco novo da conversa 1-1 -- e por onde chega a lista de
+  // transmissao do fornecedor. Sem isso, a mensagem caia como "nao suportada".
+  assert.equal(grupo({ groupId: "218812345678901@lid" }).rotulo, "Contato", "@lid e conversa");
   assert.equal(grupo({ kindOverride: "lista" }).rotulo, "Lista de transmissão", "a escolha manual vence");
 
   // O caso que confundiu o cliente: grupo restrito a admins e GRUPO. O card

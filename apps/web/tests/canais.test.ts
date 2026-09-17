@@ -101,6 +101,20 @@ async function main() {
     "erro na API tem que estourar, nao devolver lista vazia",
   );
 
+  // ── Endereco novo da conversa 1-1 ───────────────────────────────
+  // A instancia do cliente tem 1.588 chats `@lid` e so 2 `@s.whatsapp.net`.
+  // Eram lidos como tipo desconhecido, e a mensagem de lista de transmissao
+  // chegava e era descartada.
+  devolvendo({
+    chats: [
+      { wa_chatid: "218812345678901@lid", wa_contactName: "Fornecedor" },
+      { wa_chatid: "5551999998888@s.whatsapp.net", wa_name: "Contato antigo" },
+      { wa_chatid: "120363000000000201@g.us", wa_name: "Grupo", wa_isGroup: true },
+    ],
+  });
+  const chats = await uazapi.listChats();
+  assert.deepEqual(chats.map((c) => c.kind), ["lid", "user", "group"], "@lid e conversa 1-1");
+
   // ── O que conta como publicacao nova ────────────────────────────────────
   const post = (horasAtras: number, id: string) => ({
     messageId: id,

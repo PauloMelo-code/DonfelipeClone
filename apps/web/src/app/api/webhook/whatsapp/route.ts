@@ -100,8 +100,10 @@ export async function POST(request: NextRequest) {
     const isGroup = groupJid?.endsWith("@g.us");
     const isBroadcast = groupJid?.endsWith("@broadcast") || groupJid?.endsWith("@newsletter");
     // DM 1-1: chega quando lista de transmissao envia, ou contato manda direto.
-    // No lado de quem recebe vem como @s.whatsapp.net (nao @broadcast).
-    const isContact = groupJid?.endsWith("@s.whatsapp.net");
+    // No lado de quem recebe vem como conversa (nao @broadcast). O WhatsApp
+    // mudou o endereco dessa conversa para `@lid`; sem ele, mensagem de lista
+    // era descartada como "conversa nao suportada".
+    const isContact = groupJid?.endsWith("@s.whatsapp.net") || groupJid?.endsWith("@lid");
     if (!groupJid || (!isGroup && !isBroadcast && !isContact)) {
       return NextResponse.json({ status: "ignored", reason: "not_supported_chat" });
     }

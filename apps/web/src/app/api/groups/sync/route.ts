@@ -151,6 +151,10 @@ export async function POST(request: Request) {
     // Contatos (DM 1-1): JIDs @s.whatsapp.net.
     // Inclui contatos com quem o usuario ja interagiu. Cadastrados como
     // SOURCE inativos -- o admin ativa manualmente o que quiser monitorar.
+    //
+    // O endereco novo (`@lid`) fica de FORA daqui de proposito: a instancia do
+    // cliente tem 1.588 deles, e a tela de Grupos viraria uma lista telefonica.
+    // Quem manda anuncio se cadastra sozinho, no momento da captura.
     const captureContactMapped: RemoteWithRole[] = captureChats
       .filter((c) => c.kind === "user" && c.id)
       .map((c) => ({
@@ -231,7 +235,10 @@ export async function POST(request: Request) {
       // Enriquecimento via /chat/find (comunidade, announce)
       const chatInfo = chatEnrichment.get(groupId);
       const isCommunity = chatInfo?.isCommunity ?? false;
-      const isContact = group.isContact === true || groupId.endsWith("@s.whatsapp.net");
+      const isContact =
+        group.isContact === true ||
+        groupId.endsWith("@s.whatsapp.net") ||
+        groupId.endsWith("@lid");
 
       // Resolve name with fallbacks (prefere /group/list, depois /chat/find)
       let name: string = group.subject || chatInfo?.name || "";

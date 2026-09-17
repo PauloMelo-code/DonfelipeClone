@@ -249,7 +249,7 @@ class UazapiClient {
   async listChats(): Promise<{
     id: string;
     name: string;
-    kind: "broadcast" | "group" | "user" | "newsletter" | "unknown";
+    kind: "broadcast" | "group" | "user" | "lid" | "newsletter" | "unknown";
     isCommunity: boolean;
     isAnnounce: boolean;
   }[]> {
@@ -276,11 +276,16 @@ class UazapiClient {
         const isGroup = !!c.wa_isGroup;
         const isCommunity = !!c.wa_isGroup_community;
         const isAnnounce = !!c.wa_isGroup_announce;
-        let kind: "broadcast" | "group" | "user" | "newsletter" | "unknown" = "unknown";
+        let kind: "broadcast" | "group" | "user" | "lid" | "newsletter" | "unknown" = "unknown";
         if (id.endsWith("@broadcast")) kind = "broadcast";
         else if (id.endsWith("@newsletter")) kind = "newsletter";
         else if (id.endsWith("@g.us") || isGroup) kind = "group";
         else if (id.endsWith("@s.whatsapp.net")) kind = "user";
+        // Endereco novo do WhatsApp para conversa 1-1. Tipo proprio de
+        // proposito: a instancia do cliente tem 1.588 deles, e cadastrar todos
+        // na sincronizacao encheria a tela de Grupos. Quem manda mensagem se
+        // cadastra sozinho, pela captura.
+        else if (id.endsWith("@lid")) kind = "lid";
         return { id, name, kind, isCommunity, isAnnounce };
       });
     } catch (err) {
