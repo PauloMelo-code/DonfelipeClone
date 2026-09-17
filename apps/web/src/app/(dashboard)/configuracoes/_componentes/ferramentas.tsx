@@ -88,6 +88,15 @@ export function Ferramentas({ ferramentas }: { ferramentas: GanchoDeFerramentas 
       icone: <RefreshCw className="h-3.5 w-3.5" />,
       cor: "border-brand-gold/30 text-brand-gold hover:bg-brand-gold/10",
     },
+    {
+      titulo: "Zerar sistema",
+      descricao: "Apaga todos os carros e o histórico de publicações. Grupos, usuários e configurações ficam.",
+      ocupado: f.zerando,
+      rotuloOcupado: "Zerando...",
+      aoExecutar: f.zerarSistema,
+      icone: <Trash2 className="h-3.5 w-3.5" />,
+      cor: DESTRUTIVO,
+    },
   ];
 
   return (

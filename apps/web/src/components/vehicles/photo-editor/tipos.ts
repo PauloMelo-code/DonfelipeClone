@@ -25,6 +25,11 @@ export interface PhotoEditorProps {
   onPhotoReset: (index: number) => void;
   defaultFullscreen?: boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
+  /**
+   * Edicao no proprio card: comeca no recorte, recorta ao soltar a borda e
+   * borra ao soltar o dedo, sem botao de aplicar.
+   */
+  modoRapido?: boolean;
 }
 
 export const PENCIL_COLORS = [

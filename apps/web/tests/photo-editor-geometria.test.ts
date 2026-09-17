@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import {
   LADO_MINIMO,
   caixaNaTela,
+  cobreTudo,
   escalaParaCaber,
   posicaoNoCanvas,
   redimensionarCaixa,
@@ -149,6 +150,14 @@ const IMAGEM = { width: 1000, height: 800 };
     { x: 50, y: 100, w: 200, h: 150 },
     "a moldura desenhada por cima acompanha a imagem escalada",
   );
+}
+
+// ── Recorte ao soltar: so quando a borda andou de verdade ──────────────────
+{
+  assert.equal(cobreTudo({ x: 0, y: 0, w: 1000, h: 800 }, IMAGEM), true, "caixa inteira nao recorta");
+  assert.equal(cobreTudo({ x: 5, y: 3, w: 992, h: 795 }, IMAGEM), true, "tremida de poucos pixels nao recorta");
+  assert.equal(cobreTudo({ x: 0, y: 0, w: 1000, h: 700 }, IMAGEM), false, "borda de baixo puxada recorta");
+  assert.equal(cobreTudo({ x: 120, y: 0, w: 880, h: 800 }, IMAGEM), false, "borda da esquerda puxada recorta");
 }
 
 console.log("OK — geometria do editor de foto travada.");

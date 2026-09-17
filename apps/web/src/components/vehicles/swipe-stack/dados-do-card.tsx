@@ -4,7 +4,7 @@ import { Flame, MapPin, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
-import { QuadroDoAnuncio } from "./quadro-do-anuncio";
+import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
 import { SeloDeMargem } from "./selo-de-margem";
 import { formatKm, formatPrice, type CardProps } from "./tipos";
 
@@ -13,11 +13,12 @@ import { formatKm, formatPrice, type CardProps } from "./tipos";
 //
 // Ano, km e preco sao editaveis em linha porque a extracao erra: o anuncio vem
 // mal escrito e o operador ve o erro antes de aprovar. O texto do anuncio
-// tambem se edita aqui mesmo. Sem `onUpdateField` tudo vira texto simples.
+// tambem se edita aqui mesmo, direto na caixa. Sem `onUpdateField` tudo vira
+// texto simples.
 // ---------------------------------------------------------------------------
 
 type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
-  onEditandoChange?: (editando: boolean) => void;
+  edicaoDoTexto?: EdicaoDoTexto;
 };
 
 /** Marcadores do canto direito: score de qualidade, VIP e hibrido. */
@@ -48,7 +49,7 @@ function Selos({ vehicle }: Pick<CardProps, "vehicle">) {
   );
 }
 
-export function DadosDoCard({ vehicle, onUpdateField, onEditandoChange }: Props) {
+export function DadosDoCard({ vehicle, onUpdateField, edicaoDoTexto }: Props) {
   const estado = lerEstado(vehicle);
   const origem = vehicle.sourceGroup ? lerOrigem(vehicle.sourceGroup) : null;
 
@@ -124,11 +125,7 @@ export function DadosDoCard({ vehicle, onUpdateField, onEditandoChange }: Props)
         <Selos vehicle={vehicle} />
       </div>
 
-      <QuadroDoAnuncio
-        vehicle={vehicle}
-        onSalvar={onUpdateField ? (texto) => onUpdateField(vehicle.id, "formattedAd", texto) : undefined}
-        onEditandoChange={onEditandoChange}
-      />
+      <QuadroDoAnuncio vehicle={vehicle} edicao={edicaoDoTexto} />
     </>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { posicaoNoCanvas, redimensionarCaixa, retanguloEntre } from "./geometria";
+import { SELECAO_MINIMA, cobreTudo, posicaoNoCanvas, redimensionarCaixa, retanguloEntre } from "./geometria";
 import {
   QUALIDADE_JPEG, borrarArea, carregarNoCanvas, desenharSelecao,
-  pintarPonto, recortar, restaurarDe,
+  pintarTraco, recortar, restaurarDe,
 } from "./pintura";
 import type { Borda, PhotoEditorProps, Rect, Tool } from "./tipos";
 
@@ -20,7 +20,11 @@ import type { Borda, PhotoEditorProps, Rect, Tool } from "./tipos";
 //      Por isso `editedPhotos` e lido por referencia, fora das dependencias do
 //      efeito de carga: se entrasse nelas, cada pincelada recarregaria a foto
 //      e apagaria o historico.
+//
+// No `modoRapido` (o card da triagem) nao ha botao de aplicar: soltar a borda
+// recorta e soltar o dedo borra. Desfazer e Original cobrem o engano.
 // ---------------------------------------------------------------------------
+
 
 export function useEditorDeFoto({
   photos,
@@ -29,12 +33,13 @@ export function useEditorDeFoto({
   onPhotoReset,
   defaultFullscreen = false,
   onFullscreenChange,
+  modoRapido = false,
 }: PhotoEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imagemLimpaRef = useRef<ImageData | null>(null);
 
   const [indice, setIndice] = useState(0);
-  const [ferramenta, setFerramenta] = useState<Tool>("blur");
+  const [ferramenta, setFerramenta] = useState<Tool>(modoRapido ? "crop" : "blur");
   const [desenhando, setDesenhando] = useState(false);
   const [inicio, setInicio] = useState({ x: 0, y: 0 });
   const [selecao, setSelecao] = useState<Rect | null>(null);
@@ -45,6 +50,9 @@ export function useEditorDeFoto({
   const [telaCheia, setTelaCheia] = useState(defaultFullscreen);
   const [historico, setHistorico] = useState<string[]>([]);
   const [caixaDeCorte, setCaixaDeCorte] = useState<Rect | null>(null);
+  // Muda sempre que a imagem do canvas muda de tamanho (recorte, desfazer).
+  const [versao, setVersao] = useState(0);
+  const caixaAtualRef = useRef<Rect | null>(null);
   const arrasteRef = useRef<{ borda: Borda; xInicial: number; yInicial: number; caixaInicial: Rect } | null>(null);
 
   const contexto = () => canvasRef.current?.getContext("2d") ?? null;
@@ -78,6 +86,7 @@ export function useEditorDeFoto({
     if (!canvas || !ctx) return;
     restaurarDe(canvas, ctx, anterior, (limpa) => {
       imagemLimpaRef.current = limpa;
+      setVersao((v) => v + 1);
       publicar(canvas);
     });
   }, [historico, publicar]);
@@ -94,10 +103,15 @@ export function useEditorDeFoto({
     setErro(false);
     setSelecao(null);
     carregarNoCanvas(canvas, ctx, src,
-      (limpa) => { imagemLimpaRef.current = limpa; setCarregada(true); },
+      (limpa) => {
+        imagemLimpaRef.current = limpa;
+        // No card a foto aparece pequena: o pincel acompanha o tamanho dela.
+        if (modoRapido) setTamanhoDoPincel(Math.max(16, Math.round(canvas.width * 0.04)));
+        setCarregada(true);
+      },
       () => setErro(true),
     );
-  }, []);
+  }, [modoRapido]);
 
   // Recarrega so na troca de foto, nunca ao salvar uma edicao.
   useEffect(() => {
@@ -111,14 +125,16 @@ export function useEditorDeFoto({
     onFullscreenChange?.(telaCheia);
   }, [telaCheia, onFullscreenChange]);
 
-  // A caixa de recorte comeca cobrindo a foto inteira.
+  // A caixa de recorte comeca cobrindo a foto inteira, e volta a cobrir depois
+  // de cada recorte ou desfazer.
   useEffect(() => {
-    if (ferramenta === "crop" && canvasRef.current && carregada) {
-      setCaixaDeCorte({ x: 0, y: 0, w: canvasRef.current.width, h: canvasRef.current.height });
-    } else {
-      setCaixaDeCorte(null);
-    }
-  }, [ferramenta, carregada]);
+    const canvas = canvasRef.current;
+    const caixa = ferramenta === "crop" && canvas && carregada
+      ? { x: 0, y: 0, w: canvas.width, h: canvas.height }
+      : null;
+    caixaAtualRef.current = caixa;
+    setCaixaDeCorte(caixa);
+  }, [ferramenta, carregada, versao]);
 
   // Previa da area de blur: repinta a imagem limpa e desenha a moldura por cima.
   useEffect(() => {
@@ -153,11 +169,31 @@ export function useEditorDeFoto({
     }
   }, [publicar]);
 
+  const ultimoPontoRef = useRef<{ x: number; y: number } | null>(null);
   const pintar = useCallback((pos: { x: number; y: number }) => {
     const ctx = contexto();
     if (!ctx) return;
-    pintarPonto(ctx, pos, ferramenta === "erase" ? "#ffffff" : corDoLapis, tamanhoDoPincel);
+    pintarTraco(ctx, ultimoPontoRef.current, pos, ferramenta === "erase" ? "#ffffff" : corDoLapis, tamanhoDoPincel);
+    ultimoPontoRef.current = pos;
   }, [ferramenta, corDoLapis, tamanhoDoPincel]);
+
+  const aplicarBlur = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!selecao || !canvas || !ctx || !imagemLimpaRef.current) return;
+
+    guardarNoHistorico();
+    ctx.putImageData(imagemLimpaRef.current, 0, 0);
+    if (!borrarArea(ctx, selecao)) return;
+
+    try {
+      imagemLimpaRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      setSelecao(null);
+      publicar(canvas);
+    } catch {
+      setErro(true);
+    }
+  };
 
   // Estas tres nao sao memorizadas de proposito: o efeito de toque abaixo se
   // reanexa a cada mudanca de estado justamente pra capturar versoes novas.
@@ -166,6 +202,7 @@ export function useEditorDeFoto({
     if (ferramenta === "erase" || ferramenta === "pencil") {
       guardarNoHistorico();
       setDesenhando(true);
+      ultimoPontoRef.current = null;
       pintar(pos);
     } else {
       setInicio(pos);
@@ -182,6 +219,10 @@ export function useEditorDeFoto({
 
   const terminarTraco = () => {
     if (desenhando && (ferramenta === "erase" || ferramenta === "pencil")) gravarTraco();
+    if (desenhando && modoRapido && ferramenta === "blur"
+      && selecao && selecao.w > SELECAO_MINIMA && selecao.h > SELECAO_MINIMA) {
+      aplicarBlur();
+    }
     setDesenhando(false);
   };
 
@@ -215,45 +256,34 @@ export function useEditorDeFoto({
       canvas.removeEventListener("touchend", aoSoltar);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carregada, ferramenta, desenhando, inicio, tamanhoDoPincel, corDoLapis]);
+  }, [carregada, ferramenta, desenhando, inicio, selecao, tamanhoDoPincel, corDoLapis]);
 
-  const aplicarBlur = () => {
+  const aplicarRecorte = (caixa: Rect | null = caixaDeCorte) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (!selecao || !canvas || !ctx || !imagemLimpaRef.current) return;
-
-    guardarNoHistorico();
-    ctx.putImageData(imagemLimpaRef.current, 0, 0);
-    if (!borrarArea(ctx, selecao)) return;
-
-    try {
-      imagemLimpaRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      setSelecao(null);
-      publicar(canvas);
-    } catch {
-      setErro(true);
-    }
-  };
-
-  const aplicarRecorte = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!caixaDeCorte || !canvas || !ctx || !imagemLimpaRef.current) return;
+    if (!caixa || !canvas || !ctx || !imagemLimpaRef.current) return;
 
     guardarNoHistorico();
     // Corta a imagem limpa, nao a que esta com a moldura desenhada por cima.
     ctx.putImageData(imagemLimpaRef.current, 0, 0);
-    recortar(canvas, ctx, caixaDeCorte);
+    recortar(canvas, ctx, caixa);
 
     try {
       imagemLimpaRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      setCaixaDeCorte(null);
-      setFerramenta("blur");
+      if (modoRapido) {
+        setVersao((v) => v + 1);
+      } else {
+        setCaixaDeCorte(null);
+        setFerramenta("blur");
+      }
       publicar(canvas);
     } catch {
       setErro(true);
     }
   };
+  // O soltar da borda roda num listener da janela, criado no pointerdown.
+  const aplicarRecorteRef = useRef(aplicarRecorte);
+  useEffect(() => { aplicarRecorteRef.current = aplicarRecorte; });
 
   /** Arrasta uma borda, um canto ou a caixa inteira ate soltar o ponteiro. */
   const arrastarCorte = (e: React.PointerEvent, borda: Borda) => {
@@ -273,13 +303,18 @@ export function useEditorDeFoto({
       const r = canvas.getBoundingClientRect();
       const dx = (ev.clientX - arraste.xInicial) * (canvas.width / r.width);
       const dy = (ev.clientY - arraste.yInicial) * (canvas.height / r.height);
-      setCaixaDeCorte(redimensionarCaixa(arraste.borda, arraste.caixaInicial, dx, dy, canvas));
+      const caixa = redimensionarCaixa(arraste.borda, arraste.caixaInicial, dx, dy, canvas);
+      caixaAtualRef.current = caixa;
+      setCaixaDeCorte(caixa);
     };
 
     const aoSoltar = () => {
       arrasteRef.current = null;
       window.removeEventListener("pointermove", aoMover);
       window.removeEventListener("pointerup", aoSoltar);
+      const caixa = caixaAtualRef.current;
+      const canvas = canvasRef.current;
+      if (modoRapido && caixa && canvas && !cobreTudo(caixa, canvas)) aplicarRecorteRef.current(caixa);
     };
 
     window.addEventListener("pointermove", aoMover);

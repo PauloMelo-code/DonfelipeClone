@@ -7,8 +7,8 @@ import { estadoDoVeiculo, parseArray, type Vehicle, type WhatsAppGroup } from ".
 // ---------------------------------------------------------------------------
 // "Publicar direto": o caminho curto da aba Pendentes.
 //
-// Sem editar texto nem foto -- o operador so confirma os grupos e vai. A
-// selecao e propria, separada da do modal completo, porque os dois podem
+// Texto e foto ja chegam editados do proprio card -- aqui o operador so
+// confirma os grupos e vai. A selecao e propria, separada da do modal completo, porque os dois podem
 // estar abertos em momentos diferentes sobre carros diferentes.
 //
 // As fotos vao explicitas no corpo da requisicao: se o operador editou alguma

@@ -46,13 +46,13 @@ export interface SwipeStackProps {
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   onPhotoClick?: (vehicle: SwipeVehicle) => void;
-  onDeletePhoto?: (vehicleId: string, photoIndex: number) => void;
   onSetMainPhoto?: (vehicleId: string, photoIndex: number) => void;
+  /** A foto principal foi editada no card (recorte, blur ou pincel), ou voltou a original. */
+  onPhotoEdited?: (vehicleId: string, photo: string) => void;
   actionLoading: string | null;
   onPublishDirect?: (id: string) => void;
   onUpdateField?: (id: string, field: string, value: string | number) => Promise<void>;
   publishingDirectId?: string | null;
-  onEditPhoto?: (vehicle: SwipeVehicle) => void;
 }
 
 /**

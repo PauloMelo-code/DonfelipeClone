@@ -4,6 +4,7 @@ import { Check, ChevronDown, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { tituloDoAnuncio } from "@/lib/vehicle-formatter";
 import type { Grupos } from "../_ganchos/use-grupos";
 import type { PublicacaoRapida } from "../_ganchos/use-publicacao-rapida";
 import { estadoDoVeiculo, formatPrice } from "./tipos";
@@ -40,7 +41,7 @@ export function DialogoPublicacaoRapida({ rapida, grupos }: Props) {
         <div className="space-y-3 pt-2">
           {veiculo && (
             <div className="rounded-lg bg-card border border-border p-3">
-              <p className="text-sm font-medium">{veiculo.brand} {veiculo.model}</p>
+              <p className="text-sm font-medium">{tituloDoAnuncio(veiculo)}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {veiculo.year} • {veiculo.km.toLocaleString("pt-BR")} km • {formatPrice(veiculo.price)}
                 {estado && <> • <span className="text-brand-gold font-semibold">{estado}</span></>}

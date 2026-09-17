@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BarraDeFerramentas } from "./barra-de-ferramentas";
 import { ControlesDePincel } from "./controles-de-pincel";
+import { SELECAO_MINIMA } from "./geometria";
 import { cursorDePincel } from "./pintura";
 import { SobreposicaoDeCorte } from "./sobreposicao-de-corte";
 import { DICAS, type PhotoEditorProps } from "./tipos";
@@ -20,9 +21,6 @@ import { useEditorDeFoto } from "./use-editor-de-foto";
 // Um retorno so: a tela cheia troca classes de CSS no envolucro em vez de
 // renderizar outra arvore. Se o canvas remontasse, o desenho iria junto.
 // ---------------------------------------------------------------------------
-
-/** Tamanho da area de blur abaixo do qual nao vale a pena oferecer o botao. */
-const SELECAO_MINIMA = 10;
 
 export function PhotoEditor(props: PhotoEditorProps) {
   const editor = useEditorDeFoto(props);
@@ -132,7 +130,7 @@ export function PhotoEditor(props: PhotoEditorProps) {
         </div>
 
         {podeRecortar ? (
-          <Button size="sm" onClick={editor.aplicarRecorte} className="w-full gradient-gold text-black border-0">
+          <Button size="sm" onClick={() => editor.aplicarRecorte()} className="w-full gradient-gold text-black border-0">
             Aplicar recorte
           </Button>
         ) : podeBorrar ? (

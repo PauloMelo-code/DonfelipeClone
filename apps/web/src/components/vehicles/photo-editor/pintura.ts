@@ -40,19 +40,34 @@ export function carregarNoCanvas(
   img.src = src;
 }
 
-/** Um circulo de tinta no ponto, do tamanho do pincel. */
-export function pintarPonto(
+/**
+ * Tinta do ponto anterior ate o atual, na grossura do pincel.
+ *
+ * O navegador entrega o movimento em saltos: pintar so um circulo por evento
+ * deixava o traco rapido pontilhado. Sem ponto anterior, pinta so o circulo.
+ */
+export function pintarTraco(
   ctx: CanvasRenderingContext2D,
-  pos: { x: number; y: number },
+  de: { x: number; y: number } | null,
+  ate: { x: number; y: number },
   cor: string,
   tamanho: number,
 ) {
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
+  ctx.strokeStyle = cor;
   ctx.fillStyle = cor;
+  ctx.lineWidth = tamanho;
+  ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.arc(pos.x, pos.y, tamanho / 2, 0, Math.PI * 2);
-  ctx.fill();
+  if (de) {
+    ctx.moveTo(de.x, de.y);
+    ctx.lineTo(ate.x, ate.y);
+    ctx.stroke();
+  } else {
+    ctx.arc(ate.x, ate.y, tamanho / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 

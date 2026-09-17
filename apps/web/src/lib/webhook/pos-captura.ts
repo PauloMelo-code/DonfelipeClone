@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
 import { lerConfiguracaoNumero } from "@/lib/settings";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
@@ -50,10 +50,12 @@ export function gerarAnuncioEmBackground(
         { profitMarginPercent: margem }
       );
       const sellingPrice = dados.price * (1 + margem / 100);
+      // O card ja abre editavel: se o operador escreveu antes da IA terminar,
+      // o texto dele vale.
       await db
         .update(veiculos)
         .set({ formattedAd, sellingPrice, ...carimboDeEdicao(null) })
-        .where(vivosE(veiculos, eq(veiculos.id, vehicleId)));
+        .where(vivosE(veiculos, eq(veiculos.id, vehicleId), isNull(veiculos.adEditedAt)));
       console.log(`[Webhook] Auto-formatted ad: ${vehicleId}`);
     } catch (e) {
       console.error("[Webhook] Auto ad-cleaner background failed:", e);
@@ -74,12 +76,17 @@ export function analisarFotosEmBackground(vehicleId: string, fotos: string[]): v
         await reorderPhotosByBest(fotos);
       await db
         .update(veiculos)
-        .set({
-          ...(changed ? { photos: JSON.stringify(reordered) } : {}),
-          photoCategories: JSON.stringify(categories),
-          ...carimboDeEdicao(null),
-        })
+        .set({ photoCategories: JSON.stringify(categories), ...carimboDeEdicao(null) })
         .where(vivosE(veiculos, eq(veiculos.id, vehicleId)));
+      // So reordena se as fotos ainda sao as analisadas. Nesse meio tempo o
+      // operador pode ter editado a principal no card, ou o album ter trazido
+      // mais fotos -- gravar a lista antiga apagaria as duas coisas.
+      if (changed) {
+        await db
+          .update(veiculos)
+          .set({ photos: JSON.stringify(reordered), ...carimboDeEdicao(null) })
+          .where(vivosE(veiculos, eq(veiculos.id, vehicleId), eq(veiculos.photos, JSON.stringify(fotos))));
+      }
       console.log(
         `[Webhook] Photo analyze: ${vehicleId} cats=${categories.join(",")}${
           changed ? ` (reordered, best was #${originalBestIndex})` : ""

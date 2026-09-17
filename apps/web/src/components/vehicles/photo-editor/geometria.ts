@@ -12,6 +12,9 @@ import type { Borda, Rect } from "./tipos";
 /** Lado minimo da caixa de recorte, em pixels do canvas. */
 export const LADO_MINIMO = 50;
 
+/** Area de blur abaixo da qual nao se borra: foi um toque, nao um arraste. */
+export const SELECAO_MINIMA = 10;
+
 /**
  * Converte um ponto da tela para coordenadas do canvas.
  *
@@ -80,6 +83,20 @@ export function redimensionarCaixa(
   }
 
   return caixa;
+}
+
+/**
+ * A caixa ainda cobre a imagem inteira, com folga de 1%.
+ *
+ * No card o recorte e aplicado ao soltar a borda: um toque sem querer, que
+ * mexe a borda um pixel, nao pode virar recorte.
+ */
+export function cobreTudo(caixa: Rect, limites: { width: number; height: number }): boolean {
+  const folgaX = limites.width * 0.01;
+  const folgaY = limites.height * 0.01;
+  return caixa.x <= folgaX && caixa.y <= folgaY
+    && caixa.x + caixa.w >= limites.width - folgaX
+    && caixa.y + caixa.h >= limites.height - folgaY;
 }
 
 /**

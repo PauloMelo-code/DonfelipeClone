@@ -28,13 +28,12 @@ export function SwipeStack({
   onApprove,
   onReject,
   onPhotoClick,
-  onDeletePhoto,
   onSetMainPhoto,
+  onPhotoEdited,
   actionLoading,
   onPublishDirect,
   onUpdateField,
   publishingDirectId,
-  onEditPhoto,
 }: SwipeStackProps) {
   const [direcaoDeSaida, setDirecaoDeSaida] = useState<"left" | "right" | null>(null);
 
@@ -82,13 +81,12 @@ export function SwipeStack({
               onApprove={aprovar}
               onReject={rejeitar}
               onPhotoClick={onPhotoClick}
-              onDeletePhoto={onDeletePhoto}
               onSetMainPhoto={onSetMainPhoto}
+              onPhotoEdited={onPhotoEdited}
               actionLoading={actionLoading}
               onPublishDirect={onPublishDirect}
               onUpdateField={onUpdateField}
               publishingDirectId={publishingDirectId}
-              onEditPhoto={onEditPhoto}
             />
           ))}
         </AnimatePresence>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { parseArray, type Vehicle } from "../_componentes/tipos";
@@ -249,19 +249,33 @@ export function useFila() {
   }, [buscar, removerDaLista]);
 
   /** Remove uma foto do anuncio. A lista e reconsultada porque os indices mudam. */
-  const excluirFoto = useCallback(async (id: string, indice: number) => {
-    try {
-      const res = await fetch(`/api/vehicles/${id}/delete-photo?index=${indice}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Foto excluída");
-        buscar();
-      } else {
-        toast.error("Erro ao excluir foto");
+  // A foto editada no card troca a principal na hora -- Publicar le daqui -- e
+  // vai pro banco quando o operador para de mexer, uma gravacao por carro.
+  const gravacoesDeFoto = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const trocarFotoPrincipal = useCallback((id: string, foto: string) => {
+    const alvo = vehicles.find((x) => x.id === id);
+    if (!alvo) return;
+    const fotos = [...parseArray(alvo.photos)];
+    if (fotos.length === 0 || fotos[0] === foto) return;
+    fotos[0] = foto;
+    setVehicles((prev) => prev.map((v) => v.id === id ? { ...v, photos: fotos } : v));
+
+    clearTimeout(gravacoesDeFoto.current.get(id));
+    gravacoesDeFoto.current.set(id, setTimeout(async () => {
+      gravacoesDeFoto.current.delete(id);
+      try {
+        const res = await fetch(`/api/vehicles/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ photos: fotos }),
+        });
+        if (!res.ok) toast.error("Erro ao salvar a foto editada");
+      } catch {
+        toast.error("Erro de conexão ao salvar a foto");
       }
-    } catch {
-      toast.error("Erro de conexão");
-    }
-  }, [buscar]);
+    }, 1200));
+  }, [vehicles]);
 
   /** Promove a foto escolhida a capa -- e a unica que aparece no card do grupo. */
   const definirFotoPrincipal = useCallback(async (id: string, indice: number) => {
@@ -299,7 +313,7 @@ export function useFila() {
     filtrados, swipeVehicles,
     isPending: activeTab === "PENDING",
     buscar, removerDaLista, executarAcao, atualizarCampo, rejeitar,
-    excluirFoto, definirFotoPrincipal,
+    trocarFotoPrincipal, definirFotoPrincipal,
   };
 }
 

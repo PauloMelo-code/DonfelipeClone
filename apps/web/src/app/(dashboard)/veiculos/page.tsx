@@ -164,8 +164,7 @@ function TelaDeVeiculos() {
             aoRejeitar={setRejeitando}
             aoPublicarDireto={publicarDireto}
             aoAbrirGaleria={(id) => { const v = porId(id); if (v) { setGaleria(v); setFotoDaGaleria(0); } }}
-            aoEditarFoto={(id) => { const v = porId(id); if (v) pub.abrirParaPublicar(v, "photo"); }}
-            aoExcluirFoto={fila.excluirFoto}
+            aoEditarFotoPrincipal={fila.trocarFotoPrincipal}
             aoDefinirPrincipal={fila.definirFotoPrincipal}
             aoAtualizarCampo={fila.atualizarCampo}
             aoMostrarAtalhos={() => setMostrarAtalhos(true)}

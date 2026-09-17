@@ -22,8 +22,7 @@ interface Props {
   aoRejeitar: (id: string) => void;
   aoPublicarDireto: (id: string) => void;
   aoAbrirGaleria: (id: string) => void;
-  aoEditarFoto: (id: string) => void;
-  aoExcluirFoto: (id: string, indice: number) => void;
+  aoEditarFotoPrincipal: (id: string, foto: string) => void;
   aoDefinirPrincipal: (id: string, indice: number) => void;
   aoAtualizarCampo: (id: string, campo: string, valor: string | number) => Promise<void>;
   aoMostrarAtalhos: () => void;
@@ -31,8 +30,8 @@ interface Props {
 
 export function PilhaPendentes({
   veiculos, carregandoAcao, publicandoId,
-  aoAprovar, aoRejeitar, aoPublicarDireto, aoAbrirGaleria, aoEditarFoto,
-  aoExcluirFoto, aoDefinirPrincipal, aoAtualizarCampo, aoMostrarAtalhos,
+  aoAprovar, aoRejeitar, aoPublicarDireto, aoAbrirGaleria, aoEditarFotoPrincipal,
+  aoDefinirPrincipal, aoAtualizarCampo, aoMostrarAtalhos,
 }: Props) {
   return (
     <>
@@ -53,13 +52,12 @@ export function PilhaPendentes({
         onApprove={aoAprovar}
         onReject={aoRejeitar}
         onPhotoClick={(v) => aoAbrirGaleria(v.id)}
-        onDeletePhoto={aoExcluirFoto}
         onSetMainPhoto={aoDefinirPrincipal}
+        onPhotoEdited={aoEditarFotoPrincipal}
         actionLoading={carregandoAcao}
         onPublishDirect={aoPublicarDireto}
         onUpdateField={aoAtualizarCampo}
         publishingDirectId={publicandoId}
-        onEditPhoto={(v) => aoEditarFoto(v.id)}
       />
     </>
   );

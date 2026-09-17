@@ -1,156 +1,83 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Car, Pencil, Trash2, ZoomIn } from "lucide-react";
+import { Car } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tituloDoAnuncio } from "@/lib/vehicle-formatter";
+import { FotoEditavel } from "./foto-editavel";
 import type { CardProps } from "./tipos";
 
 // ---------------------------------------------------------------------------
 // A foto do card e o que se faz nela sem sair da triagem.
 //
-// Todo controle aqui precisa parar a propagacao do ponteiro: o card inteiro e
-// arrastavel, e sem isso tocar num botao viraria um swipe. Por isso existe o
-// `BotaoSobreFoto` -- era o mesmo par de handlers repetido em cada botao.
+// No card de cima a foto principal ja vem editavel (recorte, blur e pincel) e
+// o titulo desce pra baixo dela, pra nao cobrir o que se recorta. Excluir foto
+// e o botao "Editar foto" sairam a pedido do cliente: nao ha motivo pra
+// apagar foto na triagem, e a edicao agora acontece ali mesmo.
+//
+// O card de baixo so aparece de fundo: foto estatica com o titulo por cima.
 // ---------------------------------------------------------------------------
 
-/** Pilula flutuante sobre a foto, imune ao arrasto do card. */
-function BotaoSobreFoto({
-  posicao, cor, titulo, aoClicar, children,
-}: {
-  posicao: string;
-  cor: string;
-  titulo?: string;
-  aoClicar: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => { e.stopPropagation(); aoClicar(); }}
-      title={titulo}
-      className={cn(
-        "absolute z-30 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-all pointer-events-auto",
-        posicao, cor
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+type Props = Pick<CardProps, "vehicle" | "isTop" | "onPhotoClick" | "onSetMainPhoto" | "onPhotoEdited">;
 
-type Props = Pick<CardProps,
-  "vehicle" | "isTop" | "onPhotoClick" | "onDeletePhoto" | "onSetMainPhoto" | "onEditPhoto">;
-
-export function FotoDoCard({
-  vehicle, isTop, onPhotoClick, onDeletePhoto, onSetMainPhoto, onEditPhoto,
-}: Props) {
+export function FotoDoCard({ vehicle, isTop, onPhotoClick, onSetMainPhoto, onPhotoEdited }: Props) {
   const fotos = vehicle.photos;
-  const temFoto = fotos.length > 0;
+  const titulo = tituloDoAnuncio(vehicle);
+  const aoEditar = isTop && fotos.length > 0 && onPhotoEdited
+    ? (foto: string) => onPhotoEdited(vehicle.id, foto)
+    : null;
 
   return (
-    <div className="relative h-48 sm:h-60 bg-card shrink-0 group/photo">
-      {temFoto ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={fotos[0]}
+    <div className="shrink-0">
+      {aoEditar ? (
+        <FotoEditavel
+          foto={fotos[0]}
           alt={vehicle.model}
-          className="h-full w-full object-cover pointer-events-none select-none"
-          draggable={false}
+          aoEditar={aoEditar}
+          aoAmpliar={onPhotoClick ? () => onPhotoClick(vehicle) : undefined}
         />
       ) : (
-        <div className="flex h-full items-center justify-center">
-          <Car className="h-16 w-16 text-muted-foreground/20" />
+        <div className="relative h-48 sm:h-60 bg-card">
+          {fotos.length > 0 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={fotos[0]}
+              alt={vehicle.model}
+              className="h-full w-full object-cover pointer-events-none select-none"
+              draggable={false}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <Car className="h-16 w-16 text-muted-foreground/20" />
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+          <h3 className="pointer-events-none absolute bottom-3 left-4 right-4 text-lg font-bold text-white drop-shadow-lg">
+            {titulo}
+          </h3>
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/60 to-transparent" />
+      {aoEditar && <h3 className="px-4 pt-1 text-lg font-bold text-foreground">{titulo}</h3>}
 
       {isTop && fotos.length > 1 && (
-        <div
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute bottom-2 left-2 right-2 z-30 flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin"
-        >
+        <div className="flex gap-1.5 overflow-x-auto px-4 pt-2 pb-1 scrollbar-thin">
           {fotos.map((foto, i) => (
-            <div
-              key={`${foto}-${i}`}
+            <button
+              key={`${foto.slice(0, 64)}-${i}`}
+              type="button"
+              onClick={() => { if (i !== 0) onSetMainPhoto?.(vehicle.id, i); }}
+              title={i === 0 ? "Foto principal" : "Tornar foto principal"}
               className={cn(
-                "relative shrink-0 rounded-md overflow-hidden border-2 transition-all group/thumb",
-                i === 0 ? "border-brand-gold ring-1 ring-brand-gold/40" : "border-white/30 hover:border-white"
+                "h-11 w-11 shrink-0 overflow-hidden rounded-md border-2 transition-all",
+                i === 0 ? "border-brand-gold ring-1 ring-brand-gold/40" : "border-white/20 hover:border-white/60"
               )}
-              style={{ width: 44, height: 44 }}
             >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (i !== 0 && onSetMainPhoto) onSetMainPhoto(vehicle.id, i);
-                }}
-                className="block w-full h-full"
-                title={i === 0 ? "Foto principal" : "Tornar foto principal"}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={foto} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" draggable={false} />
-              </button>
-              {onDeletePhoto && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // A capa e a que vai pro WhatsApp: apagar ela promove a proxima.
-                    const pergunta = i === 0
-                      ? "Excluir foto principal? A 2a foto vira a principal."
-                      : "Excluir esta foto?";
-                    if (confirm(pergunta)) onDeletePhoto(vehicle.id, i);
-                  }}
-                  className="absolute top-0 right-0 bg-destructive text-white rounded-bl-md w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover/thumb:opacity-100 hover:bg-destructive/80 transition-opacity"
-                  title="Excluir foto"
-                >
-                  ×
-                </button>
-              )}
-            </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={foto} alt={`Foto ${i + 1}`} className="h-full w-full object-cover" draggable={false} />
+            </button>
           ))}
         </div>
       )}
-
-      {isTop && onPhotoClick && (
-        <BotaoSobreFoto
-          posicao="top-3 right-3"
-          cor="bg-black/60 text-white/80 hover:text-white hover:bg-black/80"
-          aoClicar={() => onPhotoClick(vehicle)}
-        >
-          <ZoomIn className="h-3.5 w-3.5" />
-          Ver original
-        </BotaoSobreFoto>
-      )}
-
-      {isTop && onDeletePhoto && temFoto && (
-        <BotaoSobreFoto
-          posicao="top-3 left-3"
-          cor="bg-black/60 text-destructive/80 hover:text-destructive hover:bg-black/80"
-          aoClicar={() => { if (confirm("Excluir esta foto?")) onDeletePhoto(vehicle.id, 0); }}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Excluir
-        </BotaoSobreFoto>
-      )}
-
-      {isTop && onEditPhoto && temFoto && (
-        <BotaoSobreFoto
-          posicao="top-12 left-3"
-          cor="bg-brand-gold/90 text-black hover:bg-brand-gold"
-          titulo="Editar foto (cortar/pintar)"
-          aoClicar={() => onEditPhoto(vehicle)}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Editar foto
-        </BotaoSobreFoto>
-      )}
-
-      <div className="absolute bottom-3 left-4 right-4">
-        <h3 className="text-lg font-bold text-white drop-shadow-lg">
-          {tituloDoAnuncio(vehicle)}
-        </h3>
-      </div>
     </div>
   );
 }
