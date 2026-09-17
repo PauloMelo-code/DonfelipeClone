@@ -3,6 +3,7 @@
 import {
   ArrowRight, Building2, ChevronDown, Clock, Eye, ImageIcon, Loader2, MapPin,
   Megaphone, MessageCircle, Pencil, Percent, Radio, Send, Sparkles, User, Users, X,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import type { Publicacao } from "../_ganchos/use-publicacao";
 import { BolhaEnviada, BolhaRecebida } from "./bolha-whatsapp";
 import { SeletorDeGrupos } from "./seletor-de-grupos";
 import { formatPrice, parseArray, type Vehicle } from "./tipos";
+import { tipoDaOrigem, type OrigemBruta, type TipoDeOrigem } from "@/lib/tipo-de-origem";
 
 // ---------------------------------------------------------------------------
 // O modal onde o carro vira anuncio.
@@ -40,15 +42,19 @@ function nomeDoVeiculo(v: Vehicle) {
   return marca ? `${marca} ${modelo}` : modelo;
 }
 
-/** O icone conta de onde o carro veio: canal, comunidade, lista ou conversa. */
-function IconeDaOrigem({ groupId, isAnnounce, isCommunity }: { groupId: string; isAnnounce?: boolean; isCommunity?: boolean }) {
-  const Icon = isAnnounce ? Radio
-    : isCommunity ? Building2
-    : groupId.endsWith("@broadcast") ? Megaphone
-    : groupId.endsWith("@s.whatsapp.net") ? User
-    : Users;
+/** O icone conta de onde o carro veio, pela mesma regra da tela de Grupos. */
+function IconeDaOrigem({ origem }: { origem: OrigemBruta }) {
+  const Icon = ICONE_DA_ORIGEM[tipoDaOrigem(origem)];
   return <Icon className="h-3 w-3 shrink-0" />;
 }
+
+const ICONE_DA_ORIGEM: Record<TipoDeOrigem, LucideIcon> = {
+  grupo: Users,
+  comunidade: Building2,
+  canal: Radio,
+  lista: Megaphone,
+  contato: User,
+};
 
 export function DialogoPublicacao({
   pub,
@@ -87,11 +93,7 @@ export function DialogoPublicacao({
                       className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] border border-white/10 px-1.5 py-0.5 text-[11px] text-muted-foreground max-w-[260px]"
                       title={v.sourceGroup.name}
                     >
-                      <IconeDaOrigem
-                        groupId={v.sourceGroup.groupId}
-                        isAnnounce={v.sourceGroup.isAnnounce}
-                        isCommunity={v.sourceGroup.isCommunity}
-                      />
+                      <IconeDaOrigem origem={v.sourceGroup} />
                       <span className="truncate">{v.sourceGroup.name}</span>
                     </span>
                   )}

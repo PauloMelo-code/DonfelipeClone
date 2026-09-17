@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { Building2, Megaphone, Radio, User, Users, type LucideIcon } from "lucide-react";
+import { tipoDaOrigem } from "@/lib/tipo-de-origem";
 
 export interface Group {
   id: string;
@@ -63,22 +64,8 @@ export const TIPOS_RECLASSIFICAVEIS: { id: string; label: string; icone: LucideI
   { id: "contato", label: "Contato", icone: User },
 ];
 
-/**
- * De que tipo e este destino.
- *
- * A escolha manual do operador (`kindOverride`) vence a leitura automatica --
- * assim da pra mover um contato pra "lista" sem mexer no JID real. Sem
- * override, o sufixo do JID decide. Cuidado com um caso que ja confundiu o
- * sistema: grupo `@g.us` restrito a admins continua sendo GRUPO, nao canal.
- */
-export function tipoDoGrupo(g: Group): string {
-  if (g.kindOverride) return g.kindOverride;
-  if (g.isContact || g.groupId.endsWith("@s.whatsapp.net")) return "contato";
-  if (g.groupId.endsWith("@newsletter")) return "canal";
-  if (g.groupId.endsWith("@broadcast")) return "lista";
-  if (g.isCommunity) return "comunidade";
-  return "grupo";
-}
+/** De que tipo e este destino. A regra mora em lib/tipo-de-origem. */
+export const tipoDoGrupo = (g: Group): string => tipoDaOrigem(g);
 
 /** O icone do tipo. Devolve o componente, nao um glifo -- quem renderiza
  *  escolhe o tamanho e a cor. */

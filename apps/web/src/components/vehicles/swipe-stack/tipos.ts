@@ -35,6 +35,9 @@ export interface SwipeVehicle {
     groupId: string;
     isCommunity?: boolean;
     isAnnounce?: boolean;
+    isContact?: boolean;
+    /** Tipo escolhido a mao na tela de Grupos. */
+    kindOverride?: string | null;
     ownerPhone?: string | null;
     region?: string | null;
   } | null;

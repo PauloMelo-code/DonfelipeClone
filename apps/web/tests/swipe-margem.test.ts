@@ -19,6 +19,7 @@ import {
   classificarMargem,
 } from "../src/components/vehicles/swipe-stack/margem";
 import { lerEstado, lerOrigem } from "../src/components/vehicles/swipe-stack/origem";
+import { tipoDaOrigem } from "../src/lib/tipo-de-origem";
 import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos";
 
 // ── Sem FIPE nao ha o que comparar ────────────────────────────────────────
@@ -73,10 +74,24 @@ import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos"
 
   assert.equal(grupo({}).rotulo, "Grupo");
   assert.equal(grupo({ isCommunity: true }).rotulo, "Comunidade");
-  assert.equal(grupo({ isAnnounce: true }).rotulo, "Canal");
   assert.equal(grupo({ groupId: "123@newsletter" }).rotulo, "Canal");
   assert.equal(grupo({ groupId: "123@broadcast" }).rotulo, "Lista de transmissão");
   assert.equal(grupo({ groupId: "5551999@s.whatsapp.net" }).rotulo, "Contato");
+  assert.equal(grupo({ isContact: true }).rotulo, "Contato");
+  assert.equal(grupo({ kindOverride: "lista" }).rotulo, "Lista de transmissão", "a escolha manual vence");
+
+  // O caso que confundiu o cliente: grupo restrito a admins e GRUPO. O card
+  // dizia "Canal" e a aba Canais contava zero no mesmo dia.
+  assert.equal(
+    grupo({ isAnnounce: true }).rotulo,
+    "Grupo",
+    "grupo @g.us restrito a admins nao e canal",
+  );
+  assert.equal(
+    tipoDaOrigem({ groupId: "123@g.us", isCommunity: false }),
+    "grupo",
+    "a tela de Grupos le a mesma regra",
+  );
 
   // Lista de transmissao costuma chegar sem nome nenhum.
   assert.equal(

@@ -84,6 +84,8 @@ export async function GET(request: NextRequest) {
           grupoJid: gruposWhatsapp.groupId,
           grupoComunidade: gruposWhatsapp.isCommunity,
           grupoCanal: gruposWhatsapp.isAnnounce,
+          grupoContato: gruposWhatsapp.isContact,
+          grupoTipoManual: gruposWhatsapp.kindOverride,
           grupoTelefone: gruposWhatsapp.ownerPhone,
           grupoRegiao: gruposWhatsapp.region,
           totalPublicacoes: sql<number>`(select count(*)::int from ${historicoPublicacao} where ${historicoPublicacao.vehicleId} = ${veiculos.id} and ${historicoPublicacao.isDeleted} = false)`,
@@ -101,7 +103,7 @@ export async function GET(request: NextRequest) {
 
     // Mesma forma que a tela ja consome: sourceGroup e _count aninhados.
     const vehicles = linhas.map(
-      ({ grupoNome, grupoJid, grupoComunidade, grupoCanal, grupoTelefone, grupoRegiao, totalPublicacoes, ...v }) => ({
+      ({ grupoNome, grupoJid, grupoComunidade, grupoCanal, grupoContato, grupoTipoManual, grupoTelefone, grupoRegiao, totalPublicacoes, ...v }) => ({
         ...v,
         sourceGroup: grupoJid
           ? {
@@ -109,6 +111,8 @@ export async function GET(request: NextRequest) {
               groupId: grupoJid,
               isCommunity: grupoComunidade as boolean,
               isAnnounce: grupoCanal as boolean,
+              isContact: grupoContato as boolean,
+              kindOverride: grupoTipoManual,
               ownerPhone: grupoTelefone,
               region: grupoRegiao,
             }

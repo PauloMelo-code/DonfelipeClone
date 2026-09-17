@@ -40,7 +40,16 @@ export interface Vehicle {
   internalNotes?: string | null;
   capturedAt: string;
   sourceGroupId: string | null;
-  sourceGroup: { name: string; groupId: string; isCommunity?: boolean; isAnnounce?: boolean; ownerPhone?: string | null; region?: string | null } | null;
+  sourceGroup: {
+    name: string;
+    groupId: string;
+    isCommunity?: boolean;
+    isAnnounce?: boolean;
+    isContact?: boolean;
+    kindOverride?: string | null;
+    ownerPhone?: string | null;
+    region?: string | null;
+  } | null;
   state?: string | null;
   qualityScore?: number | null;
   isVip?: boolean;
