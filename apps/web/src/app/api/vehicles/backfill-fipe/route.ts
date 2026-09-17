@@ -4,7 +4,7 @@ import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
 import { lerConfiguracaoNumero } from "@/lib/settings";
 import { extrairFipeDoTexto } from "@/lib/actions/veiculos";
 import { requireAuth } from "@/lib/auth";
-import { formatVehicleAd } from "@/lib/vehicle-formatter";
+import { formatVehicleAd, trocarPrecoDeVenda } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 
 /**
@@ -49,11 +49,16 @@ export async function POST() {
 
     let adsRegenerated = 0;
     for (const v of approved) {
-      const cleanedDesc = v.rawDescription
+      const sellingPrice = v.price * (1 + margin / 100);
+      // Texto editado pelo operador nao e regerado: so a linha "Por:" acompanha.
+      const editado = v.adEditedAt && v.formattedAd?.trim()
+        ? trocarPrecoDeVenda(v.formattedAd, sellingPrice)
+        : null;
+      const cleanedDesc = !editado && v.rawDescription
         ? await cleanAdDescription(v.rawDescription)
         : null;
 
-      const ad = formatVehicleAd(
+      const ad = editado ?? formatVehicleAd(
         {
           model: v.model,
           brand: v.brand,
@@ -69,8 +74,6 @@ export async function POST() {
         },
         { profitMarginPercent: margin }
       );
-
-      const sellingPrice = v.price * (1 + margin / 100);
 
       await db
         .update(veiculos)

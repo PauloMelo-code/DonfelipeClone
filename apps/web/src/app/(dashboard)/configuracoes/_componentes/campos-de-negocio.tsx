@@ -69,8 +69,8 @@ export function CamposDeNegocio({ cfg }: { cfg: Configuracoes }) {
             className={CAMPO}
           />
           <p className={AJUDA}>
-            Grupos marcados como &quot;Nacional&quot; só aceitam carros destes estados.
-            Carros de fora são descartados automaticamente.
+            Carros de outros estados ou regiões são descartados, venham de qualquer grupo.
+            Sem estado no anúncio, só os grupos &quot;Nacional&quot; descartam.
           </p>
         </div>
       </SectionCard>

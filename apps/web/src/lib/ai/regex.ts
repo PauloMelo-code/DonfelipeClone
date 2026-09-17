@@ -224,7 +224,7 @@ export function extractWithRegex(text: string): VehicleData | null {
 
   // --- Fuel ---
   let fuel: string | undefined;
-  if (/\bh[ií]brid[oa]\b/i.test(clean)) fuel = "HIBRIDO";
+  if (/\b(h[ií]brid[oa]|hybrid)\b/i.test(clean)) fuel = "HIBRIDO";
   else if (/\bdiesel\b/i.test(clean)) fuel = "DIESEL";
   else if (ELETRICO.test(clean)) fuel = "ELETRICO";
   else if (/\bflex\b/i.test(clean)) fuel = "FLEX";

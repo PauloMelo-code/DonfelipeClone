@@ -236,6 +236,19 @@ caso("Hilux: titulo sem marca, sem ano, turbo colado e cambio no fim", () => {
   assert.equal(tituloDoAnuncio(v), "Hilux SRX 4X4 2.8T Diesel (aut.)");
 });
 
+caso("'HYBRID' (como a Toyota escreve) e hibrido e vira '(híbrido)'", () => {
+  const v = extractWithRegex("TOYOTA COROLLA CROSS XRX HYBRID 2023/2023\n2023 | 20.000km\n\nPor: 180.000")!;
+  assert.equal(v.fuel, "HIBRIDO");
+  assert.equal(tituloDoAnuncio(v), "Corolla Cross XRX (híbrido)");
+});
+
+caso("titulo longo do vendedor (61 caracteres) nao vaza para o corpo", () => {
+  const texto = "MERCEDES-BENZ C180 AVANTGARDE 1.6 TURBO AUTOMÁTICO 2019/2019\n2019 | 62.000km\n\nTeto solar\n\nPor: 118.000";
+  const v = extractWithRegex(texto)!;
+  const anuncio = formatVehicleAd({ ...v, price: 118000, rawDescription: texto }, { profitMarginPercent: 0 });
+  assert.equal(anuncio, "*C180 Avantgarde 1.6T (aut.)*\n2019 | 62.000km\n\nTeto solar\n\nPor: *118.000,00*");
+});
+
 async function casosAssincronos() {
   // A regra do km abreviado vive na validacao comum ao regex e ao GPT.
   const { extractVehicleFromText } = await import("../src/lib/ai");

@@ -45,7 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         rejectionTags: null,
         autoRejectedReason: null,
         sellingPrice: null,
-        formattedAd: null,
+        // O texto que o operador editou volta com o carro; o gerado e refeito.
+        formattedAd: vehicle.adEditedAt ? vehicle.formattedAd : null,
         ...carimboDeEdicao(auth.user.id),
       })
       .where(travaDeColisao(veiculos, id, vehicle.updatedAt))

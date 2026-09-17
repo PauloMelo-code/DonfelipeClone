@@ -298,8 +298,9 @@ export function formatVehicleAd(
 
       // Skip lines that match data we already show in the header/footer
       if (
-        // Model name line
-        lower.includes(modelFirstWord) && lower.length < 60 && bodyLines.length < 3 ||
+        // Model name line. A primeira e o titulo do vendedor, de qualquer
+        // tamanho: com marca, versao e ano passa facil de 60 caracteres.
+        lower.includes(modelFirstWord) && (bodyLines.length === 0 || lower.length < 60 && bodyLines.length < 3) ||
         // Year line: "Ano 2025" or "2025" or "2024/2025"
         /^(ano\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
         // KM line: "KM 35.000" or "35.000 km" or "35mil km" (linha inteira)
