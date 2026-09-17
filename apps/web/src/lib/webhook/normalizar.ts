@@ -181,7 +181,8 @@ function doFormatoPadrao(raw: any): ResultadoNormalizacao {
       messageId: key.id || "std_" + Date.now(),
       isFromMe: !!key.fromMe,
       pushName: data.pushName || null,
-      senderJid: null,
+      // Quem postou: usado pra juntar as fotos extras do mesmo anuncio.
+      senderJid: key.participant || data.senderJid || null,
       textContent:
         message.conversation ||
         message.extendedTextMessage?.text ||

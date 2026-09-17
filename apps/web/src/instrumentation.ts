@@ -10,4 +10,12 @@ export async function register() {
 
   const { iniciarWorker } = await import("@/lib/queue/publicacao");
   iniciarWorker();
+
+  // Canal do WhatsApp nao chega pelo webhook: o sistema vai buscar.
+  // CANAIS_INTERVALO_MINUTOS=0 desliga.
+  const minutos = Number(process.env.CANAIS_INTERVALO_MINUTOS ?? 5);
+  if (minutos > 0) {
+    const { iniciarBuscaDeCanais } = await import("@/lib/canais/publicacoes");
+    iniciarBuscaDeCanais(minutos);
+  }
 }

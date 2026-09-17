@@ -388,38 +388,47 @@ export async function POST(request: NextRequest) {
     // VIP detection
     const isVip = await isVipVehicle(model, brand);
 
+    const dados = {
+      model,
+      brand,
+      year,
+      yearModel,
+      km,
+      price,
+      fipePrice,
+      transmission,
+      fuel,
+      color,
+      plate,
+      location,
+      state,
+      features: JSON.stringify(features),
+      photos: JSON.stringify(photos),
+      rawDescription: textContent,
+      sourceGroupId: groupJid,
+      sourceMessageId: messageId,
+      sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
+      sourceSenderJid: senderJid, // JID de quem postou -- usado pra agrupar fotos extras
+      identityHash,
+      vehicleHash,
+      photoHash,
+      qualityScore,
+      isVip,
+      autoRejectedReason,
+      status: autoRejectedReason ? "REJECTED" : "PENDING",
+      rejectedAt: autoRejectedReason ? new Date() : null,
+      rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
+    };
+
+    // `source_message_id` e unico na tabela inteira, excluidos inclusive. Sem
+    // isto, um anuncio que ja passou por aqui e foi apagado (o "zerar", por
+    // exemplo) derrubava a captura com erro de trava ao ser publicado de novo.
     const [vehicle] = await db
       .insert(veiculos)
-      .values({
-        model,
-        brand,
-        year,
-        yearModel,
-        km,
-        price,
-        fipePrice,
-        transmission,
-        fuel,
-        color,
-        plate,
-        location,
-        state,
-        features: JSON.stringify(features),
-        photos: JSON.stringify(photos),
-        rawDescription: textContent,
-        sourceGroupId: groupJid,
-        sourceMessageId: messageId,
-        sellerPhone: (vehicleData.sellerPhone as string) || pushName || null,
-        sourceSenderJid: senderJid, // JID de quem postou -- usado pra agrupar fotos extras
-        identityHash,
-        vehicleHash,
-        photoHash,
-        qualityScore,
-        isVip,
-        autoRejectedReason,
-        status: autoRejectedReason ? "REJECTED" : "PENDING",
-        rejectedAt: autoRejectedReason ? new Date() : null,
-        rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
+      .values(dados)
+      .onConflictDoUpdate({
+        target: veiculos.sourceMessageId,
+        set: { ...dados, isDeleted: false, deletedAt: null, ...carimboDeEdicao(null) },
       })
       .returning();
 

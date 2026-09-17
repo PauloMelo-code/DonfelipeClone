@@ -22,6 +22,7 @@ process.env.UAZAPI_BASE_URL = `http://127.0.0.1:${PORTA}`;
 process.env.UAZAPI_TOKEN = "token-de-teste";
 
 import { uazapi } from "../src/lib/uazapi";
+import { novasPublicacoes } from "../src/lib/canais/publicacoes";
 
 let resposta: unknown = [];
 let status = 200;
@@ -98,6 +99,34 @@ async function main() {
   await assert.rejects(
     () => uazapi.listNewsletters(),
     "erro na API tem que estourar, nao devolver lista vazia",
+  );
+
+  // ── O que conta como publicacao nova ────────────────────────────────────
+  const post = (horasAtras: number, id: string) => ({
+    messageId: id,
+    quando: new Date(Date.now() - horasAtras * 60 * 60 * 1000),
+    texto: "anuncio",
+    imagemUrl: "https://mmg.whatsapp.net/foto.jpg",
+  });
+  const agora = new Date();
+
+  // Primeiro giro do canal: so a janela inicial, senao capturaria meses de
+  // anuncio velho de uma vez.
+  const primeiroGiro = novasPublicacoes([post(48, "velho"), post(1, "recente")], null, agora);
+  assert.deepEqual(primeiroGiro.map((p) => p.messageId), ["recente"]);
+
+  // Com marcador, so o que veio depois dele.
+  const marcador = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const depois = novasPublicacoes([post(48, "velho"), post(3, "antes"), post(1, "depois")], marcador, agora);
+  assert.deepEqual(depois.map((p) => p.messageId), ["depois"]);
+
+  // Em ordem de publicacao, e no maximo dez por giro.
+  const muitas = Array.from({ length: 15 }, (_, i) => post(i / 60, `p${i}`));
+  const limitadas = novasPublicacoes(muitas, marcador, agora);
+  assert.equal(limitadas.length, 10, "teto de dez por giro");
+  assert.ok(
+    limitadas.every((p, i) => i === 0 || p.quando >= limitadas[i - 1].quando),
+    "entrega na ordem em que foram publicadas",
   );
 
   servidor.close();

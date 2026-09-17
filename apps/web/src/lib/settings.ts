@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { db, configuracoes, vivos } from "@/lib/db";
+import { db, configuracoes, carimboDeEdicao, vivos } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Leitura de configuracao — uma implementacao.
@@ -24,4 +24,18 @@ export async function lerConfiguracaoNumero(chave: string, padrao: number): Prom
   if (bruto === null) return padrao;
   const n = Number(bruto);
   return Number.isNaN(n) ? padrao : n;
+}
+
+/**
+ * Grava uma configuracao interna do sistema (sem usuario: quem escreve e o
+ * proprio servidor). A tela de Configuracoes tem o caminho dela, com dono.
+ */
+export async function gravarConfiguracao(chave: string, valor: string): Promise<void> {
+  await db
+    .insert(configuracoes)
+    .values({ key: chave, value: valor })
+    .onConflictDoUpdate({
+      target: configuracoes.key,
+      set: { value: valor, isDeleted: false, deletedAt: null, ...carimboDeEdicao(null) },
+    });
 }

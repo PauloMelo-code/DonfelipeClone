@@ -47,6 +47,14 @@ export interface SendPresencePayload {
 }
 
 
+/** Uma publicacao de canal, ja no vocabulario do sistema. */
+export interface PublicacaoDeCanal {
+  messageId: string;
+  quando: Date;
+  texto: string | null;
+  imagemUrl: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Client — supports multiple UAZAPI instances
 // ---------------------------------------------------------------------------
@@ -371,6 +379,33 @@ class UazapiClient {
       );
     }
     return canais;
+  }
+
+  /**
+   * Publicacoes recentes de um canal. `POST /newsletter/messages {jid, count}`.
+   *
+   * O campo e `jid` -- com `id` a API responde "newsletter jid is required".
+   * A foto do canal vem numa URL aberta (`imageMessage.URL`): `/message/download`
+   * nao acha publicacao de canal ("Message not found"), porque ela nao fica no
+   * acervo da instancia.
+   */
+  async newsletterMessages(jid: string, count = 20): Promise<PublicacaoDeCanal[]> {
+    const { data } = await this.client.post("/newsletter/messages", { jid, count });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw: any[] = Array.isArray(data) ? data : data?.response ?? data?.messages ?? [];
+    return raw
+      .map((m) => {
+        const img = m?.message?.imageMessage ?? {};
+        const texto =
+          img.caption ?? m?.message?.conversation ?? m?.message?.extendedTextMessage?.text ?? null;
+        return {
+          messageId: String(m?.messageid ?? m?.id ?? ""),
+          quando: new Date(m?.timestamp ?? 0),
+          texto: typeof texto === "string" && texto.trim() ? texto : null,
+          imagemUrl: img.URL ?? img.url ?? null,
+        };
+      })
+      .filter((p) => p.messageId && !Number.isNaN(p.quando.getTime()));
   }
 
   /** Info detalhada de um canal (puxa o nome quando o list nao traz).
