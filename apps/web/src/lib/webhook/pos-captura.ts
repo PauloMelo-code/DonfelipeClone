@@ -1,6 +1,6 @@
 import { eq, isNull } from "drizzle-orm";
 import { db, veiculos, carimboDeEdicao, vivosE } from "@/lib/db";
-import { lerConfiguracaoNumero } from "@/lib/settings";
+import { extrairFipeDoTexto, precificar } from "@/lib/actions/veiculos";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { reorderPhotosByBest } from "@/lib/photo-picker";
@@ -44,12 +44,19 @@ export function gerarAnuncioEmBackground(
     try {
       // Limpeza via GPT tem cache de 24 h: texto parecido nao paga de novo.
       const limpo = await cleanAdDescription(rawDescription);
-      const margem = await lerConfiguracaoNumero("profit_margin_percent", 10);
+      // A mesma precificacao da aprovacao: o "Por:" que o card mostra e o
+      // que vai pro grupo.
+      const { margemEfetiva, sellingPrice } = await precificar({
+        price: dados.price,
+        fipePrice: dados.fipePrice ?? extrairFipeDoTexto(rawDescription),
+        km: dados.km,
+        rawDescription,
+        model: dados.model,
+      });
       const formattedAd = formatVehicleAd(
         { ...dados, rawDescription: limpo || rawDescription },
-        { profitMarginPercent: margem }
+        { profitMarginPercent: margemEfetiva }
       );
-      const sellingPrice = dados.price * (1 + margem / 100);
       // O card ja abre editavel: se o operador escreveu antes da IA terminar,
       // o texto dele vale.
       await db

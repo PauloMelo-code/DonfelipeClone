@@ -17,6 +17,8 @@ import { detectarEstado, estadoAtendido, normalizarEstado } from "../src/lib/est
 import {
   anuncioParaExibir,
   formatVehicleAd,
+  garantirPrecoDeVenda,
+  lerPrecoDeVenda,
   tituloDoAnuncio,
   trocarPrecoDeVenda,
 } from "../src/lib/vehicle-formatter";
@@ -225,11 +227,36 @@ caso("anuncio gerado ganha o titulo novo", () => {
 caso("anuncio editado pelo operador fica como esta", () => {
   assert.equal(anuncioParaExibir({ ...dados, formattedAd: ANTIGO, adEditedAt: "2026-09-16" }), ANTIGO);
 });
-caso("so a linha 'Por:' acompanha o preco", () => {
+caso("texto do sistema: so a linha 'Por:' acompanha o preco", () => {
   assert.equal(
     trocarPrecoDeVenda(ANTIGO, 214990),
     ANTIGO.replace("Por: *204.990,00*", "Por: *214.990,00*")
   );
+});
+
+// O cliente poe a margem dele digitando na linha "Por:" -- esse e o preco.
+const PRECOS: [string, number | null][] = [
+  ["Por: *129.800,00*", 129800],
+  ["Fipe: 139.900,00\nPor: *139.900*", 139900],
+  ["Por 186.000", 186000],
+  ["POR: R$ 129.900", 129900],
+  ["Por: R$ *1.290.000,00*", 1290000],
+  ["Por: 129 mil", 129000],
+  ["Por: 129,9 mil", 129900],
+  ["Por dentro, impecável\nPor: *95.800,00*", 95800],
+  ["Por 2 anos de garantia", null],
+  ["Porto Alegre 150.000", null],
+  ["Fipe: 139.900,00", null],
+];
+for (const [texto, esperado] of PRECOS) {
+  caso(`preco de venda em ${JSON.stringify(texto)} -> ${esperado}`, () => assert.equal(lerPrecoDeVenda(texto), esperado));
+}
+caso("texto do operador com 'Por:' vai como esta", () => {
+  const texto = "*Hilux CD SRV (aut.)*\n2015 | 137.000km\n\nPor: *109.900,00*";
+  assert.equal(garantirPrecoDeVenda(texto, 95800), texto);
+});
+caso("texto do operador sem 'Por:' ganha a do sistema", () => {
+  assert.equal(garantirPrecoDeVenda("*Hilux*\n2015", 95800), "*Hilux*\n2015\nPor: *95.800,00*");
 });
 
 // ── Hilux do cliente: marca, maiusculas, ano no titulo e "97km" ─────────

@@ -205,10 +205,36 @@ export function tituloDoAnuncio(v: {
   return rotulo ? `${titulo} ${rotulo}` : titulo;
 }
 
-/** Troca o valor da linha "Por:" -- o resto do texto do operador fica. */
+/** Troca o valor da linha "Por:" -- usado so em texto gerado pelo sistema. */
 export function trocarPrecoDeVenda(texto: string, valor: number): string {
   const linha = `Por: *${priceFormatted(valor)}*`;
   return /^Por:.*$/m.test(texto) ? texto.replace(/^Por:.*$/m, linha) : `${texto}\n${linha}`;
+}
+
+/**
+ * O preco de venda escrito na linha "Por:" do anuncio.
+ *
+ * O texto do card e o que vai pro grupo: quando o operador digita o preco
+ * dele ali, esse e o preco de venda. Entende "Por: *129.800,00*",
+ * "Por 186.000", "POR: R$ 129.900" e "Por: 129 mil". Pega a ultima linha
+ * valida -- "Por dentro, impecavel" ou "Por 2 anos" nao sao preco.
+ */
+export function lerPrecoDeVenda(texto: string | null | undefined): number | null {
+  if (!texto) return null;
+  let achado: number | null = null;
+  for (const m of texto.matchAll(/^[\s*_~]*por\b[\s:*_~]*(?:r\$)?[\s*_~]*([\d.,]+)\s*(mil)?/gim)) {
+    const bruto = m[1];
+    const valor = m[2]
+      ? parseFloat(bruto.replace(",", ".")) * 1000
+      : parseFloat(bruto.replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
+    if (Number.isFinite(valor) && valor >= 1000) achado = valor;
+  }
+  return achado;
+}
+
+/** O texto do operador vai como esta; sem linha "Por:", ganha a do sistema. */
+export function garantirPrecoDeVenda(texto: string, valor: number): string {
+  return lerPrecoDeVenda(texto) === null ? `${texto}\nPor: *${priceFormatted(valor)}*` : texto;
 }
 
 /**

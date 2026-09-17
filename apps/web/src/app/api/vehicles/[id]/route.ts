@@ -14,6 +14,8 @@ import { registrarAuditoria } from "@/lib/audit";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { updateVehicleSchema } from "@/lib/validations";
+import { extrairFipeDoTexto, precificar } from "@/lib/actions/veiculos";
+import { trocarPrecoDeVenda } from "@/lib/vehicle-formatter";
 
 export async function GET(
   request: NextRequest,
@@ -103,7 +105,16 @@ export async function PUT(
     if (!validation.success) return validation.response;
 
     const [existing] = await db
-      .select({ updatedAt: veiculos.updatedAt })
+      .select({
+        updatedAt: veiculos.updatedAt,
+        price: veiculos.price,
+        km: veiculos.km,
+        fipePrice: veiculos.fipePrice,
+        model: veiculos.model,
+        rawDescription: veiculos.rawDescription,
+        formattedAd: veiculos.formattedAd,
+        adEditedAt: veiculos.adEditedAt,
+      })
       .from(veiculos)
       .where(vivosE(veiculos, eq(veiculos.id, id)))
       .limit(1);
@@ -138,6 +149,23 @@ export async function PUT(
       data.adEditedAt = validated.formattedAd ? new Date() : null;
     }
     if (validated.status !== undefined) data.status = validated.status;
+
+    // Mudou preco, km ou FIPE no card e o texto e do sistema: a linha "Por:"
+    // acompanha, pra o card mostrar o valor que vai pro grupo. Texto escrito
+    // pelo operador nao e tocado.
+    const mexeuNoPreco = validated.price !== undefined || validated.km !== undefined
+      || validated.fipePrice !== undefined;
+    if (mexeuNoPreco && validated.formattedAd === undefined && !existing.adEditedAt && existing.formattedAd) {
+      const { sellingPrice } = await precificar({
+        price: validated.price ?? existing.price,
+        km: validated.km ?? existing.km,
+        fipePrice: (validated.fipePrice ?? existing.fipePrice) || extrairFipeDoTexto(existing.rawDescription),
+        rawDescription: existing.rawDescription,
+        model: existing.model,
+      });
+      data.formattedAd = trocarPrecoDeVenda(existing.formattedAd, sellingPrice);
+      if (validated.sellingPrice === undefined) data.sellingPrice = sellingPrice;
+    }
 
     const [vehicle] = await db
       .update(veiculos)

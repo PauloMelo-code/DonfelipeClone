@@ -1,6 +1,11 @@
 import { lerConfiguracaoNumero } from "@/lib/settings";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
-import { formatVehicleAd, trocarPrecoDeVenda } from "@/lib/vehicle-formatter";
+import {
+  anuncioParaExibir,
+  formatVehicleAd,
+  garantirPrecoDeVenda,
+  lerPrecoDeVenda,
+} from "@/lib/vehicle-formatter";
 import type { Veiculo } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -70,8 +75,8 @@ export interface Precificacao {
 
 /**
  * Precificacao inteligente: carro bom e perto da FIPE sai sem margem, porque a
- * margem de fato e escolhida pelo operador no modal. Nos demais casos aplica a
- * margem padrao das configuracoes.
+ * margem de fato e o operador que poe, no texto do card ou no modal. Nos
+ * demais casos aplica a margem padrao das configuracoes.
  */
 export async function precificar(v: {
   price: number;
@@ -133,22 +138,21 @@ export async function prepararAprovacao(
     features = [];
   }
 
-  // Texto que o operador escreveu no card vale como esta: regerar jogaria a
-  // edicao fora. So a linha "Por:" acompanha o preco calculado agora.
-  const editadoNoCard = vehicle.adEditedAt && vehicle.formattedAd?.trim()
-    ? trocarPrecoDeVenda(vehicle.formattedAd, opcoes?.precoEditado ?? preco.sellingPrice)
-    : null;
+  // O que o card mostra e o que vai pro grupo, inclusive o preco da linha
+  // "Por:": o operador poe a margem dele ali. Antes a linha era trocada pelo
+  // preco calculado -- que, na precificacao inteligente, e o do fornecedor.
+  // So regera quando o anuncio ainda nao existe.
+  const pronto = opcoes?.anuncioEditado ?? anuncioParaExibir(vehicle);
 
   // Limpa o texto do vendedor antes de formatar: tira cabecalho de loja,
   // contato e frase promocional que regex nao pega. Tem cache de 24 h.
-  const limpo = opcoes?.anuncioEditado || editadoNoCard || !vehicle.rawDescription
+  const limpo = pronto || !vehicle.rawDescription
     ? null
     : await cleanAdDescription(vehicle.rawDescription);
 
-  const formattedAd =
-    opcoes?.anuncioEditado ??
-    editadoNoCard ??
-    formatVehicleAd(
+  const formattedAd = pronto
+    ? garantirPrecoDeVenda(pronto, opcoes?.precoEditado ?? preco.sellingPrice)
+    : formatVehicleAd(
       {
         model: vehicle.model,
         brand: vehicle.brand,
@@ -167,7 +171,7 @@ export async function prepararAprovacao(
 
   return {
     ...preco,
-    sellingPrice: opcoes?.precoEditado ?? preco.sellingPrice,
+    sellingPrice: lerPrecoDeVenda(formattedAd) ?? opcoes?.precoEditado ?? preco.sellingPrice,
     fipePrice,
     formattedAd,
   };

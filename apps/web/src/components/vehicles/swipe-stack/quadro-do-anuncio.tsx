@@ -10,8 +10,8 @@ import type { SwipeVehicle } from "./tipos";
 //
 // O cliente pediu sem botao de editar: a caixa ja chega pronta pra digitar, e
 // o texto grava sozinho ao sair dela (e antes de Aprovar ou Publicar, quem
-// cuida disso e o card). O que o operador grava fica marcado como editado:
-// aprovar e publicar respeitam o texto e so atualizam a linha "Por:".
+// cuida disso e o card). O que esta na caixa e o que vai pro grupo, inclusive
+// o preco da linha "Por:", onde o operador poe a margem dele.
 //
 // Arrastar dentro da caixa seleciona texto, nao decide o carro -- o card ja
 // ignora textarea ao comecar o arrasto.

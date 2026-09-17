@@ -11,7 +11,8 @@
  * Uso: DATABASE_URL=... pnpm --filter web exec tsx tests/veiculos-actions.test.ts
  */
 import assert from "node:assert/strict";
-import { extrairFipeDoTexto, precificar } from "../src/lib/actions/veiculos";
+import type { Veiculo } from "../src/lib/db";
+import { extrairFipeDoTexto, precificar, prepararAprovacao } from "../src/lib/actions/veiculos";
 
 function testarLeituraDaFipe() {
   const casos: Array<[string, number | null]> = [
@@ -72,9 +73,42 @@ async function testarPrecificacao() {
   assert.equal(semFipe.margemEfetiva, semFipe.margem);
 }
 
+/**
+ * O caso que o cliente relatou: carro bom perto da FIPE (margem calculada 0%),
+ * ele digita o preco dele na linha "Por:" do card e o grupo recebia o preco
+ * do fornecedor. O texto do card e o que vai pro grupo.
+ */
+async function testarAprovacaoRespeitaOCard() {
+  const hilux = {
+    model: "HILUX CD SRV 2.7 4X4", brand: "TOYOTA", year: 2015, yearModel: 2015, km: 137000,
+    price: 110000, fipePrice: 119000, transmission: "AUTOMATICO", fuel: "FLEX",
+    features: "[]", rawDescription: "Hilux CD SRV 2015\nUnico dono\nFipe 119.000\nPor 110.000",
+  };
+
+  const digitado = "*Hilux CD SRV 2.7 4X4 (aut.)*\n2015 | 137.000km\n\nUnico dono\n\nFipe: 119.000,00\nPor: *124.900,00*";
+  const editado = await prepararAprovacao({ ...hilux, formattedAd: digitado, adEditedAt: new Date() } as unknown as Veiculo);
+  assert.equal(editado.margemEfetiva, 0, "o caso do cliente e o de margem calculada zero");
+  assert.equal(editado.formattedAd, digitado, "o texto digitado vai como esta, com o preco do operador");
+  assert.equal(editado.sellingPrice, 124900, "o preco de venda e o da linha Por:");
+
+  // Texto do sistema, que o card mostrou: tambem vai como esta.
+  const gerado = "*HILUX CD SRV (aut.)*\n2015 | 137.000km\n\nPor: *121.000,00*";
+  const doSistema = await prepararAprovacao({ ...hilux, formattedAd: gerado, adEditedAt: null } as unknown as Veiculo);
+  assert.equal(doSistema.formattedAd, gerado.replace("HILUX CD SRV (aut.)", "Hilux CD SRV 2.7 4X4 (aut.)"));
+  assert.equal(doSistema.sellingPrice, 121000);
+
+  // Operador apagou a linha do preco: volta a do sistema.
+  const semPreco = await prepararAprovacao({
+    ...hilux, formattedAd: "*Hilux*\n2015 | 137.000km", adEditedAt: new Date(),
+  } as unknown as Veiculo);
+  assert.match(semPreco.formattedAd, /\nPor: \*110\.000,00\*$/);
+  assert.equal(semPreco.sellingPrice, 110000);
+}
+
 async function main() {
   testarLeituraDaFipe();
   await testarPrecificacao();
+  await testarAprovacaoRespeitaOCard();
   console.log("OK — leitura da FIPE e precificacao tem uma implementacao so.");
 }
 
