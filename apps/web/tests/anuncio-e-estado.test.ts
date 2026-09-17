@@ -137,6 +137,18 @@ const TITULOS: [Parameters<typeof tituloDoAnuncio>[0], string][] = [
   [{ model: "BMW i7", brand: "BMW", transmission: "AUTOMATICO" }, "i7 (aut.)"],
   [{ model: "JEEP", brand: "JEEP", transmission: null }, "Jeep"],
   [{ model: "MERCEDES-BENZ GLA 200 1.3 TB 2021/2022", brand: "MERCEDES", transmission: "AUTOMATICO" }, "GLA 200 1.3T (aut.)"],
+  // Sigla sempre inteira em maiusculas, palavra comum so com a inicial.
+  [{ model: "TOYOTA HILUX CD SRV 2.7 4X4 FLEX", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Hilux CD SRV 2.7 4X4 (aut.)"],
+  [{ model: "HILUX CE", brand: "TOYOTA", transmission: "MANUAL" }, "Hilux CE (manual)"],
+  [{ model: "COROLLA XLI 1.8", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Corolla XLI 1.8 (aut.)"],
+  [{ model: "PALIO ELX 1.0", brand: "FIAT", transmission: "MANUAL" }, "Palio ELX 1.0 (manual)"],
+  [{ model: "HB20 1.0 TGDI PLATINUM", brand: "HYUNDAI", transmission: "AUTOMATICO" }, "HB20 1.0 TGDI Platinum (aut.)"],
+  [{ model: "KWID ZEN 1.0 SCE", brand: "RENAULT", transmission: "MANUAL" }, "Kwid Zen 1.0 SCE (manual)"],
+  [{ model: "MOBI LIKE 1.0 MT", brand: "FIAT", transmission: "MANUAL" }, "Mobi Like 1.0 (manual)"],
+  [{ model: "BMW 320I M SPORT", brand: "BMW", transmission: "AUTOMATICO" }, "320i M Sport (aut.)"],
+  [{ model: "X1 SDRIVE20I GP", brand: "BMW", transmission: "AUTOMATICO" }, "X1 sDrive20i GP (aut.)"],
+  [{ model: "SONG PLUS DM-I", brand: "BYD", fuel: "HIBRIDO", transmission: "AUTOMATICO" }, "Song Plus DM-i (híbrido)"],
+  [{ model: "RAM 2500 LARAMIE 6.7", brand: "RAM", transmission: "AUTOMATICO" }, "RAM 2500 Laramie 6.7 (aut.)"],
 ];
 for (const [entrada, esperado] of TITULOS) {
   caso(`${entrada.model} -> ${esperado}`, () => assert.equal(tituloDoAnuncio(entrada), esperado));

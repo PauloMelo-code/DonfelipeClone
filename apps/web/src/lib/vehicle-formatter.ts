@@ -64,8 +64,12 @@ function getTransmissionLabel(
 //
 // "E-Tron Sportback Performance Black (aut.)": modelo e versao, sem marca,
 // sem ano (vem na linha de baixo), sem combustivel, turbo colado na
-// motorizacao ("1.6T") e o cambio so no fim, entre parenteses. Maiuscula so
-// em sigla ("GLI", "AMG") e em codigo com numero ("A45", "T270").
+// motorizacao ("1.6T") e o cambio so no fim, entre parenteses.
+//
+// Palavra comum so com a inicial maiuscula ("Longitude", "Highline"); sigla
+// sempre inteira em maiusculas ("Hilux CD SRV", "GLI", "AMG"), como o cliente
+// pediu. Sigla sem vogal ja sai sozinha; a que tem vogal precisa estar em
+// SIGLAS -- achou uma saindo "Xli", e aqui que ela entra.
 // ---------------------------------------------------------------------------
 
 const MARCAS = [
@@ -86,12 +90,28 @@ const SIGLAS = new Set([
   "HSE", "SVR", "SV", "ST", "STI", "WRX", "SLT", "SXT", "TRD", "GR", "JCW", "CD", "CS",
   "CX", "DS", "SQ", "RR", "MHEV", "PHEV", "HEV", "EV", "CC", "TL", "LTD", "SUV", "SS",
   "SI", "RT", "TR", "ZX", "ABS",
+  // Versoes e motores com vogal, que a regra do "sem vogal" nao pega.
+  "CE", "XLI", "ELX", "MSI", "MPI", "TGDI", "CRDI", "HDI", "GSI", "SCE", "TCE", "ASX",
+  "AMT", "BEV", "EQA", "EQB", "EQC", "EQE", "EQS", "ES", "IS", "UX", "RAM",
 ]);
+
+/** Grafias de fabricante que nao seguem a regra geral. */
+function grafiaPropria(pedaco: string): string | null {
+  // BMW: "sDrive20i", "xDrive45e".
+  const drive = /^([sx])drive(\d*)([ide]?)$/i.exec(pedaco);
+  if (drive) return `${drive[1].toLowerCase()}Drive${drive[2]}${drive[3].toLowerCase()}`;
+  // BMW/Mercedes/Fiat: "320i", "M340i", "220d", "500e" -- a letra do fim e minuscula.
+  if (/^[a-z]?\d{2,3}[ide]$/i.test(pedaco)) return pedaco.slice(0, -1).toUpperCase() + pedaco.slice(-1).toLowerCase();
+  if (/^ix$/i.test(pedaco)) return "iX";
+  return null;
+}
 
 const MINUSCULAS = new Set(["de", "da", "do", "dos", "das", "e"]);
 
 function caixaDoPedaco(pedaco: string): string {
   if (!pedaco) return pedaco;
+  const propria = grafiaPropria(pedaco);
+  if (propria) return propria;
   const maiusculo = pedaco.toUpperCase();
   // Codigo com numero: "A45", "2.0T", "T270", "4MATIC". O "i" da BMW fica.
   if (/\d/.test(pedaco)) {
@@ -107,7 +127,10 @@ function caixaDoPedaco(pedaco: string): string {
 }
 
 const caixaDaPalavra = (palavra: string) =>
-  palavra.split(/([-/])/).map((p) => (p === "-" || p === "/" ? p : caixaDoPedaco(p))).join("");
+  // BYD escreve "DM-i": o "i" depois do hifen fica minusculo.
+  /^dm-i$/i.test(palavra)
+    ? "DM-i"
+    : palavra.split(/([-/])/).map((p) => (p === "-" || p === "/" ? p : caixaDoPedaco(p))).join("");
 
 function tirarMarcaDoComeco(texto: string, marca?: string | null): string {
   const marcas = [marca, ...MARCAS]
@@ -119,6 +142,8 @@ function tirarMarcaDoComeco(texto: string, marca?: string | null): string {
   for (let tirou = true; tirou; ) {
     tirou = false;
     for (const m of marcas) {
+      // "RAM 2500": aqui a marca e o nome do modelo.
+      if (m === "RAM" && /^\s*\d/.test(resto.slice(m.length))) continue;
       const cabeca = resto.slice(0, m.length).toUpperCase();
       const depois = resto.charAt(m.length);
       if (cabeca === m && (depois === "" || /[\s/-]/.test(depois))) {
@@ -156,6 +181,8 @@ export function tituloDoAnuncio(v: {
     // Combustivel nao faz parte do padrao.
     .replace(/(^|\s)(?:flex|gasolina|etanol|[aá]lcool)(?=\s|$)/gi, " ");
   if (v.fuel === "HIBRIDO") t = t.replace(/(^|\s)(?:h[ií]brido|hybrid)(?=\s|$)/gi, " ");
+  // "1.0 MT" repete o "(manual)" do fim -- so sai quando o rotulo vai entrar.
+  if (v.transmission) t = t.replace(/(\S\s+)mt(?=\s|$)/gi, "$1");
 
   // Turbo colado na motorizacao: "1.6 Turbo" / "1.6 TB" / "1.6turbo" -> "1.6T".
   t = t.replace(/\b(\d\.\d)\s*(?:turbo|tb|t)\b/gi, "$1T");
