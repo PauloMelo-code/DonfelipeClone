@@ -41,7 +41,33 @@ const devolvendo = (corpo: unknown, http = 200) => {
 async function main() {
   await new Promise<void>((ok) => servidor.listen(PORTA, "127.0.0.1", ok));
 
-  // O formato da documentacao: id curto e jid separados. Vale o jid.
+  // O formato REAL da UAZAPI, conferido contra a instancia do cliente em
+  // 17/09/2026: a lista vem em `response` e o nome aninhado em
+  // `thread_metadata.name.text`. Era isso que deixava a aba Canais zerada.
+  devolvendo({
+    response: [
+      {
+        id: "120363314667002720@newsletter",
+        state: { type: "active" },
+        thread_metadata: {
+          creation_time: "1719500187",
+          name: { text: "TOME REPASSES", id: "1777382155558705" },
+          description: { text: "TU QUER PRECO?" },
+          subscribers_count: "12",
+          picture: null,
+          preview: { url: "" },
+        },
+        viewer_metadata: { mute: "on", role: "subscriber" },
+      },
+    ],
+  });
+  const real = await uazapi.listNewsletters();
+  assert.equal(real.length, 1, "a lista vem dentro de `response`");
+  assert.equal(real[0].id, "120363314667002720@newsletter");
+  assert.equal(real[0].subject, "TOME REPASSES", "o nome vem de thread_metadata.name.text");
+  assert.equal(real[0].size, 12);
+
+  // Outra versao da API: id curto e jid lado a lado. Vale o jid.
   devolvendo({
     newsletters: [
       { id: "1719594192374762", jid: "120363159896440801@newsletter", name: "Canal Repasse" },

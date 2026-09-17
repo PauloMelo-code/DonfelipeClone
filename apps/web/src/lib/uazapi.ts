@@ -302,10 +302,11 @@ class UazapiClient {
    */
   async listNewsletters(): Promise<GroupInfo[]> {
     const { data } = await this.client.get("/newsletter/list");
+    // A UAZAPI devolve `{ response: [...] }`; outras versoes usam outro nome.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const raw: any[] = Array.isArray(data)
       ? data
-      : data?.newsletters ?? data?.channels ?? data?.chats ?? data?.data ?? [];
+      : data?.response ?? data?.newsletters ?? data?.channels ?? data?.chats ?? data?.data ?? [];
 
     // O formato varia entre versoes da API: registra o primeiro item uma vez
     // por processo, pra diagnosticar sem precisar de outra ferramenta.
@@ -340,15 +341,27 @@ class UazapiClient {
       return /^120\d{12,}$/.test(bruto) ? `${bruto}@newsletter` : bruto;
     };
 
-    const canais = raw.map((g) => ({
-      id: jidDoCanal(g),
-      subject:
-        pick(g, "Name", "name", "subject", "Subject", "title", "Title", "newsletterName") ?? "",
-      size: pick(g, "subscribers", "Size", "size") ?? 0,
-      creation: pick(g, "Creation", "creation", "createdAt") ?? 0,
-      owner: pick(g, "OwnerJID", "owner") ?? "",
-      profilePictureUrl: pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl"),
-    }));
+    // O nome do canal vem aninhado: `thread_metadata.name.text`. Lido como
+    // campo raso, virava um objeto no lugar do nome.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const texto = (v: any): string | undefined =>
+      typeof v === "string" ? v : typeof v?.text === "string" ? v.text : undefined;
+
+    const canais = raw.map((g) => {
+      const meta = g?.thread_metadata ?? g?.threadMetadata ?? {};
+      return {
+        id: jidDoCanal(g),
+        subject:
+          texto(meta.name) ??
+          texto(pick(g, "Name", "name", "subject", "Subject", "title", "Title", "newsletterName")) ??
+          "",
+        size: Number(meta.subscribers_count ?? pick(g, "subscribers", "Size", "size") ?? 0) || 0,
+        creation: Number(meta.creation_time ?? pick(g, "Creation", "creation", "createdAt") ?? 0) || 0,
+        owner: pick(g, "OwnerJID", "owner") ?? "",
+        profilePictureUrl:
+          meta.picture ?? meta.preview?.url ?? pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl") ?? undefined,
+      };
+    });
 
     const semJid = canais.filter((c) => !c.id.endsWith("@newsletter")).length;
     if (semJid > 0) {
