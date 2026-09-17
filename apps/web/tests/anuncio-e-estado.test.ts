@@ -259,6 +259,48 @@ caso("texto do operador sem 'Por:' ganha a do sistema", () => {
   assert.equal(garantirPrecoDeVenda("*Hilux*\n2015", 95800), "*Hilux*\n2015\nPor: *95.800,00*");
 });
 
+// ── Fornecedor que escreve antes do anuncio ───────────────────────────────
+// O cabecalho da loja virava o titulo: "Esse Veiculo Esta Em (aut.)".
+const SPIN = `📍 ESSE VEÍCULO ESTÁ EM
+(Balneário Camboriú - SC), agendar visita ou enviamos o veículo pra você após o pagamento.
+
+🚗 SPIN PREMIER 1.8
+
+⏳ Ano: 2025
+🚘 Km: 46 mil
+⛽ Combustível: FLEX
+🚻 Cambio: AUTOMÁTICA
+📄 IPVA 2026: PAGO
+
+Ar condicionado gelando
+Pneus bons
+
+FIPE: R$ 119.400
+R$ 94.990`;
+
+console.log("Fornecedor com cabecalho");
+caso("o carro e a linha do carro, nao a frase da loja", () => {
+  const v = extractWithRegex(SPIN)!;
+  assert.equal(v.model, "SPIN PREMIER 1.8");
+  assert.equal(v.km, 46000); // "Km: 46 mil"
+  assert.equal(tituloDoAnuncio(v), "Spin Premier 1.8 (aut.)");
+});
+caso("o cabecalho e as condicoes do fornecedor nao entram no anuncio", () => {
+  const v = extractWithRegex(SPIN)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: SPIN }, { profitMarginPercent: 0 });
+  assert.equal(anuncio, [
+    "*Spin Premier 1.8 (aut.)*",
+    "2025 | 46.000km",
+    "",
+    "IPVA 2026: PAGO",
+    "Ar condicionado gelando",
+    "Pneus bons",
+    "",
+    "Fipe: 119.400,00",
+    "Por: *94.990,00*",
+  ].join("\n"));
+});
+
 // ── Hilux do cliente: marca, maiusculas, ano no titulo e "97km" ─────────
 const HILUX = `TOYOTA HILUX SRX 4X4 2.8 TURBO DIESEL AUTOMÁTICA 2022/2022
 97km

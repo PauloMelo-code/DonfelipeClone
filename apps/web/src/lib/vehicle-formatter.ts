@@ -335,8 +335,9 @@ export function formatVehicleAd(
     const cleaned = vehicle.rawDescription.trim()
       // Remove marcadores de formatacao do WhatsApp: *negrito*, ~tachado~, _italico_
       .replace(/[*~_]/g, "")
-      // Remove all emojis and special unicode symbols
-      .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
+      // Remove all emojis and special unicode symbols. A faixa 2300-23FF
+      // entrou por causa da ampulheta do "⏳ Ano:", que segurava a linha.
+      .replace(/[\u{1F000}-\u{1FFFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
 
     const modelFirstWord = vehicle.model.toLowerCase().split(" ")[0];
     const descLines = cleaned.split("\n");
@@ -354,10 +355,10 @@ export function formatVehicleAd(
         // Model name line. A primeira e o titulo do vendedor, de qualquer
         // tamanho: com marca, versao e ano passa facil de 60 caracteres.
         lower.includes(modelFirstWord) && (bodyLines.length === 0 || lower.length < 60 && bodyLines.length < 3) ||
-        // Year line: "Ano 2025" or "2025" or "2024/2025"
-        /^(ano\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
-        // KM line: "KM 35.000" or "35.000 km" or "35mil km" (linha inteira)
-        /^(km\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
+        // Year line: "Ano 2025", "Ano: 2025", "2025" ou "2024/2025"
+        /^(ano\s*:?\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
+        // KM line: "KM 35.000", "Km: 46 mil", "35.000 km" (linha inteira)
+        /^(km\s*:?\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
         // Ano e km juntos: "2022 | 55.000km", "2019/2020 - 80 mil km"
         /^\d{4}(\s*\/\s*\d{2,4})?\s*[|\-–•]\s*[\d.,]+\s*(mil\s*)?km\b/i.test(l) ||
         // Linha que COMECA repetindo o KM, mesmo com texto depois.
@@ -388,6 +389,8 @@ export function formatVehicleAd(
         /^(nordeste|norte|sul|sudeste|centro[\s-]?oeste)$/i.test(l) ||
         // Transmission/fuel already in title
         /^(automático|automatico|manual|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l) ||
+        // "Combustivel: FLEX", "Cambio: AUTOMATICA", "Modelo: ..." -- ja no titulo.
+        /^(combust[ií]vel|c[aâ]mbio|cambio|marca|modelo)\s*:/i.test(l) ||
         // Remove location lines
         /\b(em\s+estoque|carro\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
         /\b(florian[oó]polis|porto\s+alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|pelotas|navegantes|s[ãa]o\s+paulo|belo\s+horizonte|londrina)\b/i.test(l) ||
@@ -396,7 +399,12 @@ export function formatVehicleAd(
         // Remove WhatsApp contact lines
         (/\b(whats|contato|fone|tel|liga|chama)\b/i.test(l) && /\d{4}/.test(l)) ||
         // Remove repasse/group lines
-        /\b(repasse|grupo\s+de|lista\s+de|entre\s+em\s+contato)\b/i.test(l)
+        /\b(repasse|grupo\s+de|lista\s+de|entre\s+em\s+contato)\b/i.test(l) ||
+        // Cabecalho e condicoes do fornecedor: "ESSE VEICULO ESTA EM (cidade)",
+        // "agendar visita ou enviamos o veiculo apos o pagamento".
+        /\b(agendar?|agende|enviamos|entregamos|atendemos|estamos|consulte)\b/i.test(l) ||
+        /\bap[óo]s\s*o\s*pagamento\b/i.test(l) ||
+        /^(esse|este)\s+ve[ií]culo\b/i.test(l)
       ) {
         continue;
       }

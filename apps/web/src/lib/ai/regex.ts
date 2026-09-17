@@ -65,6 +65,8 @@ export function extractWithRegex(text: string): VehicleData | null {
   // O espaco depois de "km" e SO da mesma linha: com `\s*`, "84.000 Km" seguido
   // de "450HP" na linha de baixo virava km=450.
   const kmPatterns = [
+    // "Km: 46 mil" -- o rotulo antes do numero, com "mil" depois.
+    /\b(?:km|quilometragem)[ \t]*:?[ \t]*(\d{1,3})[ \t]*mil\b/i,
     /\bquilometragem[ \t]*:?[ \t]*([\d.,]+)/i,
     /\bkm[ \t]*:?[ \t]*([\d.,]+)/i,
     /\b(\d{2,3})[ \t]*mil[ \t]*km\b/i,
@@ -273,41 +275,97 @@ export function extractWithRegex(text: string): VehicleData | null {
   ];
   const isPromoLine = (l: string) => PROMO_PHRASES.some((p) => p.test(l));
 
+  /**
+   * Frase do vendedor, nao modelo. Ha fornecedor que escreve um cabecalho
+   * antes do anuncio ("ESSE VEICULO ESTA EM ... agendar visita"), e o titulo
+   * saia com a frase no lugar do carro.
+   */
+  const FRASE_DE_LOJA =
+    /\b(esse|este|esta|essa|nosso|nossa|voc[eê]|agendar?|agende|enviamos|entregamos|entrega|estamos|atendemos|aceitamos|consulte|whats|pagamento|visita|financia|parcel|cr[ée]dito|troca|dispon[ií]vel)\b/i;
+  /**
+   * Linha de campo do anuncio: "Ano: 2025", "Km: 46 mil", "Cambio: ...".
+   * A palavra tem que ser inteira -- sem isso "COROLLA" casava com "cor".
+   */
+  const LINHA_DE_CAMPO =
+    /^(?:r\$|(?:ano|km|quilometragem|pre[çc]o|valor|fipe|pedido|cor|combust[ií]vel|c[aâ]mbio|cambio|ipva|placa|chave|manual|final|motor|portas?|opcionais|garantia|estado|local)\b)/i;
+
+  const pareceModelo = (l: string) =>
+    l.length >= 3 && l.length <= 60 &&
+    l.split(/\s+/).length <= 10 &&
+    /[a-zà-ú]{2}/i.test(l) &&
+    !/^\d+$/.test(l) &&
+    !LINHA_DE_CAMPO.test(l) &&
+    !FRASE_DE_LOJA.test(l) &&
+    !isPromoLine(l);
+
+  // Le o texto ORIGINAL: o carrinho que o vendedor poe antes do modelo some
+  // no `clean`, e e o melhor sinal de qual linha e o carro.
+  const EMOJI_DE_CARRO = /[\u{1F690}\u{1F697}\u{1F698}\u{1F699}\u{1F69A}\u{1F6FB}\u{1F3CE}]/u;
+  const candidatas = text
+    .split("\n")
+    .map((l) => ({
+      bruta: l.trim(),
+      texto: l
+        .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu, "")
+        .replace(/[*_~`]/g, "")
+        .trim(),
+    }))
+    .filter((c) => c.texto);
+
   let model: string | null = null;
   let brand: string | undefined;
 
-  // PASSADA 1: prioriza linha COM brand conhecida (maior confiabilidade)
-  for (const line of lines.slice(0, 10)) {
-    const l = line.replace(/[*_~`]/g, "").trim();
-    if (!l || l.length < 3 || l.length > 80) continue;
-    if (/^\d+$/.test(l)) continue;
-    if (/^(ano|km|preco|valor|fipe|pedid|r\$)/i.test(l)) continue;
-    if (isPromoLine(l)) continue;
-
-    const upperL = l.toUpperCase();
-    for (const b of BRANDS) {
-      if (upperL.includes(b)) {
-        brand = b === "VW" ? "VOLKSWAGEN" : b;
-        model = l;
-        break;
-      }
+  // PASSADA 1: o vendedor escreveu "Modelo: ..."
+  for (const c of candidatas.slice(0, 12)) {
+    const rotulado = c.texto.match(/^(?:modelo|ve[ií]culo|carro)\s*:\s*(.+)$/i);
+    if (rotulado && pareceModelo(rotulado[1].trim())) {
+      model = rotulado[1].trim();
+      break;
     }
-    if (model) break;
   }
 
-  // PASSADA 2: fallback -- primeira linha alfa que nao seja promocional
+  // PASSADA 2: a linha marcada com o carrinho
   if (!model) {
-    for (const line of lines.slice(0, 5)) {
-      const l = line.replace(/[*_~`]/g, "").trim();
-      if (!l || l.length < 3 || l.length > 80) continue;
-      if (/^\d+$/.test(l)) continue;
-      if (/^(ano|km|preco|valor|fipe|pedid|r\$)/i.test(l)) continue;
-      if (isPromoLine(l)) continue;
-      if (/[a-zA-Z]/.test(l) && !/^(✅|📊|💰|📍|🔑)/u.test(l)) {
-        model = l;
+    for (const c of candidatas.slice(0, 12)) {
+      if (EMOJI_DE_CARRO.test(c.bruta) && pareceModelo(c.texto)) {
+        model = c.texto;
         break;
       }
     }
+  }
+
+  // PASSADA 3: linha COM marca conhecida (maior confiabilidade)
+  if (!model) {
+    for (const c of candidatas.slice(0, 10)) {
+      if (!pareceModelo(c.texto)) continue;
+      const maiusculo = c.texto.toUpperCase();
+      for (const b of BRANDS) {
+        if (maiusculo.includes(b)) {
+          brand = b === "VW" ? "VOLKSWAGEN" : b;
+          model = c.texto;
+          break;
+        }
+      }
+      if (model) break;
+    }
+  }
+
+  // PASSADA 4: a primeira linha que parece um carro. Nao achou nenhuma? O
+  // regex desiste e a IA extrai -- melhor pagar o token que publicar a frase
+  // do vendedor como modelo.
+  if (!model) {
+    for (const c of candidatas.slice(0, 8)) {
+      if (pareceModelo(c.texto)) {
+        model = c.texto;
+        break;
+      }
+    }
+  }
+
+  if (model && !brand) {
+    const maiusculo = model.toUpperCase();
+    const achada = BRANDS.find((b) => maiusculo.includes(b));
+    if (achada) brand = achada === "VW" ? "VOLKSWAGEN" : achada;
   }
 
   // --- Color ---

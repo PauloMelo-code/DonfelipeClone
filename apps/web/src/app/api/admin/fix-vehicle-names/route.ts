@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { extractVehicleFromTextNoCache } from "@/lib/ai";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
+import { isModelLikelyBad } from "@/lib/ai/prompt";
 
 /**
  * POST /api/admin/fix-vehicle-names
@@ -19,35 +20,10 @@ import { cleanAdDescription } from "@/lib/ad-cleaner";
  *   - dryRun (default true): conta sem alterar
  */
 
-// Padroes que indicam modelo errado no DB (chamada/loja em vez do modelo real)
-const BAD_MODEL_PATTERNS: RegExp[] = [
-  /menor\s*(valor|pre[çc]o)\s*(do\s*)?(brasil|sul|pa[ií]s)?/i,
-  /oportunidade/i,
-  /imperd[ií]vel/i,
-  /melhor\s*(oferta|pre[çc]o|valor|neg[oó]ci)/i,
-  /^promo[çc][ãa]o/i,
-  /\bvaapty/i,
-  /\bcaarpix/i,
-  /go\s*repasses/i,
-  /repasses?\s+(sul|brasil|premium|vip|porto\s*alegre)/i,
-  /\bporto\s*alegre\b/i,
-  /historico\s*premium/i,
-  /aval[ií]a[çc][aã]o\s*superficial/i,
-  /para\s*seu\s*showroom/i,
-  /baixou+/i,
-  /^abaixo\s*da\s*(tabela|fipe)/i,
-  /^exclusividade/i,
-  /^edicao\s*(limitada|especial|exclusiva)/i,
-  /^lan[çc]amento/i,
-  /^reservad[ao]/i,
-];
-
+/** Uma lista so de chamada/loja/cabecalho, a mesma que a IA usa. */
 function isBadModelName(name: string): boolean {
-  if (!name) return true;
-  const n = name.trim();
-  if (n.length < 3) return true;
-  // Mais que 5 palavras sem nenhum termo automotivo? provavelmente nao e modelo
-  return BAD_MODEL_PATTERNS.some((p) => p.test(n));
+  const n = (name ?? "").trim();
+  return n.length < 3 || isModelLikelyBad(n);
 }
 
 export async function POST(request: Request) {

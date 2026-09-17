@@ -64,6 +64,23 @@ const CASOS: Caso[] = [
     },
   },
   {
+    // O fornecedor escreve um cabecalho antes do anuncio: "ESSE VEICULO ESTA
+    // EM ...". O titulo saia com a frase no lugar do carro.
+    nome: "cabecalho do fornecedor nao vira o modelo",
+    texto:
+      "\u{1F4CD} ESSE VEÍCULO ESTÁ EM\n(Balneário Camboriú - SC), agendar visita ou enviamos o veículo pra você após o pagamento.\n\n\u{1F697} SPIN PREMIER 1.8\n\nAno: 2025\nKm: 46 mil\nCombustível: FLEX\nCambio: AUTOMÁTICA\n\nFIPE: R$ 119.400\nR$ 94.990",
+    esperado: {
+      model: "SPIN PREMIER 1.8",
+      year: 2025,
+      km: 46000, // "46 mil", nao 46
+      price: 94990,
+      fipePrice: 119400,
+      transmission: "AUTOMATICO",
+      fuel: "FLEX",
+      state: "SC",
+    },
+  },
+  {
     nome: "preco com centavos, tabela FIPE, estado e telefone",
     texto:
       "COMPASS LONGITUDE DIESEL 2.0 4x4\n2022/2022\n52.300 km\nPreco: R$ 168.900,00\nTabela FIPE R$ 189.000\nUnico dono, revisado\nPorto Alegre RS\nContato 51 99999-8888",

@@ -19,8 +19,11 @@ Extraia os seguintes campos do texto ou imagem fornecida:
     * "VAAPTY ITAJAI", "REPASSES SUL", "GO REPASSES" -> e nome da loja
     * "Historico Premium", "Avaliacao Superficial"
     * "Carro de Garagem", "Para seu showroom"
-  Se a primeira linha do anuncio for desse tipo, pule e use a SEGUNDA linha
-  (que geralmente tem o modelo real, ex: "BMW i7", "TORO RANCH 2.0").
+    * "ESSE VEICULO ESTA EM (cidade)", "agendar visita", "enviamos o veiculo
+      apos o pagamento" -> e cabecalho do fornecedor, nao o carro
+  Se a primeira linha do anuncio for desse tipo, pule e procure a linha do
+  carro (ex: "BMW i7", "TORO RANCH 2.0"). Ela costuma vir depois de um
+  carrinho ou de "Modelo:", e nunca e uma frase.
 - brand: marca (ex: "HONDA")
 - year: ano de fabricacao (numero inteiro)
 - yearModel: ano do modelo (numero inteiro, pode ser diferente do ano de fabricacao)
@@ -191,6 +194,10 @@ export const BAD_MODEL_PATTERNS_EXTRACT: RegExp[] = [
   /baixou+|abaixo\s*da\s*(tabela|fipe)/i,
   /para\s*seu\s*showroom/i,
   /^exclusividade|edicao\s*(limitada|especial|exclusiva)|lan[çc]amento|reservad[ao]/i,
+  // Cabecalho do fornecedor antes do anuncio, no lugar do carro.
+  /\b(esse|este)\s+ve[ií]culo\b/i,
+  /agendar?\s*(a\s*)?visita|enviamos\s*o\s*ve[ií]culo|ap[óo]s\s*o\s*pagamento/i,
+  /\b(entregamos|atendemos|estamos)\b/i,
 ];
 export const isModelLikelyBad = (model?: string | null) =>
   !!model && BAD_MODEL_PATTERNS_EXTRACT.some((p) => p.test(model));
