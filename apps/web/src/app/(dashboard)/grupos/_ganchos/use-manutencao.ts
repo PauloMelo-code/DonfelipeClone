@@ -68,6 +68,10 @@ export function useManutencao(buscar: () => void) {
       if (res.ok) {
         const data = await res.json();
         toast.success(`${data.synced} grupos sincronizados de ${ROTULOS[instancia]}`);
+        // Canal que nao veio por falha aparecia como "nenhum canal".
+        for (const aviso of (data.avisos ?? []) as string[]) {
+          toast.warning(aviso, { duration: 12000 });
+        }
         buscar();
       } else {
         toast.error("Erro ao sincronizar");

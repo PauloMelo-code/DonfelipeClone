@@ -288,34 +288,76 @@ class UazapiClient {
   // Newsletters / Canais
   // ──────────────────────────────────────────────────────────────────────────
 
-  /** Lista canais (newsletters) que o numero acompanha.
-   * `GET /newsletter/list` */
+  /**
+   * Lista canais (newsletters) que o numero acompanha.
+   * `GET /newsletter/list`
+   *
+   * O canal tem DOIS identificadores: um `id` curto e o `jid` que termina em
+   * `@newsletter`. O sistema inteiro (webhook, banco, tela) fala em JID, entao
+   * e ele que vale aqui -- guardar o id curto criava um "canal" que nunca
+   * casava com a mensagem que chegava.
+   *
+   * Relanca o erro: canal que nao veio por falha nao pode parecer "nenhum
+   * canal". Quem chama decide o que mostrar.
+   */
   async listNewsletters(): Promise<GroupInfo[]> {
-    try {
-      const { data } = await this.client.get("/newsletter/list");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const raw: any[] = Array.isArray(data) ? data : data?.newsletters ?? data?.channels ?? [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pick = (g: any, ...keys: string[]) => {
-        for (const k of keys) {
-          const v = g?.[k];
-          if (v != null && v !== "") return v;
-        }
-        return undefined;
-      };
-      return raw.map((g) => ({
-        id: pick(g, "JID", "jid", "id", "Id") ?? "",
-        subject:
-          pick(g, "Name", "name", "subject", "Subject", "title", "Title", "newsletterName") ?? "",
-        size: pick(g, "subscribers", "Size", "size") ?? 0,
-        creation: pick(g, "Creation", "creation", "createdAt") ?? 0,
-        owner: pick(g, "OwnerJID", "owner") ?? "",
-        profilePictureUrl: pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl"),
-      }));
-    } catch (err) {
-      console.error(`[UAZAPI:${this.label}] listNewsletters failed:`, err);
-      return [];
+    const { data } = await this.client.get("/newsletter/list");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : data?.newsletters ?? data?.channels ?? data?.chats ?? data?.data ?? [];
+
+    // O formato varia entre versoes da API: registra o primeiro item uma vez
+    // por processo, pra diagnosticar sem precisar de outra ferramenta.
+    const chaveDoLog = `${this.label}:newsletter`;
+    if (raw.length > 0 && !UazapiClient.loggedShape.has(chaveDoLog)) {
+      UazapiClient.loggedShape.add(chaveDoLog);
+      console.log(
+        `[UAZAPI:${this.label}] /newsletter/list sample fields:`,
+        Object.keys(raw[0] || {}).join(", ")
+      );
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pick = (g: any, ...keys: string[]) => {
+      for (const k of keys) {
+        const v = g?.[k];
+        if (v != null && v !== "") return v;
+      }
+      return undefined;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jidDoCanal = (g: any): string => {
+      // Qualquer campo que ja venha com o sufixo vale mais que o resto.
+      const comSufixo = Object.values(g ?? {}).find(
+        (v): v is string => typeof v === "string" && v.endsWith("@newsletter")
+      );
+      if (comSufixo) return comSufixo;
+      const bruto = String(pick(g, "JID", "jid", "chatid", "wa_chatid", "id", "Id") ?? "");
+      if (!bruto || bruto.includes("@")) return bruto;
+      // So numero de canal vira JID. O id curto NAO e o numero do canal.
+      return /^120\d{12,}$/.test(bruto) ? `${bruto}@newsletter` : bruto;
+    };
+
+    const canais = raw.map((g) => ({
+      id: jidDoCanal(g),
+      subject:
+        pick(g, "Name", "name", "subject", "Subject", "title", "Title", "newsletterName") ?? "",
+      size: pick(g, "subscribers", "Size", "size") ?? 0,
+      creation: pick(g, "Creation", "creation", "createdAt") ?? 0,
+      owner: pick(g, "OwnerJID", "owner") ?? "",
+      profilePictureUrl: pick(g, "profilePictureUrl", "ProfilePictureUrl", "PicUrl"),
+    }));
+
+    const semJid = canais.filter((c) => !c.id.endsWith("@newsletter")).length;
+    if (semJid > 0) {
+      console.error(
+        `[UAZAPI:${this.label}] /newsletter/list: ${semJid} de ${canais.length} canais sem JID @newsletter`,
+        Object.keys(raw[0] || {}).join(", ")
+      );
+    }
+    return canais;
   }
 
   /** Info detalhada de um canal (puxa o nome quando o list nao traz).

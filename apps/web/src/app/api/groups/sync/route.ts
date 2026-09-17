@@ -39,6 +39,11 @@ export async function POST(request: Request) {
       isContact?: boolean;
     };
 
+    // O que falhou no caminho. Canal que nao veio por erro de API nao pode
+    // sumir em silencio: a tela dizia "X grupos sincronizados" e a aba Canais
+    // continuava zerada, sem nada explicando.
+    const avisos: string[] = [];
+
     // ── 1. Grupos da instancia de CAPTURA ──────────────────────────────────
     let captureMapped: RemoteWithRole[] = [];
     let captureNewsletters: RemoteWithRole[] = [];
@@ -62,6 +67,8 @@ export async function POST(request: Request) {
           isAnnounce: true,
         }));
       } catch (err) {
+        const motivo = err instanceof Error ? err.message : String(err);
+        avisos.push(`Canais da captura não vieram: ${motivo}`);
         console.error("[Groups Sync] listNewsletters (capture) failed:", err);
       }
     }
@@ -93,6 +100,8 @@ export async function POST(request: Request) {
           isAnnounce: true,
         }));
       } catch (err) {
+        const motivo = err instanceof Error ? err.message : String(err);
+        avisos.push(`Canais do envio não vieram: ${motivo}`);
         console.error("[Groups Sync] listNewsletters (send) failed:", err);
       }
     }
@@ -319,6 +328,7 @@ export async function POST(request: Request) {
       sendContactCount: sendContactMapped.length,
       sendInstanceConfigured: uazapiSend.isConfigured,
       sendError,
+      avisos,
     });
   } catch (error) {
     console.error("[Groups Sync] Error syncing groups:", error);
