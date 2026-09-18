@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { extractWithRegex } from "../src/lib/ai/regex";
 import { cambioConfirmado, detectarCambio } from "../src/lib/ai/cambio";
-import { conferirComOVendedor, soOQueEstaNoTexto } from "../src/lib/ad-cleaner";
+import { conferirComOVendedor, lerItens, soOQueEstaNoTexto } from "../src/lib/ad-cleaner";
 import { detectarEstado, estadoAtendido, normalizarEstado } from "../src/lib/estados";
 import {
   anuncioParaExibir,
@@ -467,6 +467,51 @@ caso("'Sem detalhes' nao entra em carro que faz retoque, nem quando 'detalhes' a
 caso("'Sem detalhes' fica quando o vendedor escreveu", () => {
   const vendedor = "Compass Limited 2021\n40.000 km\nSem detalhes\nSem retoques\nPor 140.000";
   assert.equal(conferirComOVendedor("Sem detalhes\nSem retoques", vendedor), "Sem detalhes\nSem retoques");
+});
+
+// ── Resposta com citacao: sem fonte no texto, nao entra ─────────────────
+console.log("A IA cita o vendedor");
+const SPORTAGE = `SPORTAGE 2021 EX
+2021/2022 - 40 mil km
+✅ ipva 26 pg
+✅ pneus 0
+*manual e chave reserva*
+rev na css
+Faz 1 retoque
+Fipe 140 / Por 128`;
+
+caso("entrada com fonte no texto e saida fiel entra; trecho, emoji e negrito nao atrapalham", () => {
+  const raw = JSON.stringify({ itens: [
+    { fonte: "ipva 26 pg", saida: "IPVA 2026 pago" },
+    { fonte: "pneus 0", saida: "Pneus novos" },
+    { fonte: "manual e chave reserva", saida: "Manual e chave reserva" },
+    { fonte: "rev na css", saida: "Revisões na concessionária" },
+    { fonte: "Faz 1 retoque", saida: "Faz 1 retoque" },
+  ] });
+  assert.equal(lerItens(raw, SPORTAGE), "IPVA 2026 pago\nPneus novos\nManual e chave reserva\nRevisões na concessionária\nFaz 1 retoque");
+});
+caso("fonte que nao esta no texto cai, mesmo parecendo item de carro", () => {
+  const raw = JSON.stringify({ itens: [
+    { fonte: "Único dono", saida: "Único dono" },
+    { fonte: "pneus 0", saida: "Pneus novos" },
+  ] });
+  assert.equal(lerItens(raw, SPORTAGE), "Pneus novos");
+});
+caso("fonte verdadeira com saida de outra coisa cai", () => {
+  const raw = JSON.stringify({ itens: [{ fonte: "pneus 0", saida: "Chave reserva" }] });
+  assert.equal(lerItens(raw, SPORTAGE), "");
+});
+caso("Onix: nada alem do cabecalho e rodape -> corpo vazio, sem inventar", () => {
+  const raw = JSON.stringify({ itens: [
+    { fonte: "Onix hath premier", saida: "Único dono" },
+    { fonte: "2025", saida: "IPVA 2025 pago" },
+  ] });
+  assert.equal(lerItens(raw, ONIX), "");
+  assert.equal(lerItens(JSON.stringify({ itens: [] }), ONIX), "");
+});
+caso("resposta que nao e JSON devolve null (proximo modelo tenta)", () => {
+  assert.equal(lerItens("Pneus novos\nIPVA pago", SPORTAGE), null);
+  assert.equal(lerItens(JSON.stringify({ corpo: "x" }), SPORTAGE), null);
 });
 
 async function casosAssincronos() {

@@ -5,11 +5,17 @@
 // promocional, contatos, headers de filial -- nada que entre no padrao Don Felipe.
 //
 // Regex no vehicle-formatter cobre os casos comuns, mas vira um jogo de pega-
-// pega sem fim. Essa lib usa GPT-4.1-mini pra extrair apenas o que importa:
+// pega sem fim. Essa lib usa GPT pra escolher o que importa:
 //   - Features/opcionais do veiculo
 //   - Observacoes relevantes (revisoes, garantia, estado)
 // Remove agressivamente: nome da loja, telefones, frases promocionais,
 // localizacao duplicada, headers de canal de distribuicao.
+//
+// O modelo nao ESCREVE o anuncio: ele CITA. Cada linha que devolve vem com a
+// linha do vendedor de onde saiu (`fonte`), e o codigo confere que a fonte
+// existe no texto. Inventar deixa de ser regra do prompt e vira impossivel.
+// Veio do primeiro dia de testes do cliente (18/09/2026): o modelo pequeno,
+// com o corpo livre, copiava o exemplo do prompt e reescrevia defeito.
 // ---------------------------------------------------------------------------
 
 import OpenAI from "openai";
@@ -32,7 +38,10 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v6";
+const PROMPT_VERSION = "v7";
+
+/** Modelo grande de proposito: um anuncio sao ~400 tokens, e o pequeno seguia mal 150 linhas de regra. */
+const MODELO = "gpt-4.1";
 
 function hashText(s: string): string {
   return createHash("md5").update(PROMPT_VERSION + ":" + s.trim()).digest("hex").slice(0, 16);
@@ -59,43 +68,44 @@ function cacheSet(key: string, value: string) {
 
 const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Don Felipe.
 
-Tarefa: receber o texto bagunçado e devolver APENAS o CORPO limpo do
-anuncio. O sistema ja adiciona cabecalho (marca/modelo/ano/km) e rodape
-(Fipe/Por) automaticamente -- voce so cuida do MIOLO.
+Tarefa: receber o texto bagunçado do vendedor e ESCOLHER as linhas que
+entram no corpo do anuncio, devolvendo cada uma com a linha de origem.
+Voce nao escreve o anuncio: voce cita o vendedor e arruma a forma. O
+sistema ja adiciona cabecalho (marca/modelo/ano/km) e rodape (Fipe/Por)
+automaticamente -- voce so cuida do MIOLO.
 
 === PADRAO DON FELIPE (CRITICO -- SEGUIR 100%) ===
 Cada informacao em LINHA SEPARADA. SEM prefixos com dois pontos
 (NAO USAR "Opcionais:", "Estado:", "Placa:", "Revisoes:", "Historico:").
 Apenas listar os fatos diretamente, frases curtas e diretas.
 
-EXEMPLOS DO PADRAO CORRETO:
+EXEMPLO (texto do vendedor -> resposta):
 
-EXEMPLO 1 (Audi A6):
-  Blindado
-  Revisado
-  Pneus novos
+  SPORTAGE 2021 EX
+  2021/2022 - 40 mil km
+  ✅ ar cond, dir hidr
+  ✅ ipva 26 pg
+  ✅ pneus 0
+  manual e chave reserva
+  motor susp caixa ok
+  rev na css, 1 dono
+  Faz 1 retoque
+  Fipe 140 / Por 128
+  Chama no whats 51 9999-9999
 
-EXEMPLO 2 (BMW i7):
-  Blindada SBA
-  Vidros protector EVO
-  Único dono
-  Manual do proprietário
-  Chave reserva
-  IPVA 2026 pago
-  Bancos ventilados
+  {"itens":[
+    {"fonte":"ar cond, dir hidr","saida":"Ar condicionado, direção hidráulica"},
+    {"fonte":"ipva 26 pg","saida":"IPVA 2026 pago"},
+    {"fonte":"pneus 0","saida":"Pneus novos"},
+    {"fonte":"manual e chave reserva","saida":"Manual e chave reserva"},
+    {"fonte":"motor susp caixa ok","saida":"Motor, suspensão e caixa OK"},
+    {"fonte":"rev na css, 1 dono","saida":"Revisado na concessionária, único dono"},
+    {"fonte":"Faz 1 retoque","saida":"Faz 1 retoque"}
+  ]}
 
-EXEMPLO 3 (Sportage 2021):
-  Ar condicionado
-  Direção hidráulica
-  Manual e chave reserva
-  Pneus bons
-  Motor, suspensão e caixa OK
-  Revisado na concessionária
-  Único dono
-
-Os exemplos acima mostram so o FORMATO. NUNCA copie um item deles: cada
-linha da sua resposta tem que vir de algo ESCRITO no texto recebido. Se o
-texto so traz modelo, ano, km e preco, a resposta e vazia.
+O exemplo mostra o FORMATO. Nunca copie um item dele: cada entrada da sua
+resposta vem de uma linha do texto recebido. Se o texto so traz modelo,
+ano, km e preco, a resposta e {"itens":[]}.
 
 === REGRAS ===
 1. SEM prefixos categorizadores. NUNCA escrever "Opcionais:", "Estado:",
@@ -139,8 +149,7 @@ texto so traz modelo, ano, km e preco, a resposta e vazia.
    "Gastos necessários: * Polimento" -> "Polimento"
 
 5b. PECA E RETOQUE: no repasse, "peca" e peca PINTADA e "faz 1 retoque" e
-   um retoque A FAZER. "1x pecas", "2 pecas", "uma peca", "faz 1 retoque"
-   -> "Pintar uma peça" / "Pintar duas peças".
+   um retoque A FAZER. Nesses, "saida" = "fonte" (o sistema traduz).
    NUNCA "substituir", "substituída", "trocada".
    NUNCA "retoque na pintura" -- isso diz que o carro TEM retoque, e outra
    informacao.
@@ -153,26 +162,38 @@ texto so traz modelo, ano, km e preco, a resposta e vazia.
    ABC-1234). NAO escrever "Placa: i" ou "Placa a confirmar" se nao
    tiver placa real -- omita a linha.
 
-7. SAIDA:
-   - Maximo 7 linhas
-   - SEM linhas em branco no meio (linhas devem ser CONSECUTIVAS, sem
-     espacos entre elas -- o template ja cuida do espacamento global)
-   - Se nao tiver NADA util alem do que ja esta no cabecalho/rodape,
-     devolva string vazia ""
-   - SEM markdown (sem *, _, ~, #, :, -)
-   - portugues brasileiro
+=== FORMATO DA RESPOSTA (JSON) ===
+{"itens":[{"fonte":"...","saida":"..."}, ...]}
+- "fonte": a linha do vendedor COPIADA como esta no texto (pode ser um
+  trecho da linha). Sem corrigir, sem juntar linhas, sem completar. Se a
+  informacao nao esta escrita, a entrada nao existe.
+- "saida": a mesma informacao no padrao Don Felipe -- capitalizacao,
+  giria em portugues claro, sem enfeite. Nao diz nada que a fonte nao diga.
+- Uma entrada por linha do anuncio, na ordem do texto. Maximo 7.
+- Sem markdown na saida (sem *, _, ~, #, :, -). Portugues brasileiro.
+- Nada util alem do cabecalho/rodape: {"itens":[]}
+Responda SO o JSON.`;
 
-ESPACAMENTO (CRITICO):
-O sistema adiciona automaticamente:
-   <cabecalho>
-   <linha em branco>
-   <SEU CORPO AQUI>           <- consecutivo, sem brancas internas
-   <linha em branco>
-   <rodape>
-Entao VOCE deve devolver SO o corpo, sem linhas em branco entre os itens.
-
-Devolva APENAS o corpo limpo. SEM explicacoes, SEM prefixo "Texto limpo:",
-SEM aspas envolvendo a resposta.`;
+const LIMPEZA_SCHEMA = {
+  name: "anuncio_limpo",
+  strict: true,
+  schema: {
+    type: "object" as const,
+    properties: {
+      itens: {
+        type: "array" as const,
+        items: {
+          type: "object" as const,
+          properties: { fonte: { type: "string" as const }, saida: { type: "string" as const } },
+          required: ["fonte", "saida"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["itens"],
+    additionalProperties: false,
+  },
+};
 
 // Palavras que nao provam nada sozinhas.
 const PALAVRA_VAZIA = new Set([
@@ -255,8 +276,59 @@ export function conferirComOVendedor(limpo: string, original: string): string {
   return fiel.split("\n").filter((l) => !DIZ_SEM_DETALHES.test(l)).join("\n");
 }
 
+/** Sem enfeite, acento, negrito nem espaco duplo: e assim que fonte e texto se comparam. */
+const normalizar = (s: string) =>
+  s.replace(ENFEITE, "").replace(/[*_~`]/g, "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/\s+/g, " ").trim();
+
+// Palavra curta que nao aponta pra nada ("sem manual" nao autoriza "Sem detalhes").
+const PISTA_VAZIA = new Set([
+  ...PALAVRA_VAZIA, "sem", "com", "por", "tem", "nao", "uma", "dos", "das", "que", "aos", "ate", "mas", "seu", "sua",
+]);
+/** Tres letras iniciais de cada palavra: "rev na css" e "Revisões na concessionária" se encontram. */
+const pistas = (s: string) =>
+  (normalizar(s).match(/[a-z]{3,}/g) ?? []).filter((w) => !PISTA_VAZIA.has(w)).map((w) => w.slice(0, 3));
+
 /**
- * Limpa o rawDescription via GPT-4.1-mini.
+ * Le a resposta com citacao e fica so com o que o vendedor escreveu.
+ *
+ * Entrada vale quando a `fonte` esta no texto do vendedor (e tem letra:
+ * "2025" nao e fonte de nada) e a `saida` fala da mesma coisa -- alguma
+ * palavra em comum pelas tres letras iniciais, que e o que sobra de uma
+ * abreviacao como "rev na css".
+ *
+ * Devolve null quando a resposta nem e JSON -- ai o proximo modelo tenta.
+ */
+export function lerItens(raw: string, original: string): string | null {
+  let itens: { fonte?: unknown; saida?: unknown }[];
+  try {
+    const j = JSON.parse(raw);
+    if (!Array.isArray(j?.itens)) return null;
+    itens = j.itens;
+  } catch {
+    return null;
+  }
+  const doVendedor = original.split("\n").map(normalizar).filter((l) => l.length >= 3);
+  const validas: string[] = [];
+  const recusadas: string[] = [];
+  for (const item of itens) {
+    const fonte = String(item.fonte ?? "");
+    const f = normalizar(fonte);
+    const citada = f.length >= 3 && /[a-z]{3}/.test(f) && doVendedor.some((l) => l.includes(f));
+    const pistasDaFonte = pistas(fonte);
+    for (const saida of String(item.saida ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
+      const p = pistas(saida);
+      const fiel = p.length === 0 || p.some((x) => pistasDaFonte.includes(x));
+      if (citada && fiel) validas.push(saida);
+      else recusadas.push(`"${saida}" <- "${fonte}"`);
+    }
+  }
+  if (recusadas.length) console.warn(`[ad-cleaner] sem fonte no anuncio: ${recusadas.join(" | ")}`);
+  return validas.join("\n");
+}
+
+/**
+ * Limpa o rawDescription via GPT.
  * Cache de 24h por hash do texto.
  *
  * Em caso de erro (timeout, sem API key, etc), retorna o texto original
@@ -273,38 +345,41 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
   const cached = cacheGet(key);
   if (cached !== null) return cached;
 
-  // 1) Tenta GPT-4.1-mini (primario)
+  // 1) GPT (primario)
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.1,
-      max_tokens: 400,
+      model: MODELO,
+      temperature: 0,
+      max_tokens: 800,
+      response_format: { type: "json_schema", json_schema: LIMPEZA_SCHEMA },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: text.slice(0, 3000) },
       ],
     });
-    const cleaned = (completion.choices[0]?.message?.content || "").trim();
-    if (cleaned) {
-      const fiel = conferirComOVendedor(cleaned, text);
+    const lido = lerItens(completion.choices[0]?.message?.content || "", text);
+    // {"itens":[]} e resposta legitima: o anuncio so tinha cabecalho e rodape.
+    if (lido !== null) {
+      const fiel = conferirComOVendedor(lido, text);
       cacheSet(key, fiel);
       return fiel;
     }
-    // GPT retornou vazio -- considera falha, cai pro fallback
-    console.warn("[ad-cleaner] GPT retornou vazio, tentando Gemini");
+    console.warn("[ad-cleaner] GPT nao devolveu JSON, tentando Gemini");
   } catch (err) {
     console.error("[ad-cleaner] GPT failed:", err);
   }
 
   // 2) Fallback: Gemini 2.0 Flash (se configurado)
   if (isGeminiConfigured()) {
-    const cleaned = await geminiGenerateText(SYSTEM_PROMPT, text.slice(0, 3000), {
-      maxTokens: 400,
-      temperature: 0.1,
+    const raw = await geminiGenerateText(SYSTEM_PROMPT, text.slice(0, 3000), {
+      jsonMode: true,
+      maxTokens: 800,
+      temperature: 0,
     });
-    if (cleaned) {
+    const lido = raw ? lerItens(raw, text) : null;
+    if (lido !== null) {
       console.log("[ad-cleaner] usado fallback Gemini com sucesso");
-      const fiel = conferirComOVendedor(cleaned, text);
+      const fiel = conferirComOVendedor(lido, text);
       cacheSet(key, fiel);
       return fiel;
     }
