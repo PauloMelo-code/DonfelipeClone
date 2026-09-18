@@ -47,3 +47,13 @@ export function detectarCambio(texto: string): Cambio | undefined {
   if (ELETRICO.test(texto)) return "AUTOMATICO";
   return undefined;
 }
+
+/**
+ * "Manual" so vale ESCRITO no anuncio. A IA chuta manual pelo modelo, e
+ * "manual e chave copia" a induz: uma Rampage automatica foi publicada como
+ * "(manual)". Automatico e CVT ficam -- o chute por modelo acerta neles.
+ */
+export function cambioConfirmado(cambio: string | undefined, texto: string): string | undefined {
+  if (cambio === "MANUAL" && detectarCambio(texto) !== "MANUAL") return undefined;
+  return cambio;
+}

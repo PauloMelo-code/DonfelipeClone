@@ -269,6 +269,40 @@ export function anuncioParaExibir(v: {
  * @param settings - Contains profitMarginPercent used to compute selling price.
  * @returns The formatted ad string ready to be sent via WhatsApp.
  */
+// ---------------------------------------------------------------------------
+// "Peca" no repasse e peca PINTADA. "1x pecas", "2 pecas", "uma peca" e "faz
+// 1 retoque" querem dizer "pintar uma/duas pecas" -- e a IA entregava
+// "substituida" e "retoque na pintura" (que diria que o carro TEM retoque).
+// O cliente pediu em 18/09/2026: sempre "pintar", nunca "substituir".
+// ---------------------------------------------------------------------------
+const POR_EXTENSO = ["", "uma", "duas", "três", "quatro", "cinco"];
+const NUMERO_DA_PALAVRA: Record<string, number> = { um: 1, uma: 1, duas: 2, tres: 3, "três": 3, quatro: 4, cinco: 5 };
+const TROCA = /\b(?:substitu[ií]d[ao]s?|substitui[çc][ãa]o|substituir|trocad[ao]s?|trocar?)(?:\s+d[ea]s?)?\b/i;
+const PECAS = /\b(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s*x?\s*)?(pe[çc]as?)\b/i;
+const FAZ_RETOQUE =
+  /\b(?:faz(?:er)?|precisa(?:\s+de)?|necessita(?:\s+de)?|(?:tem|ter)\s+que\s+fazer|p(?:a)?ra\s+fazer)\s+(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s+)?(retoques?)\b/i;
+
+export function pintarPecas(linha: string): string {
+  // Ja fala em pintura, ou nega a peca: fica como esta.
+  if (/\bpint|\bsem\s+(pe[çc]|retoque)/i.test(linha)) return linha;
+  let m = FAZ_RETOQUE.exec(linha);
+  if (!m) {
+    m = PECAS.exec(linha);
+    // "Pecas originais" nao e defeito.
+    if (!m || (!m[1] && !TROCA.test(linha))) return linha;
+  }
+  const n = m[1] ? (/^\d+$/.test(m[1]) ? Number(m[1]) : NUMERO_DA_PALAVRA[m[1].toLowerCase()]) : (m[2].endsWith("s") ? undefined : 1);
+  const numero = n === undefined ? "" : n <= 5 ? `${POR_EXTENSO[n]} ` : `${n} `;
+  const frase = `pintar ${numero}${n === 1 ? "peça" : "peças"}`;
+  const r = linha
+    .replace(TROCA, " ")
+    .replace(m[0], frase)
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;])/g, "$1")
+    .trim();
+  return r.charAt(0).toUpperCase() + r.slice(1);
+}
+
 export function formatVehicleAd(
   vehicle: {
     model: string;
@@ -344,7 +378,8 @@ export function formatVehicleAd(
     let bodyLines: string[] = [];
 
     for (const line of descLines) {
-      const l = line.trim();
+      // Antes dos filtros: "Faz 1 retoque" cairia como linha de preco ("Faz 127.000").
+      const l = pintarPecas(line.trim());
       const lower = l.toLowerCase();
 
       // Skip empty lines at the very start

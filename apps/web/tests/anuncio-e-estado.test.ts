@@ -12,13 +12,15 @@
  */
 import assert from "node:assert/strict";
 import { extractWithRegex } from "../src/lib/ai/regex";
-import { detectarCambio } from "../src/lib/ai/cambio";
+import { cambioConfirmado, detectarCambio } from "../src/lib/ai/cambio";
+import { conferirComOVendedor, soOQueEstaNoTexto } from "../src/lib/ad-cleaner";
 import { detectarEstado, estadoAtendido, normalizarEstado } from "../src/lib/estados";
 import {
   anuncioParaExibir,
   formatVehicleAd,
   garantirPrecoDeVenda,
   lerPrecoDeVenda,
+  pintarPecas,
   tituloDoAnuncio,
   trocarPrecoDeVenda,
 } from "../src/lib/vehicle-formatter";
@@ -328,6 +330,143 @@ caso("titulo longo do vendedor (61 caracteres) nao vaza para o corpo", () => {
   const v = extractWithRegex(texto)!;
   const anuncio = formatVehicleAd({ ...v, price: 118000, rawDescription: texto }, { profitMarginPercent: 0 });
   assert.equal(anuncio, "*C180 Avantgarde 1.6T (aut.)*\n2019 | 62.000km\n\nTeto solar\n\nPor: *118.000,00*");
+});
+
+// ── 18/09/2026: o que o cliente viu no primeiro dia de testes ────────────
+const RAMPAGE = `Rampage 2.0 Laramie
+2024
+31.000km
+
+Multimídia
+Painel TFT
+Capota elétrica retrátil
+Na garantia de fábrica até 06/2027
+IPVA 2026 pago
+Manual e chave cópia
+Placa J do RS
+
+Fipe 182.544,00
+Por 162.990,00`;
+
+console.log("Cambio so vale escrito");
+caso("Rampage: 'Manual e chave cópia' nao faz a IA publicar '(manual)'", () => {
+  assert.equal(detectarCambio(RAMPAGE), undefined);
+  assert.equal(cambioConfirmado("MANUAL", RAMPAGE), undefined, "MANUAL da IA cai sem 'cambio manual' no texto");
+  assert.equal(cambioConfirmado("AUTOMATICO", RAMPAGE), "AUTOMATICO", "automatico pelo modelo fica");
+});
+caso("'cambio manual' escrito no anuncio segue valendo", () => {
+  assert.equal(cambioConfirmado("MANUAL", "GOL 1.6 2015\ncambio manual"), "MANUAL");
+  assert.equal(cambioConfirmado("MANUAL", "Corolla XEi\nCVT"), undefined, "texto diz CVT, a IA nao manda");
+});
+
+const ONIX = `Onix hath premier
+2025
+16 mil km
+
+Fipe 95.000?00
+VENDA 85.000,00`;
+
+console.log("Corpo do anuncio so com o que o vendedor escreveu");
+caso("Onix: o exemplo do prompt devolvido pela IA nao vira anuncio", () => {
+  const inventado = "Único dono\nManual do proprietário\nChave reserva\nIPVA 2025 pago\nSem detalhes";
+  assert.equal(soOQueEstaNoTexto(inventado, ONIX), "");
+});
+caso("reescrita de giria fica: a raiz da palavra esta no anuncio", () => {
+  const vendedor = "Civic EXL 2019\n80 mil km\nipva 26 pg\npneus 0\nsem retoq\n1 dono\nmanual e chave copia\nrevisado na concessionaria\nPor 110.000";
+  const limpo = "IPVA 2026 pago\nPneus novos\nSem retoques\nÚnico dono\nManual e chave cópia\nRevisões na concessionária";
+  assert.equal(soOQueEstaNoTexto(limpo, vendedor), limpo);
+});
+caso("linha inventada no meio cai e as outras ficam", () => {
+  const vendedor = "Compass Limited 2021\n40.000 km\nteto solar\nPor 140.000";
+  assert.equal(soOQueEstaNoTexto("Teto solar\nBlindado\nÚnico dono", vendedor), "Teto solar");
+});
+
+console.log("Peca e retoque sao peca pintada");
+caso("'1x Peças' do fornecedor vira 'Pintar uma peça', nunca 'substituída'", () => {
+  assert.equal(pintarPecas("1x Peças"), "Pintar uma peça");
+  assert.equal(pintarPecas("Uma peça substituída"), "Pintar uma peça");
+  assert.equal(pintarPecas("2 peças"), "Pintar duas peças");
+  assert.equal(pintarPecas("Substituição de duas peças"), "Pintar duas peças");
+  assert.equal(pintarPecas("Precisa trocar 1 peça"), "Precisa pintar uma peça");
+  assert.equal(pintarPecas("3 peças e pneus bons"), "Pintar três peças e pneus bons");
+  assert.equal(pintarPecas("Peças substituídas"), "Pintar peças");
+});
+caso("'Faz 1 retoque' e retoque A FAZER: 'Pintar uma peça'", () => {
+  assert.equal(pintarPecas("Faz 1 retoque"), "Pintar uma peça");
+  assert.equal(pintarPecas("Fazer um retoque"), "Pintar uma peça");
+  assert.equal(pintarPecas("Precisa de 2 retoques"), "Pintar duas peças");
+});
+caso("'peça' e 'retoque' que nao sao defeito ficam como estao", () => {
+  assert.equal(pintarPecas("Peças originais"), "Peças originais");
+  assert.equal(pintarPecas("Pintura de 2 peças"), "Pintura de 2 peças");
+  assert.equal(pintarPecas("Sem peças pintadas"), "Sem peças pintadas");
+  assert.equal(pintarPecas("Sem retoques"), "Sem retoques");
+});
+
+const RAV4 = `RAV4 2.0 4X2 AUT
+2018/18
+110 Mil Km
+Revisões até 50
+Teto Solar
+Pneus novos
+1x Peças
+Fipe R$115.000
+Pedido R$97.500`;
+
+caso("RAV4: o anuncio sai com 'Pintar uma peça' mesmo quando a IA escreveu 'substituída'", () => {
+  const v = extractWithRegex(RAV4)!;
+  const daIa = "Revisões até 50 mil km\nTeto solar\nPneus novos\nUma peça substituída";
+  const anuncio = formatVehicleAd(
+    { ...v, rawDescription: conferirComOVendedor(daIa, RAV4) },
+    { profitMarginPercent: 0 }
+  );
+  assert.match(anuncio, /\nPintar uma peça\n/);
+  assert.doesNotMatch(anuncio, /substitu/i);
+});
+
+const COMMANDER = `Commander Overland T270
+2025
+27.000 km
+Cambio automático
+Manual e chave cópia
+Ipva pago
+
+Gastos necessários:
+
+* Polimento
+
+Pintura Bom
+Motor Bom
+Suspensão Bom
+Caixa Bom
+
+Fipe 159.071
+Por 136.990`;
+
+console.log("Defeito e com a palavra do vendedor");
+caso("Commander: 'Polimento' omitido pela IA volta pro anuncio", () => {
+  const daIa = "Manual e chave cópia\nIPVA pago\nMotor, suspensão e caixa OK";
+  assert.equal(conferirComOVendedor(daIa, COMMANDER), `${daIa}\nPolimento`);
+});
+caso("'Faz 1 retoque' reescrito como 'Retoque na pintura' volta a ser retoque a fazer", () => {
+  const vendedor = "Commander Overland TD380\n2025\n26.000 km\nTeto solar\nÚnico dono\nFaz 1 retoque\nFipe 222.850,00\nRepasse 199.990,00";
+  const daIa = "Teto solar\nÚnico dono\nRetoque na pintura";
+  const conferido = conferirComOVendedor(daIa, vendedor);
+  assert.equal(conferido, "Teto solar\nÚnico dono\nFaz 1 retoque");
+  const v = extractWithRegex(vendedor)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: conferido }, { profitMarginPercent: 0 });
+  assert.match(anuncio, /\nPintar uma peça\n/);
+  assert.doesNotMatch(anuncio, /retoque na pintura/i);
+});
+
+console.log("'Sem detalhes' so quando o vendedor disse");
+caso("'Sem detalhes' nao entra em carro que faz retoque, nem quando 'detalhes' aparece em outro sentido", () => {
+  const vendedor = "Compass Limited 2021\n40.000 km\nFaz 1 retoque\nMais detalhes no privado\nPor 140.000";
+  assert.equal(conferirComOVendedor("Sem detalhes\nRetoque na pintura", vendedor), "Faz 1 retoque");
+});
+caso("'Sem detalhes' fica quando o vendedor escreveu", () => {
+  const vendedor = "Compass Limited 2021\n40.000 km\nSem detalhes\nSem retoques\nPor 140.000";
+  assert.equal(conferirComOVendedor("Sem detalhes\nSem retoques", vendedor), "Sem detalhes\nSem retoques");
 });
 
 async function casosAssincronos() {

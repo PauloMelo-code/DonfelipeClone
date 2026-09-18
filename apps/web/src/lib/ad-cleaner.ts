@@ -32,7 +32,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v4";
+const PROMPT_VERSION = "v6";
 
 function hashText(s: string): string {
   return createHash("md5").update(PROMPT_VERSION + ":" + s.trim()).digest("hex").slice(0, 16);
@@ -72,7 +72,7 @@ EXEMPLOS DO PADRAO CORRETO:
 
 EXEMPLO 1 (Audi A6):
   Blindado
-  Sem detalhes
+  Revisado
   Pneus novos
 
 EXEMPLO 2 (BMW i7):
@@ -82,7 +82,7 @@ EXEMPLO 2 (BMW i7):
   Manual do proprietário
   Chave reserva
   IPVA 2026 pago
-  Sem detalhes
+  Bancos ventilados
 
 EXEMPLO 3 (Sportage 2021):
   Ar condicionado
@@ -92,6 +92,10 @@ EXEMPLO 3 (Sportage 2021):
   Motor, suspensão e caixa OK
   Revisado na concessionária
   Único dono
+
+Os exemplos acima mostram so o FORMATO. NUNCA copie um item deles: cada
+linha da sua resposta tem que vir de algo ESCRITO no texto recebido. Se o
+texto so traz modelo, ano, km e preco, a resposta e vazia.
 
 === REGRAS ===
 1. SEM prefixos categorizadores. NUNCA escrever "Opcionais:", "Estado:",
@@ -127,6 +131,24 @@ EXEMPLO 3 (Sportage 2021):
            "Pneus novos" / "IPVA 2026 pago" / "Sem retoques"
    "Manual e chave cópia" e "Manual do proprietário" sao itens e ficam.
 
+5a. DEFEITO E GASTO SEMPRE FICAM, COM A PALAVRA DO VENDEDOR: o que o
+   carro PRECISA (polimento, pintar peca, retoque, amassado, risco, "so
+   polir e higienizar") e a informacao mais importante do anuncio. Copie
+   a linha do vendedor, so tirando enfeite -- reescrever muda o sentido.
+   Precisou cortar pelo limite de linhas? Corte opcional, nunca defeito.
+   "Gastos necessários: * Polimento" -> "Polimento"
+
+5b. PECA E RETOQUE: no repasse, "peca" e peca PINTADA e "faz 1 retoque" e
+   um retoque A FAZER. "1x pecas", "2 pecas", "uma peca", "faz 1 retoque"
+   -> "Pintar uma peça" / "Pintar duas peças".
+   NUNCA "substituir", "substituída", "trocada".
+   NUNCA "retoque na pintura" -- isso diz que o carro TEM retoque, e outra
+   informacao.
+
+5c. "SEM DETALHES" SO SE O VENDEDOR ESCREVEU. Nunca em carro que tem
+   retoque, peca ou polimento a fazer -- isso E detalhe. "Zero de andar"
+   e mecanica, nao lataria.
+
 6. PLACA: so incluir se realmente houver placa valida (ABC1D23 ou
    ABC-1234). NAO escrever "Placa: i" ou "Placa a confirmar" se nao
    tiver placa real -- omita a linha.
@@ -151,6 +173,87 @@ Entao VOCE deve devolver SO o corpo, sem linhas em branco entre os itens.
 
 Devolva APENAS o corpo limpo. SEM explicacoes, SEM prefixo "Texto limpo:",
 SEM aspas envolvendo a resposta.`;
+
+// Palavras que nao provam nada sozinhas.
+const PALAVRA_VAZIA = new Set([
+  "para", "muito", "mais", "menos", "todo", "toda", "todos", "todas", "tudo", "nada",
+  "como", "pelo", "pela", "esse", "essa", "este", "esta", "sobre", "ainda", "sempre",
+  "nunca", "apenas", "somente", "carro", "veiculo", "veiculos",
+]);
+const raizes = (s: string) =>
+  (s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[a-z]{4,}/g) ?? [])
+    .filter((w) => !PALAVRA_VAZIA.has(w))
+    .map((w) => w.slice(0, 4));
+
+/**
+ * Fica so a linha que tem raiz de palavra no texto do vendedor.
+ *
+ * O modelo devolveu o EXEMPLO do prompt ("Único dono, Manual do proprietário,
+ * Chave reserva, IPVA pago") num Onix cujo anuncio so tinha modelo, ano, km
+ * e preco. O cliente quase ofereceu o que nao existe. Raiz de 4 letras deixa
+ * passar a reescrita de giria ("ipva 26 pg" -> "IPVA 2026 pago", "pneus 0"
+ * -> "Pneus novos") e barra o que veio do nada.
+ *
+ * ponytail: reescrita sem raiz em comum ("Filé" -> "Muito conservado") cai
+ * junto. Preferi perder o elogio a inventar item.
+ */
+export function soOQueEstaNoTexto(limpo: string, original: string): string {
+  const doVendedor = new Set(raizes(original));
+  const linhas = limpo.split("\n");
+  const fieis = linhas.filter((linha) => {
+    const r = raizes(linha);
+    return r.length === 0 || r.some((x) => doVendedor.has(x));
+  });
+  if (fieis.length < linhas.length) {
+    const fora = linhas.filter((l) => !fieis.includes(l)).join(" | ");
+    console.warn(`[ad-cleaner] descartou linha que nao esta no anuncio: ${fora}`);
+  }
+  return fieis.join("\n").trim();
+}
+
+// O que o carro PRECISA: e o que o comprador de repasse mais quer saber.
+const DEFEITO =
+  /\b(polimento|polir|pintar|pe[çc]as?|retoques?|amassad\w*|risc(?:o|os|ad\w*)|batid\w*|trinca\w*|arranh\w*|avaria\w*|defeito\w*|reparo\w*|conserto\w*|higieniz\w*)\b/i;
+const ENFEITE = /^[\s*•\-–✅✓☑️]+|[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu;
+
+/**
+ * Defeito e com a palavra do vendedor, nunca com a da IA.
+ *
+ * "Gastos necessários: * Polimento" sumiu do anuncio da Commander, e "Faz 1
+ * retoque" virou "Retoque na pintura" -- que diz que o carro TEM retoque, o
+ * contrario. A linha da IA sobre o mesmo defeito sai; a do vendedor entra
+ * no fim, so sem enfeite. O formatador traduz "1x peças" e "faz 1 retoque"
+ * para "Pintar uma peça" depois.
+ */
+const NEGADO = /^(sem|s\/|zero|nenhum)\b/i;
+const linhasDeDefeito = (original: string) =>
+  original
+    .split("\n")
+    .map((l) => l.replace(ENFEITE, "").trim())
+    .filter((l) => l && DEFEITO.test(l) && !NEGADO.test(l) && !/:\s*$/.test(l))
+    .map((l) => l.charAt(0).toUpperCase() + l.slice(1));
+
+export function garantirDefeitos(limpo: string, original: string): string {
+  const doVendedor = linhasDeDefeito(original);
+  if (!doVendedor.length) return limpo;
+  const raizesDoVendedor = new Set(doVendedor.flatMap(raizes));
+  const daIa = limpo
+    .split("\n")
+    .filter((l) => !(DEFEITO.test(l) && raizes(l).some((r) => raizesDoVendedor.has(r))));
+  return [...daIa, ...doVendedor].filter(Boolean).join("\n");
+}
+
+// "Sem detalhes" e o item favorito da IA: aparecia sem o vendedor ter dito,
+// ate em carro que "faz 1 retoque". So fica se o vendedor escreveu e nao ha
+// defeito a fazer.
+const DIZ_SEM_DETALHES = /\b(sem|s\/|zero|nenhum)\s*detalhes?\b/i;
+
+/** A resposta da IA conferida com o vendedor: nada a mais, nenhum defeito a menos. */
+export function conferirComOVendedor(limpo: string, original: string): string {
+  const fiel = garantirDefeitos(soOQueEstaNoTexto(limpo, original), original);
+  if (DIZ_SEM_DETALHES.test(original) && !linhasDeDefeito(original).length) return fiel;
+  return fiel.split("\n").filter((l) => !DIZ_SEM_DETALHES.test(l)).join("\n");
+}
 
 /**
  * Limpa o rawDescription via GPT-4.1-mini.
@@ -183,8 +286,9 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
     });
     const cleaned = (completion.choices[0]?.message?.content || "").trim();
     if (cleaned) {
-      cacheSet(key, cleaned);
-      return cleaned;
+      const fiel = conferirComOVendedor(cleaned, text);
+      cacheSet(key, fiel);
+      return fiel;
     }
     // GPT retornou vazio -- considera falha, cai pro fallback
     console.warn("[ad-cleaner] GPT retornou vazio, tentando Gemini");
@@ -200,8 +304,9 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
     });
     if (cleaned) {
       console.log("[ad-cleaner] usado fallback Gemini com sucesso");
-      cacheSet(key, cleaned);
-      return cleaned;
+      const fiel = conferirComOVendedor(cleaned, text);
+      cacheSet(key, fiel);
+      return fiel;
     }
   }
 

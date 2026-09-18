@@ -139,7 +139,7 @@ export function extractWithRegex(text: string): VehicleData | null {
   let price: number | null = null;
   const priceText = lines.filter((l) => !/fipe/i.test(l)).join("\n");
   const pricePatterns = [
-    /(?:pedid[ao]|faço|faco|valor|vendo|preço|preco|por)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
+    /(?:pedid[ao]|faço|faco|valor|vendo|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
     /r\$\s*([\d.,]+\s*(?:mil)?)/i,
     /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m,
   ];
@@ -277,11 +277,11 @@ export function extractWithRegex(text: string): VehicleData | null {
 
   /**
    * Frase do vendedor, nao modelo. Ha fornecedor que escreve um cabecalho
-   * antes do anuncio ("ESSE VEICULO ESTA EM ... agendar visita"), e o titulo
-   * saia com a frase no lugar do carro.
+   * antes do anuncio ("ESSE VEICULO ESTA EM ... agendar visita", "Mercadoria
+   * boa e com margem"), e o titulo saia com a frase no lugar do carro.
    */
   const FRASE_DE_LOJA =
-    /\b(esse|este|esta|essa|nosso|nossa|voc[eê]|agendar?|agende|enviamos|entregamos|entrega|estamos|atendemos|aceitamos|consulte|whats|pagamento|visita|financia|parcel|cr[ée]dito|troca|dispon[ií]vel)\b/i;
+    /\b(esse|este|esta|essa|nosso|nossa|voc[eê]|agendar?|agende|enviamos|entregamos|entrega|estamos|atendemos|aceitamos|consulte|whats|pagamento|visita|financia|parcel|cr[ée]dito|troca|dispon[ií]vel|mercadoria|margem|lucro|barat[oa]|oferta|neg[oó]cio|pre[çc]o|valor|bom|boa|[óo]tim[oa]|excelente)\b/i;
   /**
    * Linha de campo do anuncio: "Ano: 2025", "Km: 46 mil", "Cambio: ...".
    * A palavra tem que ser inteira -- sem isso "COROLLA" casava com "cor".

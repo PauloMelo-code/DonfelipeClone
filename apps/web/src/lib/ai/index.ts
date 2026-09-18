@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { geminiGenerateText, isGeminiConfigured } from "../gemini";
 import type { VehicleData } from "./tipos";
 import { extractWithRegex } from "./regex";
+import { cambioConfirmado } from "./cambio";
 import { extractKmFromText } from "./numeros";
 import {
   EXTRACTION_SYSTEM_PROMPT,
@@ -196,18 +197,20 @@ async function inferirCambio(modelo: string, marca?: string): Promise<string | u
   }
 }
 
-async function completarCambio(v: VehicleData | null): Promise<VehicleData | null> {
-  if (v && !v.transmission) v.transmission = await inferirCambio(v.model, v.brand);
+async function completarCambio(v: VehicleData | null, text: string): Promise<VehicleData | null> {
+  if (!v) return v;
+  if (!v.transmission) v.transmission = await inferirCambio(v.model, v.brand);
+  v.transmission = cambioConfirmado(v.transmission, text);
   return v;
 }
 
 export async function extractVehicleFromTextNoCache(text: string): Promise<VehicleData | null> {
   const regexResult = extractWithRegex(text);
-  if (regexResult) return completarCambio(validateAndFix(regexResult, text));
+  if (regexResult) return completarCambio(validateAndFix(regexResult, text), text);
   const gptResult = await extractWithGPT(text);
   if (gptResult) {
     gptResult.rawDescription = text;
-    return completarCambio(validateAndFix(gptResult, text));
+    return completarCambio(validateAndFix(gptResult, text), text);
   }
   return gptResult;
 }
@@ -222,14 +225,14 @@ export async function extractVehicleFromText(
   const regexResult = extractWithRegex(text);
   if (regexResult) {
     console.log("[ai] Regex extraction succeeded for:", regexResult.model);
-    const validated = await completarCambio(validateAndFix(regexResult, text));
+    const validated = await completarCambio(validateAndFix(regexResult, text), text);
     setCache(text, validated);
     return validated;
   }
 
   // 2. Fallback to GPT if regex failed and AI is enabled
   console.log("[ai] Regex failed, trying GPT fallback...");
-  const gptResult = await completarCambio(await extractWithGPT(text));
+  const gptResult = await completarCambio(await extractWithGPT(text), text);
   if (gptResult) {
     gptResult.rawDescription = text;
     setCache(text, gptResult);
@@ -301,6 +304,7 @@ export async function extractVehicleFromImage(
     if (vehicle) {
       vehicle.rawDescription = caption ?? undefined;
       vehicle.photos = [imageUrl];
+      vehicle.transmission = cambioConfirmado(vehicle.transmission, caption ?? "");
     }
     return vehicle;
   } catch (error) {

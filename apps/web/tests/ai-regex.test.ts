@@ -120,6 +120,20 @@ const CASOS: Caso[] = [
     },
   },
   {
+    // 18/09/2026: o titulo saiu "Mercadoria Boa E Com Margem (aut.)".
+    nome: "frase do vendedor antes do carro nao vira modelo",
+    texto:
+      "Mercadoria boa e com margem\nC4 Cactus Feel 1.6\n2022\n62.000km\nCompleta\nMotor 1.6\nAutomática\nPneus bons\nFipe 73.400,00\nPor 60.000,00",
+    esperado: {
+      model: "C4 Cactus Feel 1.6",
+      year: 2022,
+      km: 62000,
+      price: 60000,
+      fipePrice: 73400,
+      transmission: "AUTOMATICO",
+    },
+  },
+  {
     nome: "texto que nao e anuncio de carro",
     texto: "bom dia pessoal, alguem tem interesse?",
     esperado: null,

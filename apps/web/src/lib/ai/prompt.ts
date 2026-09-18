@@ -21,6 +21,7 @@ Extraia os seguintes campos do texto ou imagem fornecida:
     * "Carro de Garagem", "Para seu showroom"
     * "ESSE VEICULO ESTA EM (cidade)", "agendar visita", "enviamos o veiculo
       apos o pagamento" -> e cabecalho do fornecedor, nao o carro
+    * "Mercadoria boa e com margem" -> e frase do vendedor, nao o carro
   Se a primeira linha do anuncio for desse tipo, pule e procure a linha do
   carro (ex: "BMW i7", "TORO RANCH 2.0"). Ela costuma vir depois de um
   carrinho ou de "Modelo:", e nunca e uma frase.
@@ -198,6 +199,7 @@ export const BAD_MODEL_PATTERNS_EXTRACT: RegExp[] = [
   /\b(esse|este)\s+ve[ií]culo\b/i,
   /agendar?\s*(a\s*)?visita|enviamos\s*o\s*ve[ií]culo|ap[óo]s\s*o\s*pagamento/i,
   /\b(entregamos|atendemos|estamos)\b/i,
+  /\b(mercadoria|margem|lucro)\b/i,
 ];
 export const isModelLikelyBad = (model?: string | null) =>
   !!model && BAD_MODEL_PATTERNS_EXTRACT.some((p) => p.test(model));
