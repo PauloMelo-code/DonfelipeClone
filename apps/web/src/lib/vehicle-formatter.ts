@@ -27,10 +27,13 @@ function priceFormatted(value: number): string {
 }
 
 /**
- * Format km in pt-BR locale: 45000 -> "45.000"
+ * O km do anuncio, arredondado pro milhar mais proximo: 27.946 -> "28.000",
+ * 27.400 -> "27.000". Escolha do cliente (18/09/2026), ciente de que pode sair
+ * menor que o real. So no texto do anuncio -- o banco e a tela guardam o km
+ * exato. Abaixo de mil fica como veio: 400 km nao e carro "0km".
  */
 function kmFormatted(km: number): string {
-  return km.toLocaleString("pt-BR");
+  return (km < 1000 ? km : Math.round(km / 1000) * 1000).toLocaleString("pt-BR");
 }
 
 /**
@@ -182,6 +185,8 @@ export function tituloDoAnuncio(v: {
     .replace(/\((?:aut\.?|autom[aá]tic[oa]|manual|mec[aâ]nico|cvt|h[ií]brido)\)/gi, " ")
     .replace(/(^|\s)(?:aut\.?|autom[aá]tic[oa]|manual|mec[aâ]nico|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
     .replace(/(\S\s+)at(?=\s|$)/gi, "$1")
+    // "Limited+" -> "Limited": o cliente nao quer o "+" no titulo.
+    .replace(/\s*\+(?=\s|$)/g, "")
     // Combustivel nao faz parte do padrao.
     .replace(/(^|\s)(?:flex|gasolina|etanol|[aá]lcool)(?=\s|$)/gi, " ");
   if (v.fuel === "HIBRIDO") t = t.replace(/(^|\s)(?:h[ií]brido|hybrid)(?=\s|$)/gi, " ");

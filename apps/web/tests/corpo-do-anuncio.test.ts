@@ -212,6 +212,19 @@ caso("a IA omitiu o que nao pode sumir: volta pro anuncio, ja no padrao", () => 
     ["Teto solar", "Placa J do RS", "Nao aparenta a km que tem", "Pneus XBri novos", "Nada para fazer", "Carro de Showroom"]);
 });
 
+caso("respostas do cliente: km no milhar mais proximo; titulo sem o '+', com V6 e 4X4", () => {
+  const anuncio = (km: number) =>
+    formatVehicleAd({ model: "FORD RANGER 3.0 V6 TURBO LIMITED+ 4X4", year: 2026, km, price: 271990, transmission: "AUTOMATICO" },
+      { profitMarginPercent: 0 }).split("\n");
+  assert.equal(anuncio(27946)[0], "*Ranger 3.0T V6 Limited 4X4 (aut.)*");
+  assert.equal(anuncio(27946)[1], "2026 | 28.000km");
+  assert.equal(anuncio(27400)[1], "2026 | 27.000km");
+  assert.equal(anuncio(27500)[1], "2026 | 28.000km");
+  assert.equal(anuncio(108000)[1], "2026 | 108.000km");
+  assert.equal(anuncio(400)[1], "2026 | 400km", "abaixo de mil nao vira 0km");
+  assert.equal(tituloDoAnuncio({ model: "RANGER LIMITED + 4X4" }), "Ranger Limited 4X4");
+});
+
 caso("4. cambio que ja esta no titulo sai do corpo; 'Manual' de carro automatico e o manual do dono", () => {
   const base = { model: "A250 2.0T Vision", year: 2020, km: 50000, price: 150000 };
   const corpo = (transmission: string, texto: string) =>
