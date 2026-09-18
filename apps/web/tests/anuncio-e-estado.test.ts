@@ -20,7 +20,6 @@ import {
   formatVehicleAd,
   garantirPrecoDeVenda,
   lerPrecoDeVenda,
-  pintarPecas,
   tituloDoAnuncio,
   trocarPrecoDeVenda,
 } from "../src/lib/vehicle-formatter";
@@ -106,11 +105,11 @@ caso("e-tron: anuncio sai exatamente no padrao do cliente", () => {
     "*E-Tron Sportback Performance Black (aut.)*",
     "2022 | 55.000km",
     "",
-    "Pneus bons",
-    "Manual e chave cópia",
     "Teto solar",
     "Painel TFT",
+    "Pneus bons",
     "IPVA 26 pago",
+    "Manual e chave reserva",
     "",
     "Fipe: 294.000,00",
     "Por: *204.990,00*",
@@ -294,9 +293,9 @@ caso("o cabecalho e as condicoes do fornecedor nao entram no anuncio", () => {
     "*Spin Premier 1.8 (aut.)*",
     "2025 | 46.000km",
     "",
-    "IPVA 2026: PAGO",
-    "Ar condicionado gelando",
     "Pneus bons",
+    "IPVA 26 pago",
+    "Ar condicionado gelando",
     "",
     "Fipe: 119.400,00",
     "Por: *94.990,00*",
@@ -381,29 +380,6 @@ caso("linha inventada no meio cai e as outras ficam", () => {
   assert.equal(soOQueEstaNoTexto("Teto solar\nBlindado\nÚnico dono", vendedor), "Teto solar");
 });
 
-console.log("Peca e retoque sao peca pintada");
-caso("'1x Peças' do fornecedor vira 'Pintar uma peça', nunca 'substituída'", () => {
-  assert.equal(pintarPecas("1x Peças"), "Pintar uma peça");
-  assert.equal(pintarPecas("Uma peça substituída"), "Pintar uma peça");
-  assert.equal(pintarPecas("2 peças"), "Pintar duas peças");
-  assert.equal(pintarPecas("Substituição de duas peças"), "Pintar duas peças");
-  assert.equal(pintarPecas("Precisa trocar 1 peça"), "Precisa pintar uma peça");
-  assert.equal(pintarPecas("3 peças e pneus bons"), "Pintar 3 peças e pneus bons");
-  assert.equal(pintarPecas("Faz 3 peças"), "Pintar 3 peças");
-  assert.equal(pintarPecas("Peças substituídas"), "Pintar peças");
-});
-caso("'Faz 1 retoque' e retoque A FAZER: 'Pintar uma peça'", () => {
-  assert.equal(pintarPecas("Faz 1 retoque"), "Pintar uma peça");
-  assert.equal(pintarPecas("Fazer um retoque"), "Pintar uma peça");
-  assert.equal(pintarPecas("Precisa de 2 retoques"), "Pintar duas peças");
-});
-caso("'peça' e 'retoque' que nao sao defeito ficam como estao", () => {
-  assert.equal(pintarPecas("Peças originais"), "Peças originais");
-  assert.equal(pintarPecas("Pintura de 2 peças"), "Pintura de 2 peças");
-  assert.equal(pintarPecas("Sem peças pintadas"), "Sem peças pintadas");
-  assert.equal(pintarPecas("Sem retoques"), "Sem retoques");
-});
-
 const RAV4 = `RAV4 2.0 4X2 AUT
 2018/18
 110 Mil Km
@@ -421,7 +397,7 @@ caso("RAV4: o anuncio sai com 'Pintar uma peça' mesmo quando a IA escreveu 'sub
     { ...v, rawDescription: conferirComOVendedor(daIa, RAV4) },
     { profitMarginPercent: 0 }
   );
-  assert.match(anuncio, /\nPintar uma peça\n/);
+  assert.match(anuncio, /\n\nPintar 1 peça\n\nFipe/);
   assert.doesNotMatch(anuncio, /substitu/i);
 });
 
@@ -447,23 +423,23 @@ Por 136.990`;
 console.log("Defeito e com a palavra do vendedor");
 caso("Commander: 'Polimento' omitido pela IA volta pro anuncio", () => {
   const daIa = "Manual e chave cópia\nIPVA pago\nMotor, suspensão e caixa OK";
-  assert.equal(conferirComOVendedor(daIa, COMMANDER), `${daIa}\nPolimento`);
+  assert.equal(conferirComOVendedor(daIa, COMMANDER), "Manual e chave reserva\nIPVA pago\nMotor, suspensão e caixa bons\nFazer polimento");
 });
 caso("'Faz 1 retoque' reescrito como 'Retoque na pintura' volta a ser retoque a fazer", () => {
   const vendedor = "Commander Overland TD380\n2025\n26.000 km\nTeto solar\nÚnico dono\nFaz 1 retoque\nFipe 222.850,00\nRepasse 199.990,00";
   const daIa = "Teto solar\nÚnico dono\nRetoque na pintura";
   const conferido = conferirComOVendedor(daIa, vendedor);
-  assert.equal(conferido, "Teto solar\nÚnico dono\nFaz 1 retoque");
+  assert.equal(conferido, "Teto solar\nÚnico dono\nRetocar 1 peça");
   const v = extractWithRegex(vendedor)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: conferido }, { profitMarginPercent: 0 });
-  assert.match(anuncio, /\nPintar uma peça\n/);
+  assert.match(anuncio, /\n\nRetocar 1 peça\n\nFipe/);
   assert.doesNotMatch(anuncio, /retoque na pintura/i);
 });
 
 console.log("'Sem detalhes' so quando o vendedor disse");
 caso("'Sem detalhes' nao entra em carro que faz retoque, nem quando 'detalhes' aparece em outro sentido", () => {
   const vendedor = "Compass Limited 2021\n40.000 km\nFaz 1 retoque\nMais detalhes no privado\nPor 140.000";
-  assert.equal(conferirComOVendedor("Sem detalhes\nRetoque na pintura", vendedor), "Faz 1 retoque");
+  assert.equal(conferirComOVendedor("Sem detalhes\nRetoque na pintura", vendedor), "Retocar 1 peça");
 });
 caso("'Sem detalhes' fica quando o vendedor escreveu", () => {
   const vendedor = "Compass Limited 2021\n40.000 km\nSem detalhes\nSem retoques\nPor 140.000";
@@ -489,26 +465,26 @@ caso("entrada com fonte no texto e saida fiel entra; trecho, emoji e negrito nao
     { fonte: "rev na css", saida: "Revisões na concessionária" },
     { fonte: "Faz 1 retoque", saida: "Faz 1 retoque" },
   ] });
-  assert.equal(lerItens(raw, SPORTAGE), "IPVA 2026 pago\nPneus novos\nManual e chave reserva\nRevisões na concessionária\nFaz 1 retoque");
+  assert.equal(lerItens(raw, SPORTAGE)?.linhas.join("\n"), "IPVA 26 pago\nPneus novos\nManual e chave reserva\nRevisões na concessionária\nRetocar 1 peça");
 });
 caso("fonte que nao esta no texto cai, mesmo parecendo item de carro", () => {
   const raw = JSON.stringify({ itens: [
     { fonte: "Único dono", saida: "Único dono" },
     { fonte: "pneus 0", saida: "Pneus novos" },
   ] });
-  assert.equal(lerItens(raw, SPORTAGE), "Pneus novos");
+  assert.equal(lerItens(raw, SPORTAGE)?.linhas.join("\n"), "Pneus novos");
 });
 caso("fonte verdadeira com saida de outra coisa cai", () => {
   const raw = JSON.stringify({ itens: [{ fonte: "pneus 0", saida: "Chave reserva" }] });
-  assert.equal(lerItens(raw, SPORTAGE), "");
+  assert.deepEqual(lerItens(raw, SPORTAGE)?.linhas, []);
 });
 caso("Onix: nada alem do cabecalho e rodape -> corpo vazio, sem inventar", () => {
   const raw = JSON.stringify({ itens: [
     { fonte: "Onix hath premier", saida: "Único dono" },
     { fonte: "2025", saida: "IPVA 2025 pago" },
   ] });
-  assert.equal(lerItens(raw, ONIX), "");
-  assert.equal(lerItens(JSON.stringify({ itens: [] }), ONIX), "");
+  assert.deepEqual(lerItens(raw, ONIX)?.linhas, []);
+  assert.deepEqual(lerItens(JSON.stringify({ itens: [] }), ONIX)?.linhas, []);
 });
 caso("resposta que nao e JSON devolve null (proximo modelo tenta)", () => {
   assert.equal(lerItens("Pneus novos\nIPVA pago", SPORTAGE), null);
@@ -535,29 +511,41 @@ caso("Captur: 'Polimento recente', 'Higienização feita' e 'Motor com 3 peças 
     "*Captur Intense 1.6 (aut.)*",
     "2020 | 108.000km",
     "",
-    "Câmbio automático",
     "Interior em couro",
-    "Polimento",
-    "Higienização",
+    "",
+    "Fazer higienização",
+    "Fazer polimento",
     "Pintar 3 peças",
     "",
     "Fipe: 72.333,00",
     "Por: *62.990,00*",
   ].join("\n"));
 });
+caso("Captur com citacao (producao): a fazer que a IA virou em feito sai pela traducao da fonte", () => {
+  const raw = JSON.stringify({ itens: [
+    { fonte: "Câmbio automático", saida: "Câmbio automático" },
+    { fonte: "Interna couro", saida: "Interior em couro" },
+    { fonte: "Polimento", saida: "Polimento recente" },
+    { fonte: "Higienização", saida: "Higienização feita" },
+    { fonte: "Faz 3 peças", saida: "Motor com 3 peças trocadas" },
+  ] });
+  assert.deepEqual(lerItens(raw, CAPTUR)?.linhas,
+    ["Câmbio automático", "Interior em couro", "Fazer polimento", "Fazer higienização", "Pintar 3 peças"]);
+});
+
 caso("HR-V: 'Sem detalhes mecânicos' inventado cai; 'faz 3 peças' vira 'Pintar 3 peças' no fim", () => {
   const vendedor = "HRV EXL 1.8 2016\n90.000 km\nManual e chave reserva\nRevisada\nfaz 3 peças\nPneus novos\nPor 74.990";
   const daIa = "Manual e chave reserva\nRevisada\nSem detalhes mecânicos\nPneus novos";
   const v = extractWithRegex(vendedor)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: conferirComOVendedor(daIa, vendedor) }, { profitMarginPercent: 0 });
   assert.doesNotMatch(anuncio, /sem detalhes/i);
-  assert.match(anuncio, /Pneus novos\nPintar 3 peças\n\nPor/);
+  assert.match(anuncio, /\n\nPintar 3 peças\n\nPor/);
 });
 caso("sem IA (regex), o defeito tambem vai pro fim da lista", () => {
   const vendedor = "Onix LT 1.0 2021\n50.000 km\nPolimento\nTeto solar\nSem retoques\nPor 60.000";
   const v = extractWithRegex(vendedor)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: vendedor }, { profitMarginPercent: 0 });
-  assert.match(anuncio, /\nTeto solar\nSem retoques\nPolimento\n\nPor/);
+  assert.match(anuncio, /\nTeto solar\nSem retoques\n\nFazer polimento\n\nPor/);
 });
 
 async function casosAssincronos() {
@@ -574,7 +562,7 @@ async function casosAssincronos() {
       "*Hilux SRX 4X4 2.8T Diesel (aut.)*",
       "2022 | 97.000km",
       "",
-      "Ipva 2026 pago",
+      "IPVA 26 pago",
       "",
       "Fipe: 232.824,00",
       "Por: *186.000,00*",

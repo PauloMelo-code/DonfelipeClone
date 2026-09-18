@@ -7,6 +7,8 @@
 // standardised output template used across all WhatsApp TARGET groups.
 // ---------------------------------------------------------------------------
 
+import { montarCorpo, padronizarLinha } from "./corpo-do-anuncio";
+
 export interface FormatSettings {
   profitMarginPercent: number;
 }
@@ -73,7 +75,7 @@ function getTransmissionLabel(
 // ---------------------------------------------------------------------------
 
 const MARCAS = [
-  "MERCEDES-BENZ", "MERCEDES BENZ", "MERCEDES", "LAND ROVER", "CAOA CHERY", "CHERY",
+  "MERCEDES-BENZ", "MERCEDES BENZ", "MERCEDES", "LAND ROVER", "RANGE ROVER", "CAOA CHERY", "CHERY",
   "VOLKSWAGEN", "VW", "CHEVROLET", "GM", "TOYOTA", "HONDA", "HYUNDAI", "FIAT", "FORD",
   "NISSAN", "JEEP", "MITSUBISHI", "KIA", "RENAULT", "PEUGEOT", "CITROEN", "CITROËN", "BMW",
   "AUDI", "VOLVO", "JAGUAR", "PORSCHE", "SUBARU", "SUZUKI", "BYD", "GWM", "RAM", "DODGE",
@@ -144,6 +146,8 @@ function tirarMarcaDoComeco(texto: string, marca?: string | null): string {
     for (const m of marcas) {
       // "RAM 2500": aqui a marca e o nome do modelo.
       if (m === "RAM" && /^\s*\d/.test(resto.slice(m.length))) continue;
+      // "Range Rover Evoque" e Evoque; "Range Rover Sport" e o nome do carro.
+      if (m === "RANGE ROVER" && !/^\s*(evoque|velar)\b/i.test(resto.slice(m.length))) continue;
       const cabeca = resto.slice(0, m.length).toUpperCase();
       const depois = resto.charAt(m.length);
       if (cabeca === m && (depois === "" || /[\s/-]/.test(depois))) {
@@ -269,51 +273,6 @@ export function anuncioParaExibir(v: {
  * @param settings - Contains profitMarginPercent used to compute selling price.
  * @returns The formatted ad string ready to be sent via WhatsApp.
  */
-// ---------------------------------------------------------------------------
-// "Peca" no repasse e peca PINTADA. "1x pecas", "2 pecas", "uma peca" e "faz
-// 1 retoque" querem dizer "pintar uma/duas pecas" -- e a IA entregava
-// "substituida" e "retoque na pintura" (que diria que o carro TEM retoque).
-// O cliente pediu em 18/09/2026: sempre "pintar", nunca "substituir".
-// ---------------------------------------------------------------------------
-const NUMERO_DA_PALAVRA: Record<string, number> = { um: 1, uma: 1, duas: 2, tres: 3, "três": 3, quatro: 4, cinco: 5 };
-const TROCA = /\b(?:substitu[ií]d[ao]s?|substitui[çc][ãa]o|substituir|trocad[ao]s?|trocar?)(?:\s+d[ea]s?)?\b/i;
-const PECAS = /\b(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s*x?\s*)?(pe[çc]as?)\b/i;
-// "Faz 3 pecas", "faz 1 retoque", "precisa de 2 retoques": e A FAZER.
-const A_FAZER =
-  /\b(?:faz(?:er)?|precisa(?:\s+de)?|necessita(?:\s+de)?|(?:tem|ter)\s+que\s+fazer|p(?:a)?ra\s+fazer)\s+(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s+)?(retoques?|pe[çc]as?)\b/i;
-
-export function pintarPecas(linha: string): string {
-  // Ja fala em pintura, ou nega a peca: fica como esta.
-  if (/\bpint|\bsem\s+(pe[çc]|retoque)/i.test(linha)) return linha;
-  let m = A_FAZER.exec(linha);
-  if (!m) {
-    m = PECAS.exec(linha);
-    // "Pecas originais" nao e defeito.
-    if (!m || (!m[1] && !TROCA.test(linha))) return linha;
-  }
-  const n = m[1] ? (/^\d+$/.test(m[1]) ? Number(m[1]) : NUMERO_DA_PALAVRA[m[1].toLowerCase()]) : (m[2].endsWith("s") ? undefined : 1);
-  // Como o cliente escreve: "uma peça", "duas peças", "3 peças".
-  const numero = n === undefined ? "" : n === 1 ? "uma " : n === 2 ? "duas " : `${n} `;
-  const frase = `pintar ${numero}${n === 1 ? "peça" : "peças"}`;
-  const r = linha
-    .replace(TROCA, " ")
-    .replace(m[0], frase)
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.;])/g, "$1")
-    .trim();
-  return r.charAt(0).toUpperCase() + r.slice(1);
-}
-
-// ---------------------------------------------------------------------------
-// Defeito e gasto: o que o carro PRECISA. "Polimento" e "Higienizacao" no
-// anuncio de repasse sao coisas A FAZER, nao feitas. Linha negada ("sem
-// retoques") e elogio, nao defeito. O cliente quer tudo isso no FIM da lista.
-// ---------------------------------------------------------------------------
-const DEFEITO =
-  /\b(polimento|polir|pintar|pe[çc]as?|retoques?|higieniz\w*|amassad\w*|risc(?:o|os|ad\w*)|batid\w*|trinca\w*|arranh\w*|avaria\w*|defeito\w*|reparo\w*|conserto\w*|arrum\w*|refaz\w*|vazament\w*|barulh\w*|bateria|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|meia\s*vida)|gastos?\s+necess\w*)\b/i;
-const NEGADO = /^(sem|s\/|zero|nenhum)\b/i;
-export const eDefeito = (linha: string) => DEFEITO.test(linha) && !NEGADO.test(linha.trim());
-
 export function formatVehicleAd(
   vehicle: {
     model: string;
@@ -385,13 +344,20 @@ export function formatVehicleAd(
       .replace(/[\u{1F000}-\u{1FFFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
 
     const modelFirstWord = vehicle.model.toLowerCase().split(" ")[0];
-    const descLines = cleaned.split("\n");
+    // No padrao ANTES dos filtros: "Faz 2 peças" cairia como linha de preco
+    // ("Faz 127.000"), e uma linha pode virar duas ("Manual, sem chave cópia").
+    const descLines = cleaned.split("\n").flatMap(padronizarLinha);
     let bodyLines: string[] = [];
+    // O cambio que foi pro titulo nao se repete no corpo. "Manual" sozinho so
+    // e cambio em carro manual -- no automatico e o manual do dono.
+    const temRotulo = !!getTransmissionLabel(vehicle.fuel ?? undefined, vehicle.transmission ?? undefined);
+    const CAMBIO =
+      /^(?:c[aâ]mbio\s*:?\s*)?(?:autom[aá]tic[oa]|automatizad[oa]|mec[aâ]nic[oa]|cvt|aut\.?|at|manual)(?:\s+(?:de\s+)?\d+\s*(?:marchas|velocidades|vel\.?))?$/i;
 
-    for (const line of descLines) {
-      // Antes dos filtros: "Faz 1 retoque" cairia como linha de preco ("Faz 127.000").
-      const l = pintarPecas(line.trim());
+    for (const l of descLines) {
       const lower = l.toLowerCase();
+      // O que o vendedor disser da placa fica, com cidade ou estado no meio.
+      const dePlaca = /^placa\b/i.test(l);
 
       // Skip empty lines at the very start
       if (bodyLines.length === 0 && !l) continue;
@@ -429,17 +395,19 @@ export function formatVehicleAd(
         /\b(neg[oó]ci[aá]vel|aceito\s*troca|estudo\s*troca|aceita\s*troca|sem\s*troca)\b/i.test(l) ||
         /^(comigo|chama|chame|fale|falar|tratar|direto\s*comigo)[\s.!]*$/i.test(l) ||
         /^pra?\s*(hoje|hj|fechar|negociar)\b/i.test(l) ||
+        temRotulo && CAMBIO.test(l) && !(/^manual$/i.test(l) && vehicle.transmission !== "MANUAL") ||
         // Location pin: "SP" or "📍 SP" (emoji already stripped, so just "SP")
         /^[A-Z]{2}$/i.test(l) && l.length === 2 ||
         // Regiao solta ("📍 Nordeste", emoji ja removido) -- localizacao nao vai no anuncio.
         /^(nordeste|norte|sul|sudeste|centro[\s-]?oeste)$/i.test(l) ||
         // Transmission/fuel already in title
-        /^(automático|automatico|manual|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l) ||
+        /^(automático|automatico|cvt|flex|diesel|híbrido|hibrido)\s*$/i.test(l) ||
+        !temRotulo && /^manual$/i.test(l) ||
         // "Combustivel: FLEX", "Cambio: AUTOMATICA", "Modelo: ..." -- ja no titulo.
         /^(combust[ií]vel|c[aâ]mbio|cambio|marca|modelo)\s*:/i.test(l) ||
         // Remove location lines
-        /\b(em\s+estoque|carro\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
-        /\b(florian[oó]polis|porto\s+alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|pelotas|navegantes|s[ãa]o\s+paulo|belo\s+horizonte|londrina)\b/i.test(l) ||
+        !dePlaca && /\b(em\s+estoque|carro\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
+        !dePlaca && /\b(florian[oó]polis|porto\s+alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|pelotas|navegantes|s[ãa]o\s+paulo|belo\s+horizonte|londrina)\b/i.test(l) ||
         // Remove phone numbers
         /\(?\d{2}\)?\s*9?\s*\d{4}[-.\s]?\d{4}/.test(l) ||
         // Remove WhatsApp contact lines
@@ -458,20 +426,9 @@ export function formatVehicleAd(
       bodyLines.push(l);
     }
 
-    // Trim trailing empty lines
-    while (bodyLines.length > 0 && !bodyLines[bodyLines.length - 1]) {
-      bodyLines.pop();
-    }
-    // Trim leading empty lines
-    while (bodyLines.length > 0 && !bodyLines[0]) {
-      bodyLines.shift();
-    }
-    // Collapse multiple consecutive empty lines into ZERO empty lines.
-    // O corpo deve ser sequencia compacta de linhas; o espacamento entre
-    // cabecalho/corpo/rodape e feito pelo template (lines.push("")).
-    bodyLines = bodyLines.filter((line) => !!line.trim());
-    // Defeito e gasto sempre no fim da lista (pedido do cliente, 18/09/2026).
-    bodyLines = [...bodyLines.filter((l) => !eDefeito(l)), ...bodyLines.filter(eDefeito)];
+    // Dois blocos (regra 9 do cliente): o bom do curto pro longo, uma linha em
+    // branco, o que precisa ser feito do longo pro curto.
+    bodyLines = montarCorpo(bodyLines);
 
     if (bodyLines.length > 0) {
       lines.push("");

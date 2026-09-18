@@ -16,12 +16,16 @@
 // existe no texto. Inventar deixa de ser regra do prompt e vira impossivel.
 // Veio do primeiro dia de testes do cliente (18/09/2026): o modelo pequeno,
 // com o corpo livre, copiava o exemplo do prompt e reescrevia defeito.
+//
+// O prompt mora em ad-cleaner-prompt.ts; o padrao de escrita, em
+// corpo-do-anuncio.ts.
 // ---------------------------------------------------------------------------
 
 import OpenAI from "openai";
 import { createHash } from "crypto";
 import { geminiGenerateText, isGeminiConfigured } from "./gemini";
-import { eDefeito } from "./vehicle-formatter";
+import { LIMPEZA_SCHEMA, PROMPT_VERSION, SYSTEM_PROMPT } from "./ad-cleaner-prompt";
+import { NADA_PARA_FAZER, eAFazer, eObrigatoria, padronizar, padronizarLinha } from "./corpo-do-anuncio";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -37,9 +41,6 @@ type CacheEntry = { value: string; expiresAt: number };
 const cleanerCache = new Map<string, CacheEntry>();
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-
-// Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v8";
 
 /** Modelo grande de proposito: um anuncio sao ~400 tokens, e o pequeno seguia mal 150 linhas de regra. */
 const MODELO = "gpt-4.1";
@@ -67,148 +68,15 @@ function cacheSet(key: string, value: string) {
   cleanerCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-const SYSTEM_PROMPT = `Voce e um editor de anuncios de carros usados no padrao Don Felipe.
-
-Tarefa: receber o texto bagunçado do vendedor e ESCOLHER as linhas que
-entram no corpo do anuncio, devolvendo cada uma com a linha de origem.
-Voce nao escreve o anuncio: voce cita o vendedor e arruma a forma. O
-sistema ja adiciona cabecalho (marca/modelo/ano/km) e rodape (Fipe/Por)
-automaticamente -- voce so cuida do MIOLO.
-
-=== PADRAO DON FELIPE (CRITICO -- SEGUIR 100%) ===
-Cada informacao em LINHA SEPARADA. SEM prefixos com dois pontos
-(NAO USAR "Opcionais:", "Estado:", "Placa:", "Revisoes:", "Historico:").
-Apenas listar os fatos diretamente, frases curtas e diretas.
-
-EXEMPLO (texto do vendedor -> resposta):
-
-  SPORTAGE 2021 EX
-  2021/2022 - 40 mil km
-  ✅ ar cond, dir hidr
-  ✅ ipva 26 pg
-  ✅ pneus 0
-  manual e chave reserva
-  motor susp caixa ok
-  rev na css, 1 dono
-  Faz 1 retoque
-  Fipe 140 / Por 128
-  Chama no whats 51 9999-9999
-
-  {"itens":[
-    {"fonte":"ar cond, dir hidr","saida":"Ar condicionado, direção hidráulica"},
-    {"fonte":"ipva 26 pg","saida":"IPVA 2026 pago"},
-    {"fonte":"pneus 0","saida":"Pneus novos"},
-    {"fonte":"manual e chave reserva","saida":"Manual e chave reserva"},
-    {"fonte":"motor susp caixa ok","saida":"Motor, suspensão e caixa OK"},
-    {"fonte":"rev na css, 1 dono","saida":"Revisado na concessionária, único dono"},
-    {"fonte":"Faz 1 retoque","saida":"Faz 1 retoque"}
-  ]}
-
-O exemplo mostra o FORMATO. Nunca copie um item dele: cada entrada da sua
-resposta vem de uma linha do texto recebido. Se o texto so traz modelo,
-ano, km e preco, a resposta e {"itens":[]}.
-
-=== REGRAS ===
-1. SEM prefixos categorizadores. NUNCA escrever "Opcionais:", "Estado:",
-   "Histórico:", "Placa:". Apenas o conteúdo direto.
-
-2. Cada fato em UMA linha curta. Pode juntar coisas relacionadas com
-   virgula quando ficar natural ("Motor, suspensão e caixa OK").
-   Mas NAO USE bullets, asteriscos, hifens decorativos.
-
-3. NORMALIZAR capitalizacao: primeira letra maiuscula, resto minuscula
-   (a menos que seja sigla ou nome proprio):
-   ERRADO: "AR CONDICIONADO" / "PNEUS BONS"
-   CERTO:  "Ar condicionado" / "Pneus bons"
-
-4. REMOVER:
-   - Nome da loja/empresa (VAAPTY, REPASSE SUL, GO REPASSES, CAARPIX,
-     <NOME> PORTO ALEGRE, etc)
-   - Telefones, contatos, nomes de vendedores (Lucas, Junior, etc)
-   - Chamadas promocionais (Menor valor Brasil, Oportunidade,
-     Historico Premium, Avaliacao Superficial, "Para o seu showroom",
-     "Acompanha manual e chave reserva" -- se isolado e marketing)
-   - Localizacao (cidade, estado) -- ja temos no header
-   - Pedida/Custo/Faco/Investimento/Valor/Fipe -- ja temos no rodape
-   - Modelo, ano, km -- ja temos no cabecalho
-   - Emojis e simbolos decorativos
-   - Linhas vazias excessivas
-
-5. LINGUAGEM: reescreva girias, abreviacoes e erros em portugues claro e
-   profissional, SEM inventar informacao. Frase que nao diz nada sobre o
-   carro ("chama", "bora", "carro bom demais") sai.
-   ERRADO: "Filé" / "rev na css" / "pneus 0" / "ipva 26 pg" / "sem retoq"
-   CERTO:  "Muito conservado" / "Revisões na concessionária" /
-           "Pneus novos" / "IPVA 2026 pago" / "Sem retoques"
-   "Manual e chave cópia" e "Manual do proprietário" sao itens e ficam.
-
-5a. DEFEITO E GASTO SEMPRE FICAM, COM A PALAVRA DO VENDEDOR, NO FIM DA
-   LISTA: o que o carro PRECISA (polimento, higienizacao, pintar peca,
-   retoque, amassado, risco) e a informacao mais importante do anuncio.
-   No repasse, "Polimento" e "Higienização" sozinhos querem dizer que
-   PRECISA fazer -- nunca "polimento recente", "higienização feita".
-   Copie a linha do vendedor, so tirando enfeite: reescrever muda o
-   sentido ("Faz 3 peças" NAO e "motor com 3 peças trocadas").
-   Precisou cortar pelo limite de linhas? Corte opcional, nunca defeito.
-   "Gastos necessários: * Polimento" -> "Polimento"
-
-5b. PECA E RETOQUE: no repasse, "peca" e peca PINTADA e "faz 1 retoque" e
-   um retoque A FAZER. Nesses, "saida" = "fonte" (o sistema traduz).
-   NUNCA "substituir", "substituída", "trocada".
-   NUNCA "retoque na pintura" -- isso diz que o carro TEM retoque, e outra
-   informacao.
-
-5c. "SEM DETALHES" SO SE O VENDEDOR ESCREVEU. Nunca em carro que tem
-   retoque, peca ou polimento a fazer -- isso E detalhe. "Zero de andar"
-   e mecanica, nao lataria.
-
-6. PLACA: so incluir se realmente houver placa valida (ABC1D23 ou
-   ABC-1234). NAO escrever "Placa: i" ou "Placa a confirmar" se nao
-   tiver placa real -- omita a linha.
-
-=== FORMATO DA RESPOSTA (JSON) ===
-{"itens":[{"fonte":"...","saida":"..."}, ...]}
-- "fonte": a linha do vendedor COPIADA como esta no texto (pode ser um
-  trecho da linha). Sem corrigir, sem juntar linhas, sem completar. Se a
-  informacao nao esta escrita, a entrada nao existe.
-- "saida": a mesma informacao no padrao Don Felipe -- capitalizacao,
-  giria em portugues claro, sem enfeite. Nao diz nada que a fonte nao diga.
-- Uma entrada por linha do anuncio, na ordem do texto. Maximo 7.
-- Sem markdown na saida (sem *, _, ~, #, :, -). Portugues brasileiro.
-- Nada util alem do cabecalho/rodape: {"itens":[]}
-Responda SO o JSON.`;
-
-const LIMPEZA_SCHEMA = {
-  name: "anuncio_limpo",
-  strict: true,
-  schema: {
-    type: "object" as const,
-    properties: {
-      itens: {
-        type: "array" as const,
-        items: {
-          type: "object" as const,
-          properties: { fonte: { type: "string" as const }, saida: { type: "string" as const } },
-          required: ["fonte", "saida"],
-          additionalProperties: false,
-        },
-      },
-    },
-    required: ["itens"],
-    additionalProperties: false,
-  },
-};
-
 // Palavras que nao provam nada sozinhas.
 const PALAVRA_VAZIA = new Set([
   "para", "muito", "mais", "menos", "todo", "toda", "todos", "todas", "tudo", "nada",
   "como", "pelo", "pela", "esse", "essa", "este", "esta", "sobre", "ainda", "sempre",
-  "nunca", "apenas", "somente", "carro", "veiculo", "veiculos",
+  "nunca", "apenas", "somente", "carro", "veiculo", "veiculos", "fazer",
 ]);
+const semAcento = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const raizes = (s: string) =>
-  (s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[a-z]{4,}/g) ?? [])
-    .filter((w) => !PALAVRA_VAZIA.has(w))
-    .map((w) => w.slice(0, 4));
+  (semAcento(s).toLowerCase().match(/[a-z]{4,}/g) ?? []).filter((w) => !PALAVRA_VAZIA.has(w)).map((w) => w.slice(0, 4));
 
 /**
  * Fica so a linha que tem raiz de palavra no texto do vendedor.
@@ -216,8 +84,8 @@ const raizes = (s: string) =>
  * O modelo devolveu o EXEMPLO do prompt ("Único dono, Manual do proprietário,
  * Chave reserva, IPVA pago") num Onix cujo anuncio so tinha modelo, ano, km
  * e preco. O cliente quase ofereceu o que nao existe. Raiz de 4 letras deixa
- * passar a reescrita de giria ("ipva 26 pg" -> "IPVA 2026 pago", "pneus 0"
- * -> "Pneus novos") e barra o que veio do nada.
+ * passar a reescrita de giria ("pneus 0" -> "Pneus novos") e barra o que
+ * veio do nada.
  *
  * ponytail: reescrita sem raiz em comum ("Filé" -> "Muito conservado") cai
  * junto. Preferi perder o elogio a inventar item.
@@ -238,48 +106,56 @@ export function soOQueEstaNoTexto(limpo: string, original: string): string {
 
 const ENFEITE = /^[\s*•\-–✅✓☑️]+|[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu;
 
-/**
- * Defeito e com a palavra do vendedor, nunca com a da IA.
- *
- * "Gastos necessários: * Polimento" sumiu do anuncio da Commander, e "Faz 1
- * retoque" virou "Retoque na pintura" -- que diz que o carro TEM retoque, o
- * contrario. A linha da IA sobre o mesmo defeito sai; a do vendedor entra
- * no fim, so sem enfeite. O formatador traduz "1x peças" e "faz 1 retoque"
- * para "Pintar uma peça" depois.
- */
-const linhasDeDefeito = (original: string) =>
-  original
-    .split("\n")
-    .map((l) => l.replace(ENFEITE, "").trim())
-    .filter((l) => l && eDefeito(l) && !/:\s*$/.test(l))
-    .map((l) => l.charAt(0).toUpperCase() + l.slice(1));
-
-export function garantirDefeitos(limpo: string, original: string): string {
-  const doVendedor = linhasDeDefeito(original);
-  if (!doVendedor.length) return limpo;
-  const raizesDoVendedor = new Set(doVendedor.flatMap(raizes));
-  const daIa = limpo
-    .split("\n")
-    .filter((l) => !(eDefeito(l) && raizes(l).some((r) => raizesDoVendedor.has(r))));
-  return [...daIa, ...doVendedor].filter(Boolean).join("\n");
-}
-
 // "Sem detalhes" e o item favorito da IA: aparecia sem o vendedor ter dito,
 // ate em carro que "faz 1 retoque". So fica se o vendedor escreveu e nao ha
-// defeito a fazer.
+// nada a fazer na lataria.
 const DIZ_SEM_DETALHES = /\b(sem|s\/|zero|nenhum)\s*detalhes?\b/i;
 
-/** A resposta da IA conferida com o vendedor: nada a mais, nenhum defeito a menos. */
-export function conferirComOVendedor(limpo: string, original: string): string {
-  const fiel = garantirDefeitos(soOQueEstaNoTexto(limpo, original), original);
-  if (DIZ_SEM_DETALHES.test(original) && !linhasDeDefeito(original).length) return fiel;
-  return fiel.split("\n").filter((l) => !DIZ_SEM_DETALHES.test(l)).join("\n");
+/**
+ * A resposta da IA conferida com o vendedor: nada a mais, nada importante a
+ * menos.
+ *
+ * O que o carro PRECISA e o que o cliente mandou replicar sempre (placa,
+ * "nada para fazer", "não aparenta a km", XBri, elogio do vendedor...) volta
+ * pro anuncio quando a IA deixou de fora, ja no padrao. `cobertas` sao as
+ * linhas do vendedor que a IA citou; sem ela (texto solto), vale raiz de
+ * palavra em comum.
+ */
+export function conferirComOVendedor(limpo: string, original: string, cobertas?: Set<number>): string {
+  const doVendedor = original
+    .split("\n")
+    .map((l) => l.replace(ENFEITE, "").trim())
+    .map((l) => (l && !/:\s*$/.test(l) ? padronizarLinha(l) : []));
+  // "Pronto" vira "Nada para fazer": a traducao tambem conta como texto do vendedor.
+  const referencia = `${original}\n${doVendedor.flat().join("\n")}`;
+  let linhas = soOQueEstaNoTexto(limpo, referencia).split("\n").flatMap(padronizarLinha);
+
+  const temRaizDe = (a: string, b: string) => raizes(a).some((r) => raizes(b).includes(r));
+  const doProprioVendedor = new Set<string>();
+  doVendedor.forEach((padronizadas, i) => {
+    if (cobertas?.has(i)) return;
+    for (const l of padronizadas) {
+      if (!eAFazer(l) && !eObrigatoria(l)) continue;
+      if (!cobertas) {
+        // Sem citacao nao da pra confiar na reescrita do que o carro precisa
+        // ("Faz 1 retoque" virou "Retoque na pintura"): vale a do vendedor.
+        // A da IA sai mesmo virada em elogio ("Polimento recente").
+        if (eAFazer(l)) linhas = linhas.filter((x) => doProprioVendedor.has(x) || !temRaizDe(x, l));
+        else if (linhas.some((x) => temRaizDe(x, l))) continue;
+      }
+      if (!linhas.includes(l)) linhas.push(l);
+      doProprioVendedor.add(l);
+    }
+  });
+
+  const aFazer = doVendedor.flat().filter((l) => eAFazer(l) && l !== NADA_PARA_FAZER && !/^(sem|n[ãa]o\s+tem)\b/i.test(l));
+  if (DIZ_SEM_DETALHES.test(original) && !aFazer.length) return linhas.join("\n");
+  return linhas.filter((l) => !DIZ_SEM_DETALHES.test(l)).join("\n");
 }
 
 /** Sem enfeite, acento, negrito nem espaco duplo: e assim que fonte e texto se comparam. */
 const normalizar = (s: string) =>
-  s.replace(ENFEITE, "").replace(/[*_~`]/g, "").normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .toLowerCase().replace(/\s+/g, " ").trim();
+  semAcento(s.replace(ENFEITE, "").replace(/[*_~`]/g, "")).toLowerCase().replace(/\s+/g, " ").trim();
 
 // Palavra curta que nao aponta pra nada ("sem manual" nao autoriza "Sem detalhes").
 const PISTA_VAZIA = new Set([
@@ -289,6 +165,15 @@ const PISTA_VAZIA = new Set([
 const pistas = (s: string) =>
   (normalizar(s).match(/[a-z]{3,}/g) ?? []).filter((w) => !PISTA_VAZIA.has(w)).map((w) => w.slice(0, 3));
 
+/** Em que bloco a linha cai. Duas linhas de blocos diferentes: "false,true". */
+const polaridade = (linhas: string[]) => [...new Set(linhas.map(eAFazer))].sort().join();
+
+export interface Lido {
+  linhas: string[];
+  /** Indices das linhas do vendedor que alguma entrada aceita citou. */
+  cobertas: Set<number>;
+}
+
 /**
  * Le a resposta com citacao e fica so com o que o vendedor escreveu.
  *
@@ -297,9 +182,13 @@ const pistas = (s: string) =>
  * palavra em comum pelas tres letras iniciais, que e o que sobra de uma
  * abreviacao como "rev na css".
  *
+ * A palavra da IA so entra quando nao mexe no sentido. Fonte com traducao
+ * fechada ("Faz 2 peças", "Polimento", "Pronto") sai pela traducao; saida que
+ * muda de bloco -- a fazer virou feito, ou o contrario -- perde pra fonte.
+ *
  * Devolve null quando a resposta nem e JSON -- ai o proximo modelo tenta.
  */
-export function lerItens(raw: string, original: string): string | null {
+export function lerItens(raw: string, original: string): Lido | null {
   let itens: { fonte?: unknown; saida?: unknown }[];
   try {
     const j = JSON.parse(raw);
@@ -308,23 +197,37 @@ export function lerItens(raw: string, original: string): string | null {
   } catch {
     return null;
   }
-  const doVendedor = original.split("\n").map(normalizar).filter((l) => l.length >= 3);
-  const validas: string[] = [];
+  const doVendedor = original.split("\n").map(normalizar);
+  const linhas: string[] = [];
+  const cobertas = new Set<number>();
   const recusadas: string[] = [];
   for (const item of itens) {
     const fonte = String(item.fonte ?? "");
     const f = normalizar(fonte);
-    const citada = f.length >= 3 && /[a-z]{3}/.test(f) && doVendedor.some((l) => l.includes(f));
+    const onde = f.length >= 3 && /[a-z]{3}/.test(f) ? doVendedor.flatMap((l, i) => (l.includes(f) ? [i] : [])) : [];
+    const daFonte = padronizar(fonte.replace(ENFEITE, ""));
     const pistasDaFonte = pistas(fonte);
     for (const saida of String(item.saida ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
       const p = pistas(saida);
-      const fiel = p.length === 0 || p.some((x) => pistasDaFonte.includes(x));
-      if (citada && fiel) validas.push(saida);
-      else recusadas.push(`"${saida}" <- "${fonte}"`);
+      const fiel = daFonte.canonica || p.length === 0 || p.some((x) => pistasDaFonte.includes(x));
+      if (!onde.length || !fiel) {
+        recusadas.push(`"${saida}" <- "${fonte}"`);
+        continue;
+      }
+      const daIa = padronizarLinha(saida);
+      const valem = daFonte.canonica || polaridade(daFonte.linhas) !== polaridade(daIa) ? daFonte.linhas : daIa;
+      for (const l of valem) if (!linhas.includes(l)) linhas.push(l);
+      onde.forEach((i) => cobertas.add(i));
     }
   }
   if (recusadas.length) console.warn(`[ad-cleaner] sem fonte no anuncio: ${recusadas.join(" | ")}`);
-  return validas.join("\n");
+  return { linhas, cobertas };
+}
+
+/** Do JSON do modelo ao corpo conferido; null quando nao veio JSON. */
+function lerEConferir(raw: string, original: string): string | null {
+  const lido = lerItens(raw, original);
+  return lido && conferirComOVendedor(lido.linhas.join("\n"), original, lido.cobertas);
 }
 
 /**
@@ -350,17 +253,16 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
     const completion = await getOpenAI().chat.completions.create({
       model: MODELO,
       temperature: 0,
-      max_tokens: 800,
+      max_tokens: 1000,
       response_format: { type: "json_schema", json_schema: LIMPEZA_SCHEMA },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: text.slice(0, 3000) },
       ],
     });
-    const lido = lerItens(completion.choices[0]?.message?.content || "", text);
     // {"itens":[]} e resposta legitima: o anuncio so tinha cabecalho e rodape.
-    if (lido !== null) {
-      const fiel = conferirComOVendedor(lido, text);
+    const fiel = lerEConferir(completion.choices[0]?.message?.content || "", text);
+    if (fiel !== null) {
       cacheSet(key, fiel);
       return fiel;
     }
@@ -369,17 +271,16 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
     console.error("[ad-cleaner] GPT failed:", err);
   }
 
-  // 2) Fallback: Gemini 2.0 Flash (se configurado)
+  // 2) Fallback: Gemini (se configurado)
   if (isGeminiConfigured()) {
     const raw = await geminiGenerateText(SYSTEM_PROMPT, text.slice(0, 3000), {
       jsonMode: true,
-      maxTokens: 800,
+      maxTokens: 1000,
       temperature: 0,
     });
-    const lido = raw ? lerItens(raw, text) : null;
-    if (lido !== null) {
+    const fiel = raw ? lerEConferir(raw, text) : null;
+    if (fiel !== null) {
       console.log("[ad-cleaner] usado fallback Gemini com sucesso");
-      const fiel = conferirComOVendedor(lido, text);
       cacheSet(key, fiel);
       return fiel;
     }
