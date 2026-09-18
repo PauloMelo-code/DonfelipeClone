@@ -275,24 +275,25 @@ export function anuncioParaExibir(v: {
 // "substituida" e "retoque na pintura" (que diria que o carro TEM retoque).
 // O cliente pediu em 18/09/2026: sempre "pintar", nunca "substituir".
 // ---------------------------------------------------------------------------
-const POR_EXTENSO = ["", "uma", "duas", "três", "quatro", "cinco"];
 const NUMERO_DA_PALAVRA: Record<string, number> = { um: 1, uma: 1, duas: 2, tres: 3, "três": 3, quatro: 4, cinco: 5 };
 const TROCA = /\b(?:substitu[ií]d[ao]s?|substitui[çc][ãa]o|substituir|trocad[ao]s?|trocar?)(?:\s+d[ea]s?)?\b/i;
 const PECAS = /\b(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s*x?\s*)?(pe[çc]as?)\b/i;
-const FAZ_RETOQUE =
-  /\b(?:faz(?:er)?|precisa(?:\s+de)?|necessita(?:\s+de)?|(?:tem|ter)\s+que\s+fazer|p(?:a)?ra\s+fazer)\s+(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s+)?(retoques?)\b/i;
+// "Faz 3 pecas", "faz 1 retoque", "precisa de 2 retoques": e A FAZER.
+const A_FAZER =
+  /\b(?:faz(?:er)?|precisa(?:\s+de)?|necessita(?:\s+de)?|(?:tem|ter)\s+que\s+fazer|p(?:a)?ra\s+fazer)\s+(?:(\d+|uma?|duas|tr[eê]s|quatro|cinco)\s+)?(retoques?|pe[çc]as?)\b/i;
 
 export function pintarPecas(linha: string): string {
   // Ja fala em pintura, ou nega a peca: fica como esta.
   if (/\bpint|\bsem\s+(pe[çc]|retoque)/i.test(linha)) return linha;
-  let m = FAZ_RETOQUE.exec(linha);
+  let m = A_FAZER.exec(linha);
   if (!m) {
     m = PECAS.exec(linha);
     // "Pecas originais" nao e defeito.
     if (!m || (!m[1] && !TROCA.test(linha))) return linha;
   }
   const n = m[1] ? (/^\d+$/.test(m[1]) ? Number(m[1]) : NUMERO_DA_PALAVRA[m[1].toLowerCase()]) : (m[2].endsWith("s") ? undefined : 1);
-  const numero = n === undefined ? "" : n <= 5 ? `${POR_EXTENSO[n]} ` : `${n} `;
+  // Como o cliente escreve: "uma peça", "duas peças", "3 peças".
+  const numero = n === undefined ? "" : n === 1 ? "uma " : n === 2 ? "duas " : `${n} `;
   const frase = `pintar ${numero}${n === 1 ? "peça" : "peças"}`;
   const r = linha
     .replace(TROCA, " ")
@@ -302,6 +303,16 @@ export function pintarPecas(linha: string): string {
     .trim();
   return r.charAt(0).toUpperCase() + r.slice(1);
 }
+
+// ---------------------------------------------------------------------------
+// Defeito e gasto: o que o carro PRECISA. "Polimento" e "Higienizacao" no
+// anuncio de repasse sao coisas A FAZER, nao feitas. Linha negada ("sem
+// retoques") e elogio, nao defeito. O cliente quer tudo isso no FIM da lista.
+// ---------------------------------------------------------------------------
+const DEFEITO =
+  /\b(polimento|polir|pintar|pe[çc]as?|retoques?|higieniz\w*|amassad\w*|risc(?:o|os|ad\w*)|batid\w*|trinca\w*|arranh\w*|avaria\w*|defeito\w*|reparo\w*|conserto\w*|arrum\w*|refaz\w*|vazament\w*|barulh\w*|bateria|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|meia\s*vida)|gastos?\s+necess\w*)\b/i;
+const NEGADO = /^(sem|s\/|zero|nenhum)\b/i;
+export const eDefeito = (linha: string) => DEFEITO.test(linha) && !NEGADO.test(linha.trim());
 
 export function formatVehicleAd(
   vehicle: {
@@ -459,6 +470,8 @@ export function formatVehicleAd(
     // O corpo deve ser sequencia compacta de linhas; o espacamento entre
     // cabecalho/corpo/rodape e feito pelo template (lines.push("")).
     bodyLines = bodyLines.filter((line) => !!line.trim());
+    // Defeito e gasto sempre no fim da lista (pedido do cliente, 18/09/2026).
+    bodyLines = [...bodyLines.filter((l) => !eDefeito(l)), ...bodyLines.filter(eDefeito)];
 
     if (bodyLines.length > 0) {
       lines.push("");

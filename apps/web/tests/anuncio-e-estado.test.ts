@@ -388,7 +388,8 @@ caso("'1x Peças' do fornecedor vira 'Pintar uma peça', nunca 'substituída'", 
   assert.equal(pintarPecas("2 peças"), "Pintar duas peças");
   assert.equal(pintarPecas("Substituição de duas peças"), "Pintar duas peças");
   assert.equal(pintarPecas("Precisa trocar 1 peça"), "Precisa pintar uma peça");
-  assert.equal(pintarPecas("3 peças e pneus bons"), "Pintar três peças e pneus bons");
+  assert.equal(pintarPecas("3 peças e pneus bons"), "Pintar 3 peças e pneus bons");
+  assert.equal(pintarPecas("Faz 3 peças"), "Pintar 3 peças");
   assert.equal(pintarPecas("Peças substituídas"), "Pintar peças");
 });
 caso("'Faz 1 retoque' e retoque A FAZER: 'Pintar uma peça'", () => {
@@ -512,6 +513,51 @@ caso("Onix: nada alem do cabecalho e rodape -> corpo vazio, sem inventar", () =>
 caso("resposta que nao e JSON devolve null (proximo modelo tenta)", () => {
   assert.equal(lerItens("Pneus novos\nIPVA pago", SPORTAGE), null);
   assert.equal(lerItens(JSON.stringify({ corpo: "x" }), SPORTAGE), null);
+});
+
+// ── 18/09/2026, segunda leva: Captur e HR-V ─────────────────────────────
+const CAPTUR = `CAPTUR INTENSE 1.6 - 2020
+Câmbio automático
+Interna couro
+108 mil km
+Polimento
+Higienização
+Faz 3 peças
+Fipe 72.333,00
+Por 62.990,00`;
+
+console.log("Defeito e a fazer, e vai no fim");
+caso("Captur: 'Polimento recente', 'Higienização feita' e 'Motor com 3 peças trocadas' viram o que o vendedor disse", () => {
+  const daIa = "Câmbio automático\nInterior em couro\nPolimento recente\nHigienização feita\nMotor com 3 peças trocadas";
+  const v = extractWithRegex(CAPTUR)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: conferirComOVendedor(daIa, CAPTUR) }, { profitMarginPercent: 0 });
+  assert.equal(anuncio, [
+    "*Captur Intense 1.6 (aut.)*",
+    "2020 | 108.000km",
+    "",
+    "Câmbio automático",
+    "Interior em couro",
+    "Polimento",
+    "Higienização",
+    "Pintar 3 peças",
+    "",
+    "Fipe: 72.333,00",
+    "Por: *62.990,00*",
+  ].join("\n"));
+});
+caso("HR-V: 'Sem detalhes mecânicos' inventado cai; 'faz 3 peças' vira 'Pintar 3 peças' no fim", () => {
+  const vendedor = "HRV EXL 1.8 2016\n90.000 km\nManual e chave reserva\nRevisada\nfaz 3 peças\nPneus novos\nPor 74.990";
+  const daIa = "Manual e chave reserva\nRevisada\nSem detalhes mecânicos\nPneus novos";
+  const v = extractWithRegex(vendedor)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: conferirComOVendedor(daIa, vendedor) }, { profitMarginPercent: 0 });
+  assert.doesNotMatch(anuncio, /sem detalhes/i);
+  assert.match(anuncio, /Pneus novos\nPintar 3 peças\n\nPor/);
+});
+caso("sem IA (regex), o defeito tambem vai pro fim da lista", () => {
+  const vendedor = "Onix LT 1.0 2021\n50.000 km\nPolimento\nTeto solar\nSem retoques\nPor 60.000";
+  const v = extractWithRegex(vendedor)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: vendedor }, { profitMarginPercent: 0 });
+  assert.match(anuncio, /\nTeto solar\nSem retoques\nPolimento\n\nPor/);
 });
 
 async function casosAssincronos() {

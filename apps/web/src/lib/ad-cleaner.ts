@@ -21,6 +21,7 @@
 import OpenAI from "openai";
 import { createHash } from "crypto";
 import { geminiGenerateText, isGeminiConfigured } from "./gemini";
+import { eDefeito } from "./vehicle-formatter";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -38,7 +39,7 @@ const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // Bump esse prefixo quando mudar o SYSTEM_PROMPT pra invalidar cache antigo.
-const PROMPT_VERSION = "v7";
+const PROMPT_VERSION = "v8";
 
 /** Modelo grande de proposito: um anuncio sao ~400 tokens, e o pequeno seguia mal 150 linhas de regra. */
 const MODELO = "gpt-4.1";
@@ -141,10 +142,13 @@ ano, km e preco, a resposta e {"itens":[]}.
            "Pneus novos" / "IPVA 2026 pago" / "Sem retoques"
    "Manual e chave cópia" e "Manual do proprietário" sao itens e ficam.
 
-5a. DEFEITO E GASTO SEMPRE FICAM, COM A PALAVRA DO VENDEDOR: o que o
-   carro PRECISA (polimento, pintar peca, retoque, amassado, risco, "so
-   polir e higienizar") e a informacao mais importante do anuncio. Copie
-   a linha do vendedor, so tirando enfeite -- reescrever muda o sentido.
+5a. DEFEITO E GASTO SEMPRE FICAM, COM A PALAVRA DO VENDEDOR, NO FIM DA
+   LISTA: o que o carro PRECISA (polimento, higienizacao, pintar peca,
+   retoque, amassado, risco) e a informacao mais importante do anuncio.
+   No repasse, "Polimento" e "Higienização" sozinhos querem dizer que
+   PRECISA fazer -- nunca "polimento recente", "higienização feita".
+   Copie a linha do vendedor, so tirando enfeite: reescrever muda o
+   sentido ("Faz 3 peças" NAO e "motor com 3 peças trocadas").
    Precisou cortar pelo limite de linhas? Corte opcional, nunca defeito.
    "Gastos necessários: * Polimento" -> "Polimento"
 
@@ -232,9 +236,6 @@ export function soOQueEstaNoTexto(limpo: string, original: string): string {
   return fieis.join("\n").trim();
 }
 
-// O que o carro PRECISA: e o que o comprador de repasse mais quer saber.
-const DEFEITO =
-  /\b(polimento|polir|pintar|pe[çc]as?|retoques?|amassad\w*|risc(?:o|os|ad\w*)|batid\w*|trinca\w*|arranh\w*|avaria\w*|defeito\w*|reparo\w*|conserto\w*|higieniz\w*)\b/i;
 const ENFEITE = /^[\s*•\-–✅✓☑️]+|[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu;
 
 /**
@@ -246,12 +247,11 @@ const ENFEITE = /^[\s*•\-–✅✓☑️]+|[\u{1F000}-\u{1FFFF}\u{2600}-\u{27B
  * no fim, so sem enfeite. O formatador traduz "1x peças" e "faz 1 retoque"
  * para "Pintar uma peça" depois.
  */
-const NEGADO = /^(sem|s\/|zero|nenhum)\b/i;
 const linhasDeDefeito = (original: string) =>
   original
     .split("\n")
     .map((l) => l.replace(ENFEITE, "").trim())
-    .filter((l) => l && DEFEITO.test(l) && !NEGADO.test(l) && !/:\s*$/.test(l))
+    .filter((l) => l && eDefeito(l) && !/:\s*$/.test(l))
     .map((l) => l.charAt(0).toUpperCase() + l.slice(1));
 
 export function garantirDefeitos(limpo: string, original: string): string {
@@ -260,7 +260,7 @@ export function garantirDefeitos(limpo: string, original: string): string {
   const raizesDoVendedor = new Set(doVendedor.flatMap(raizes));
   const daIa = limpo
     .split("\n")
-    .filter((l) => !(DEFEITO.test(l) && raizes(l).some((r) => raizesDoVendedor.has(r))));
+    .filter((l) => !(eDefeito(l) && raizes(l).some((r) => raizesDoVendedor.has(r))));
   return [...daIa, ...doVendedor].filter(Boolean).join("\n");
 }
 
