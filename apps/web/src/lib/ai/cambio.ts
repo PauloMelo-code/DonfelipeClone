@@ -39,11 +39,15 @@ export function detectarCambio(texto: string): Cambio | undefined {
     /\b(autom[aá]tic[oa]|aut\.?|tiptronic|steptronic|dsg|s[\s-]?tronic|powershift|automatizad[oa]|dualogic|easytronic)\b/i.test(limpo) ||
     // "1.0 AT", "2.0T AT6"
     /\b\d\.\d\s*(?:t|tb|turbo)?\s*at\d?\b/i.test(limpo) ||
-    /\bat[6-9]\b/i.test(limpo)
+    /\bat[6-9]\b/i.test(limpo) ||
+    // "Autom." e "Aut." abreviados -- o \b nao serve depois do ponto.
+    /\baut(?:om)?\.(?!\w)/i.test(limpo)
   ) {
     return "AUTOMATICO";
   }
-  if (/\bmanual\b/i.test(limpo) || /\bc[aâ]mbio\s*:?\s*mec[aâ]nico\b/i.test(limpo)) return "MANUAL";
+  // "Mec." abreviado e cambio; "mecanica boa" e motor, por isso so a abreviacao
+  // solta e o rotulo explicito valem.
+  if (/\bmanual\b/i.test(limpo) || /\bmec\.(?!\w)/i.test(limpo) || /\bc[aâ]mbio\s*:?\s*mec[aâ]nic[oa]\b/i.test(limpo)) return "MANUAL";
   if (ELETRICO.test(texto)) return "AUTOMATICO";
   return undefined;
 }

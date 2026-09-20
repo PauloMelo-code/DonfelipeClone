@@ -55,8 +55,9 @@ function getTransmissionLabel(
   switch (transmission) {
     case "AUTOMATICO":
       return "(aut.)";
+    // 12. O cliente escreve "(mec.)" -- nunca "(manual)".
     case "MANUAL":
-      return "(manual)";
+      return "(mec.)";
     case "CVT":
       return "(CVT)";
     default:
@@ -149,8 +150,6 @@ function tirarMarcaDoComeco(texto: string, marca?: string | null): string {
     for (const m of marcas) {
       // "RAM 2500": aqui a marca e o nome do modelo.
       if (m === "RAM" && /^\s*\d/.test(resto.slice(m.length))) continue;
-      // "Range Rover Evoque" e Evoque; "Range Rover Sport" e o nome do carro.
-      if (m === "RANGE ROVER" && !/^\s*(evoque|velar)\b/i.test(resto.slice(m.length))) continue;
       const cabeca = resto.slice(0, m.length).toUpperCase();
       const depois = resto.charAt(m.length);
       if (cabeca === m && (depois === "" || /[\s/-]/.test(depois))) {
@@ -182,8 +181,8 @@ export function tituloDoAnuncio(v: {
     // Km -- tambem ja vem abaixo.
     .replace(/\b[\d.,]+\s*(mil\s*)?km\b/gi, " ")
     // Cambio escrito no modelo: o rotulo padrao entra no fim.
-    .replace(/\((?:aut\.?|autom[aá]tic[oa]|manual|mec[aâ]nico|cvt|h[ií]brido)\)/gi, " ")
-    .replace(/(^|\s)(?:aut\.?|autom[aá]tic[oa]|manual|mec[aâ]nico|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
+    .replace(/\((?:aut\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|h[ií]brido)\)/gi, " ")
+    .replace(/(^|\s)(?:aut(?:om)?\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
     .replace(/(\S\s+)at(?=\s|$)/gi, "$1")
     // "Limited+" -> "Limited": o cliente nao quer o "+" no titulo.
     .replace(/\s*\+(?=\s|$)/g, "")
@@ -194,7 +193,12 @@ export function tituloDoAnuncio(v: {
   if (v.transmission) t = t.replace(/(\S\s+)mt(?=\s|$)/gi, "$1");
 
   // Turbo colado na motorizacao: "1.6 Turbo" / "1.6 TB" / "1.6turbo" -> "1.6T".
-  t = t.replace(/\b(\d\.\d)\s*(?:turbo|tb|t)\b/gi, "$1T");
+  // O codigo de torque da Fiat fica solto ("1.3 T270" -> "1.3T 270") e o que
+  // vem antes do T some ("1.0 200 T." -> "1.0T"), como o cliente escreveu.
+  t = t
+    .replace(/\b(\d\.\d)\s+\d{3}\s*t\.?(?=\s|$)/gi, "$1T")
+    .replace(/\b(\d\.\d)\s*t(\d{2,3})\b/gi, "$1T $2")
+    .replace(/\b(\d\.\d)\s*(?:turbo|tb|t)\b/gi, "$1T");
   if (/(^|\s)(?:turbo|tb)(?=\s|$)/i.test(t)) {
     const motor = t.match(/\b\d\.\d(?!T)\b/i);
     if (motor) {
@@ -316,8 +320,9 @@ export function formatVehicleAd(
   }
 
   // --- Year display ---
+  // 8. "2023/2024" sai "2023/24" -- o ano do modelo so com os dois digitos.
   const yearDisplay = vehicle.yearModel && vehicle.yearModel !== vehicle.year
-    ? `${vehicle.year}/${vehicle.yearModel}`
+    ? `${vehicle.year}/${String(vehicle.yearModel).slice(-2)}`
     : `${vehicle.year}`;
 
   // --- First line: titulo no padrao (bold for WhatsApp) ---

@@ -24,6 +24,13 @@ const BRANDS = [
 // Regex Vehicle Extractor (ZERO COST — no AI calls)
 // ---------------------------------------------------------------------------
 
+/**
+ * 29. O rotulo da Fipe nem sempre e "Fipe": o vendedor escreve "Tabela
+ * 134.000" ou erra pra "Fifa". Pelo contexto -- rotulo seguido de valor --
+ * e a mesma coisa, e nunca e o preco de venda.
+ */
+const ROTULO_FIPE = /\b(fipe|fifa|tabela)\b/i;
+
 export function extractWithRegex(text: string): VehicleData | null {
   const clean = text
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu, "")
@@ -123,7 +130,7 @@ export function extractWithRegex(text: string): VehicleData | null {
     let fipeZeroKm: number | null = null;
     let fipeOutra: number | null = null;
     for (const fl of lines) {
-      if (!/\bfipe\b/i.test(fl)) continue;
+      if (!ROTULO_FIPE.test(fl)) continue;
       const val = extractFipeValue(fl);
       if (val === null) continue;
       if (/\b(usad[oa]|seminov[oa]?)\b/i.test(fl)) fipeUsado = val;
@@ -137,7 +144,7 @@ export function extractWithRegex(text: string): VehicleData | null {
   // --- Price ---
   // CRITICAL: nunca usar uma linha que menciona "fipe" como preco de venda.
   let price: number | null = null;
-  const priceText = lines.filter((l) => !/fipe/i.test(l)).join("\n");
+  const priceText = lines.filter((l) => !ROTULO_FIPE.test(l)).join("\n");
   const pricePatterns = [
     /(?:pedid[ao]|faço|faco|valor|vendo|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
     /r\$\s*([\d.,]+\s*(?:mil)?)/i,
@@ -169,7 +176,7 @@ export function extractWithRegex(text: string): VehicleData | null {
     const seenInFipeLines = new Set<number>();
     // Marca valores que estao em linha com "fipe" pra ignorar
     for (const fl of lines) {
-      if (!/\bfipe\b/i.test(fl)) continue;
+      if (!ROTULO_FIPE.test(fl)) continue;
       const nums = fl.match(/r?\$?\s*[\d][\d.,]*/g) || [];
       for (const raw of nums) {
         const n = parseBrazilianNumber(raw.replace(/r\$\s*/i, ""));
@@ -262,6 +269,9 @@ export function extractWithRegex(text: string): VehicleData | null {
     /^para\s*(o\s*)?seu\s*showroom/i,
     /^acompanha\s*(manual|chave)/i,
     /^baixou+/i,
+    // 6. "TIGGO 7 SELECIONADA PARA O ESTOQUE" e chamada, nao o nome do carro.
+    /\bselecionad[ao]\s+(para|pro|pra)\b/i,
+    /^(chegou|novidade|acabou\s*de\s*chegar|dispon[ií]vel\s+(hoje|agora))\b/i,
     /^para\s*vender\s*agora/i,
     /^exclusividade\b/i,
     /^edicao\s*(limitada|especial|exclusiva)/i,
@@ -289,6 +299,15 @@ export function extractWithRegex(text: string): VehicleData | null {
   const LINHA_DE_CAMPO =
     /^(?:r\$|(?:ano|km|quilometragem|pre[çc]o|valor|fipe|pedido|cor|combust[ií]vel|c[aâ]mbio|cambio|ipva|placa|chave|manual|final|motor|portas?|opcionais|garantia|estado|local)\b)/i;
 
+  /**
+   * 19. "FIAT" sozinho numa linha e a MARCA -- o modelo ("TORO 1.3 T270
+   * VOLCANO") vem na linha de baixo. Sem isso o titulo saia "Fiat (aut.)".
+   */
+  const soMarca = (l: string) => {
+    const x = l.toUpperCase().replace(/[^A-Z\s-]/g, "").replace(/\s+/g, " ").trim();
+    return BRANDS.includes(x) || x === "VW" || x === "GM";
+  };
+
   const pareceModelo = (l: string) =>
     l.length >= 3 && l.length <= 60 &&
     l.split(/\s+/).length <= 10 &&
@@ -296,6 +315,7 @@ export function extractWithRegex(text: string): VehicleData | null {
     !/^\d+$/.test(l) &&
     !LINHA_DE_CAMPO.test(l) &&
     !FRASE_DE_LOJA.test(l) &&
+    !soMarca(l) &&
     !isPromoLine(l);
 
   // Le o texto ORIGINAL: o carrinho que o vendedor poe antes do modelo some
@@ -354,11 +374,27 @@ export function extractWithRegex(text: string): VehicleData | null {
   // regex desiste e a IA extrai -- melhor pagar o token que publicar a frase
   // do vendedor como modelo.
   if (!model) {
-    for (const c of candidatas.slice(0, 8)) {
-      if (pareceModelo(c.texto)) {
-        model = c.texto;
-        break;
-      }
+    const possiveis = candidatas.slice(0, 8).filter((c) => pareceModelo(c.texto));
+    // 6. Entre as primeiras linhas, a que traz ficha tecnica (motorizacao,
+    // ano, cambio) e o carro; a de cima costuma ser chamada de estoque.
+    const ficha = (l: string) =>
+      (/\b\d\.\d\b/.test(l) ? 3 : 0) +
+      (/\b(19|20)\d{2}\b/.test(l) ? 2 : 0) +
+      (/\b(aut\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt)\b/i.test(l) ? 2 : 0);
+    const melhor = possiveis.reduce<{ texto: string; nota: number } | null>((a, c) => {
+      const nota = ficha(c.texto);
+      return a && a.nota >= nota ? a : { texto: c.texto, nota };
+    }, null);
+    // So troca quando a primeira nao tem ficha nenhuma e a outra tem bastante.
+    model = melhor && melhor.nota >= 4 && ficha(possiveis[0].texto) === 0 ? melhor.texto : possiveis[0]?.texto ?? null;
+  }
+
+  // 19. A marca pode estar sozinha numa linha so dela.
+  if (!brand) {
+    const linhaDaMarca = candidatas.slice(0, 6).find((c) => soMarca(c.texto));
+    if (linhaDaMarca) {
+      const x = linhaDaMarca.texto.toUpperCase().replace(/[^A-Z\s-]/g, "").trim();
+      brand = x === "VW" ? "VOLKSWAGEN" : x;
     }
   }
 

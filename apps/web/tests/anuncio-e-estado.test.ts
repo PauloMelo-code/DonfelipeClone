@@ -105,11 +105,11 @@ caso("e-tron: anuncio sai exatamente no padrao do cliente", () => {
     "*E-Tron Sportback Performance Black (aut.)*",
     "2022 | 55.000km",
     "",
-    "Teto solar",
+    "Teto-solar",
     "Painel TFT",
     "Pneus bons",
     "IPVA 26 pago",
-    "Manual e chave reserva",
+    "Com manual e chave reserva",
     "",
     "Fipe: 294.000,00",
     "Por: *204.990,00*",
@@ -134,7 +134,7 @@ const TITULOS: [Parameters<typeof tituloDoAnuncio>[0], string][] = [
   [{ model: "C180 AVANTGARDE 1.6 TURBO", brand: "MERCEDES", transmission: "AUTOMATICO" }, "C180 Avantgarde 1.6T (aut.)"],
   [{ model: "Compass Longitude flex T270 2023", brand: "JEEP", transmission: "AUTOMATICO" }, "Compass Longitude T270 (aut.)"],
   [{ model: "A45 AMG 2.0T 4MATIC", brand: null, transmission: null }, "A45 AMG 2.0T 4MATIC"],
-  [{ model: "ONIX LT 1.0 TURBO MANUAL", brand: "CHEVROLET", transmission: "MANUAL" }, "Onix LT 1.0T (manual)"],
+  [{ model: "ONIX LT 1.0 TURBO MANUAL", brand: "CHEVROLET", transmission: "MANUAL" }, "Onix LT 1.0T (mec.)"],
   [{ model: "VW T-CROSS HIGHLINE 250 TSI", brand: "VOLKSWAGEN", transmission: "AUTOMATICO" }, "T-Cross Highline 250 TSI (aut.)"],
   [{ model: "COROLLA CROSS XRX HYBRID", brand: "TOYOTA", fuel: "HIBRIDO", transmission: "CVT" }, "Corolla Cross XRX (híbrido)"],
   [{ model: "BMW i7", brand: "BMW", transmission: "AUTOMATICO" }, "i7 (aut.)"],
@@ -142,12 +142,12 @@ const TITULOS: [Parameters<typeof tituloDoAnuncio>[0], string][] = [
   [{ model: "MERCEDES-BENZ GLA 200 1.3 TB 2021/2022", brand: "MERCEDES", transmission: "AUTOMATICO" }, "GLA 200 1.3T (aut.)"],
   // Sigla sempre inteira em maiusculas, palavra comum so com a inicial.
   [{ model: "TOYOTA HILUX CD SRV 2.7 4X4 FLEX", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Hilux CD SRV 2.7 4X4 (aut.)"],
-  [{ model: "HILUX CE", brand: "TOYOTA", transmission: "MANUAL" }, "Hilux CE (manual)"],
+  [{ model: "HILUX CE", brand: "TOYOTA", transmission: "MANUAL" }, "Hilux CE (mec.)"],
   [{ model: "COROLLA XLI 1.8", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Corolla XLI 1.8 (aut.)"],
-  [{ model: "PALIO ELX 1.0", brand: "FIAT", transmission: "MANUAL" }, "Palio ELX 1.0 (manual)"],
+  [{ model: "PALIO ELX 1.0", brand: "FIAT", transmission: "MANUAL" }, "Palio ELX 1.0 (mec.)"],
   [{ model: "HB20 1.0 TGDI PLATINUM", brand: "HYUNDAI", transmission: "AUTOMATICO" }, "HB20 1.0 TGDI Platinum (aut.)"],
-  [{ model: "KWID ZEN 1.0 SCE", brand: "RENAULT", transmission: "MANUAL" }, "Kwid Zen 1.0 SCE (manual)"],
-  [{ model: "MOBI LIKE 1.0 MT", brand: "FIAT", transmission: "MANUAL" }, "Mobi Like 1.0 (manual)"],
+  [{ model: "KWID ZEN 1.0 SCE", brand: "RENAULT", transmission: "MANUAL" }, "Kwid Zen 1.0 SCE (mec.)"],
+  [{ model: "MOBI LIKE 1.0 MT", brand: "FIAT", transmission: "MANUAL" }, "Mobi Like 1.0 (mec.)"],
   [{ model: "BMW 320I M SPORT", brand: "BMW", transmission: "AUTOMATICO" }, "320i M Sport (aut.)"],
   [{ model: "X1 SDRIVE20I GP", brand: "BMW", transmission: "AUTOMATICO" }, "X1 sDrive20i GP (aut.)"],
   [{ model: "SONG PLUS DM-I", brand: "BYD", fuel: "HIBRIDO", transmission: "AUTOMATICO" }, "Song Plus DM-i (híbrido)"],
@@ -295,7 +295,6 @@ caso("o cabecalho e as condicoes do fornecedor nao entram no anuncio", () => {
     "",
     "Pneus bons",
     "IPVA 26 pago",
-    "Ar condicionado gelando",
     "",
     "Fipe: 119.400,00",
     "Por: *94.990,00*",
@@ -328,7 +327,7 @@ caso("titulo longo do vendedor (61 caracteres) nao vaza para o corpo", () => {
   const texto = "MERCEDES-BENZ C180 AVANTGARDE 1.6 TURBO AUTOMÁTICO 2019/2019\n2019 | 62.000km\n\nTeto solar\n\nPor: 118.000";
   const v = extractWithRegex(texto)!;
   const anuncio = formatVehicleAd({ ...v, price: 118000, rawDescription: texto }, { profitMarginPercent: 0 });
-  assert.equal(anuncio, "*C180 Avantgarde 1.6T (aut.)*\n2019 | 62.000km\n\nTeto solar\n\nPor: *118.000,00*");
+  assert.equal(anuncio, "*C180 Avantgarde 1.6T (aut.)*\n2019 | 62.000km\n\nTeto-solar\n\nPor: *118.000,00*");
 });
 
 // ── 18/09/2026: o que o cliente viu no primeiro dia de testes ────────────
@@ -423,23 +422,23 @@ Por 136.990`;
 console.log("Defeito e com a palavra do vendedor");
 caso("Commander: 'Polimento' omitido pela IA volta pro anuncio", () => {
   const daIa = "Manual e chave cópia\nIPVA pago\nMotor, suspensão e caixa OK";
-  assert.equal(conferirComOVendedor(daIa, COMMANDER), "Manual e chave reserva\nIPVA pago\nMotor, suspensão e caixa bons\nFazer polimento");
+  assert.equal(conferirComOVendedor(daIa, COMMANDER), "Com manual e chave reserva\nIPVA pago\nMotor, suspensão e caixa bons\nFazer polimento");
 });
 caso("'Faz 1 retoque' reescrito como 'Retoque na pintura' volta a ser retoque a fazer", () => {
   const vendedor = "Commander Overland TD380\n2025\n26.000 km\nTeto solar\nÚnico dono\nFaz 1 retoque\nFipe 222.850,00\nRepasse 199.990,00";
   const daIa = "Teto solar\nÚnico dono\nRetoque na pintura";
   const conferido = conferirComOVendedor(daIa, vendedor);
-  assert.equal(conferido, "Teto solar\nÚnico dono\nRetocar 1 peça");
+  assert.equal(conferido, "Teto-solar\nÚnico dono\nFazer 1 retoque");
   const v = extractWithRegex(vendedor)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: conferido }, { profitMarginPercent: 0 });
-  assert.match(anuncio, /\n\nRetocar 1 peça\n\nFipe/);
+  assert.match(anuncio, /\n\nFazer 1 retoque\n\nFipe/);
   assert.doesNotMatch(anuncio, /retoque na pintura/i);
 });
 
 console.log("'Sem detalhes' so quando o vendedor disse");
 caso("'Sem detalhes' nao entra em carro que faz retoque, nem quando 'detalhes' aparece em outro sentido", () => {
   const vendedor = "Compass Limited 2021\n40.000 km\nFaz 1 retoque\nMais detalhes no privado\nPor 140.000";
-  assert.equal(conferirComOVendedor("Sem detalhes\nRetoque na pintura", vendedor), "Retocar 1 peça");
+  assert.equal(conferirComOVendedor("Sem detalhes\nRetoque na pintura", vendedor), "Fazer 1 retoque");
 });
 caso("'Sem detalhes' fica quando o vendedor escreveu", () => {
   const vendedor = "Compass Limited 2021\n40.000 km\nSem detalhes\nSem retoques\nPor 140.000";
@@ -465,7 +464,7 @@ caso("entrada com fonte no texto e saida fiel entra; trecho, emoji e negrito nao
     { fonte: "rev na css", saida: "Revisões na concessionária" },
     { fonte: "Faz 1 retoque", saida: "Faz 1 retoque" },
   ] });
-  assert.equal(lerItens(raw, SPORTAGE)?.linhas.join("\n"), "IPVA 26 pago\nPneus novos\nManual e chave reserva\nRevisões na concessionária\nRetocar 1 peça");
+  assert.equal(lerItens(raw, SPORTAGE)?.linhas.join("\n"), "IPVA 26 pago\nPneus novos\nCom manual e chave reserva\nRevisões na concessionária\nFazer 1 retoque");
 });
 caso("fonte que nao esta no texto cai, mesmo parecendo item de carro", () => {
   const raw = JSON.stringify({ itens: [
@@ -511,7 +510,7 @@ caso("Captur: 'Polimento recente', 'Higienização feita' e 'Motor com 3 peças 
     "*Captur Intense 1.6 (aut.)*",
     "2020 | 108.000km",
     "",
-    "Interior em couro",
+    "Interno em couro",
     "",
     "Fazer higienização",
     "Fazer polimento",
@@ -530,7 +529,7 @@ caso("Captur com citacao (producao): a fazer que a IA virou em feito sai pela tr
     { fonte: "Faz 3 peças", saida: "Motor com 3 peças trocadas" },
   ] });
   assert.deepEqual(lerItens(raw, CAPTUR)?.linhas,
-    ["Câmbio automático", "Interior em couro", "Fazer polimento", "Fazer higienização", "Pintar 3 peças"]);
+    ["Câmbio automático", "Interno em couro", "Fazer polimento", "Fazer higienização", "Pintar 3 peças"]);
 });
 
 caso("HR-V: 'Sem detalhes mecânicos' inventado cai; 'faz 3 peças' vira 'Pintar 3 peças' no fim", () => {
@@ -545,7 +544,7 @@ caso("sem IA (regex), o defeito tambem vai pro fim da lista", () => {
   const vendedor = "Onix LT 1.0 2021\n50.000 km\nPolimento\nTeto solar\nSem retoques\nPor 60.000";
   const v = extractWithRegex(vendedor)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: vendedor }, { profitMarginPercent: 0 });
-  assert.match(anuncio, /\nTeto solar\nSem retoques\n\nFazer polimento\n\nPor/);
+  assert.match(anuncio, /\nTeto-solar\nSem retoques\n\nFazer polimento\n\nPor/);
 });
 
 async function casosAssincronos() {
