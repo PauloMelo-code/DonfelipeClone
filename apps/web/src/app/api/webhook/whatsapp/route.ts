@@ -333,39 +333,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (existingByIdentity) {
-      // Mesmo carro nos ultimos 30 dias
-      if (price < existingByIdentity.price && existingByIdentity.status === "PENDING") {
-        // Novo preco e MENOR -- atualiza o registro existente
-        await db
-          .update(veiculos)
-          .set({
-            price,
-            vehicleHash, // recalcula com novo preco
-            fipePrice: fipePrice ?? existingByIdentity.fipePrice,
-            rawDescription: textContent ?? existingByIdentity.rawDescription,
-            sellerPhone: (vehicleData.sellerPhone as string) || existingByIdentity.sellerPhone,
-            capturedAt: new Date(), // refresca a janela
-            ...carimboDeEdicao(null),
-          })
-          .where(vivosE(veiculos, eq(veiculos.id, existingByIdentity.id)));
-        console.log(`[Webhook] DEDUP: preco menor encontrado, atualizando ${existingByIdentity.id} (${existingByIdentity.price} -> ${price})`);
-        return NextResponse.json({
-          status: "updated_lower_price",
-          existingId: existingByIdentity.id,
-          oldPrice: existingByIdentity.price,
-          newPrice: price,
-        });
-      }
-      // Preco igual ou MAIOR (ou status nao-PENDING) -- descarta
-      console.log(`[Webhook] DEDUP: mesmo carro nos ultimos 30d com preco menor/igual, descartando (existente=${existingByIdentity.price}, novo=${price})`);
-      return NextResponse.json({
-        status: "duplicate_30d",
-        existingId: existingByIdentity.id,
-        existingPrice: existingByIdentity.price,
-        newPrice: price,
-      });
-    }
+    // A acao da dedup ficou la embaixo, depois de `dados`: o registro que
+    // sobrevive tem que ser UM anuncio inteiro, nao a mistura de dois.
 
     // Blocklist check
     let autoRejectedReason: string | null = null;
@@ -421,6 +390,53 @@ export async function POST(request: NextRequest) {
       rejectedAt: autoRejectedReason ? new Date() : null,
       rejectionReason: autoRejectedReason ? `Auto: ${autoRejectedReason}` : null,
     };
+
+    // Dedup de 30 dias: o mais barato fica. O registro que sobra passa a ser
+    // O ANUNCIO NOVO INTEIRO -- foto, grupo de origem, texto original e o
+    // anuncio refeito. Antes so preco e rawDescription eram trocados, e o
+    // card ficava com a foto e a fonte de um carro e o "Ver original" de
+    // outro (relatado pelo cliente em 20/09/2026, num Fastback).
+    if (existingByIdentity) {
+      const trocaVale =
+        !autoRejectedReason && price < existingByIdentity.price && existingByIdentity.status === "PENDING";
+      if (trocaVale) {
+        const [atualizado] = await db
+          .update(veiculos)
+          .set({
+            ...dados,
+            capturedAt: new Date(), // refresca a janela
+            // O anuncio refeito era do texto que perdeu -- inclusive o que o
+            // operador tinha editado. Zera pra sair de novo do texto que ficou.
+            formattedAd: null,
+            adEditedAt: null,
+            ...carimboDeEdicao(null),
+          })
+          .where(vivosE(veiculos, eq(veiculos.id, existingByIdentity.id)))
+          .returning();
+        console.log(`[Webhook] DEDUP: preco menor encontrado, trocando o anuncio ${existingByIdentity.id} (${existingByIdentity.price} -> ${price})`);
+        if (atualizado && textContent && textContent.length >= 20) {
+          gerarAnuncioEmBackground(atualizado.id, textContent, {
+            model, brand, year, yearModel, km, price, fipePrice,
+            transmission, fuel, features,
+          });
+        }
+        if (atualizado && photos.length > 1) analisarFotosEmBackground(atualizado.id, photos);
+        return NextResponse.json({
+          status: "updated_lower_price",
+          existingId: existingByIdentity.id,
+          oldPrice: existingByIdentity.price,
+          newPrice: price,
+        });
+      }
+      // Preco igual ou MAIOR (ou ja aprovado/rejeitado) -- descarta o novo
+      console.log(`[Webhook] DEDUP: mesmo carro nos ultimos 30d com preco menor/igual, descartando (existente=${existingByIdentity.price}, novo=${price})`);
+      return NextResponse.json({
+        status: "duplicate_30d",
+        existingId: existingByIdentity.id,
+        existingPrice: existingByIdentity.price,
+        newPrice: price,
+      });
+    }
 
     // `source_message_id` e unico na tabela inteira, excluidos inclusive. Sem
     // isto, um anuncio que ja passou por aqui e foi apagado (o "zerar", por
