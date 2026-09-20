@@ -353,10 +353,20 @@ export function formatVehicleAd(
       // entrou por causa da ampulheta do "⏳ Ano:", que segurava a linha.
       .replace(/[\u{1F000}-\u{1FFFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅✓☑️📊💰📍🔥⚡🚗🏎️⭐🔑]/gu, "");
 
+    /**
+     * O km abre a linha mas o resto dela e informacao do carro:
+     * "27 mil km Todas revisões na concessionária". O km ja esta no
+     * cabecalho; jogar a linha inteira fora levava a revisao junto.
+     */
+    const semKmNaFrente = (l: string) => {
+      const resto = l.replace(/^\s*(?:km\s*:?\s*)?[\d.,]+\s*(?:mil\s*)?km\b[\s:,.\-–|]*/i, "");
+      return resto.length > 3 ? resto : l;
+    };
+
     const modelFirstWord = vehicle.model.toLowerCase().split(" ")[0];
     // No padrao ANTES dos filtros: "Faz 2 peças" cairia como linha de preco
     // ("Faz 127.000"), e uma linha pode virar duas ("Manual, sem chave cópia").
-    const descLines = cleaned.split("\n").flatMap(padronizarLinha);
+    const descLines = cleaned.split("\n").flatMap((l) => padronizarLinha(semKmNaFrente(l)));
     let bodyLines: string[] = [];
     // O cambio que foi pro titulo nao se repete no corpo. "Manual" sozinho so
     // e cambio em carro manual -- no automatico e o manual do dono.
@@ -377,8 +387,8 @@ export function formatVehicleAd(
         // Model name line. A primeira e o titulo do vendedor, de qualquer
         // tamanho: com marca, versao e ano passa facil de 60 caracteres.
         lower.includes(modelFirstWord) && (bodyLines.length === 0 || lower.length < 60 && bodyLines.length < 3) ||
-        // Year line: "Ano 2025", "Ano: 2025", "2025" ou "2024/2025"
-        /^(ano\s*:?\s*)?\d{4}\s*([\/\|]\s*\d{2,4})?\s*$/i.test(l) ||
+        // Year line: "Ano 2025", "ANO/MOD: 2023/2024", "2025" ou "2024/2025"
+        /^(ano\s*(?:\/\s*mod(?:elo)?)?\s*:?\s*)?\d{4}\s*([\/|]\s*\d{2,4})?\s*$/i.test(l) ||
         // KM line: "KM 35.000", "Km: 46 mil", "35.000 km" (linha inteira)
         /^(km\s*:?\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
         // Ano e km juntos: "2022 | 55.000km", "2019/2020 - 80 mil km"
@@ -392,12 +402,12 @@ export function formatVehicleAd(
         // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998" "Faz 127.000"
         // "Pra hj 122.000" "Tabela 138.000" "Sinal 5.000" "Entrada 20.000"
         // O sistema gera a propria secao Fipe/Por -- nada de preco vaza pro corpo.
-        /^(fipe|pedida|faço|faco|faz|valor|preco|preço|por|custo|tabela|sinal|entrada|à\s*vista|a\s*vista|pra\s*(hoje|hj))\s*:?\s*r?\$?\s*~?\s*[\d.,]+/i.test(l) ||
+        /^(fipe|fifa|pedida|preciso(\s*de)?|faço|faco|faz|valor|preco|preço|por|custo|tabela|sinal|entrada|à\s*vista|a\s*vista|pra\s*(hoje|hj))\s*:?\s*r?\$?\s*~?\s*[\d.,]+/i.test(l) ||
         // Bare price: "R$ 360.900" or just "360.900"
         /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
         // Frases de marketing/chamada do vendedor da fonte -- nao entram no
         // anuncio da Don Felipe ("Oportunidade menor valor Brasil", etc).
-        /\b(oportunidade|menor\s*(valor|pre[çc]o)|melhor\s*(valor|pre[çc]o|oferta)|imperd[ií]vel|aproveite|n[ãa]o\s*perc|super\s*oferta|abaixo\s*da\s*(tabela|fipe)|baita\s*(neg[óo]cio|oferta)|promo[çc][ãa]o|ultim[ao]s?\s*(unidade|dia))\b/i.test(l) ||
+        /\b(oportunidade|menor\s*(valor|pre[çc]o)|mais\s*barat[ao]|melhor\s*(valor|pre[çc]o|oferta)|imperd[ií]vel|aproveite|n[ãa]o\s*perc|super\s*oferta|abaixo\s*da\s*(tabela|fipe)|baita\s*(neg[óo]cio|oferta)|promo[çc][ãa]o|ultim[ao]s?\s*(unidade|dia))\b/i.test(l) ||
         // Frases de NEGOCIACAO do vendedor da fonte -- nao entram no anuncio
         // ("Analisa proposta", "Aceito troca", "Comigo", "Negociavel"...).
         /\b(analis[ao]|aceito|estudo|fa[çc]o|escuto|ou[çv]o)\s+(proposta|oferta|troca)/i.test(l) ||

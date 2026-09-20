@@ -31,6 +31,15 @@ const BRANDS = [
  */
 const ROTULO_FIPE = /\b(fipe|fifa|tabela)\b/i;
 
+/**
+ * Valor de anuncio de concorrente ("Mais barata anunciada no Brasil
+ * (Webmotors) R$ 179.900"). Nao e a FIPE deste carro nem o que o vendedor
+ * pede por ele: o anuncio saia com uma FIPE que nao existe e, pior, com o
+ * preco do concorrente no lugar da pedida.
+ */
+const DE_CONCORRENTE =
+  /\b(mais\s*barat[ao]|menor\s*(valor|pre[çc]o)|anunciad[ao]|webmotors|olx|mercado\s*livre|icarros|usadosbr)\b/i;
+
 export function extractWithRegex(text: string): VehicleData | null {
   const clean = text
     .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu, "")
@@ -144,9 +153,9 @@ export function extractWithRegex(text: string): VehicleData | null {
   // --- Price ---
   // CRITICAL: nunca usar uma linha que menciona "fipe" como preco de venda.
   let price: number | null = null;
-  const priceText = lines.filter((l) => !ROTULO_FIPE.test(l)).join("\n");
+  const priceText = lines.filter((l) => !ROTULO_FIPE.test(l) && !DE_CONCORRENTE.test(l)).join("\n");
   const pricePatterns = [
-    /(?:pedid[ao]|faço|faco|valor|vendo|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
+    /(?:pedid[ao]|preciso(?:\s+de)?|faço|faco|valor|vendo|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
     /r\$\s*([\d.,]+\s*(?:mil)?)/i,
     /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m,
   ];
@@ -183,15 +192,18 @@ export function extractWithRegex(text: string): VehicleData | null {
         if (n !== null) seenInFipeLines.add(n);
       }
     }
-    // Coleta todos os R$ do texto, marcando se estao entre asteriscos (negrito)
-    const moneyRegex = /(\*?)\s*r?\$\s*([\d][\d.,]*)\s*(\*?)/gi;
-    let match: RegExpExecArray | null;
-    while ((match = moneyRegex.exec(clean)) !== null) {
-      const n = parseBrazilianNumber(match[2]);
-      if (n === null || n < 10000 || n > 2_000_000) continue;
-      if (seenInFipeLines.has(n)) continue;
-      const bold = match[1] === "*" || match[3] === "*";
-      allValues.push({ value: n, bold, raw: match[0] });
+    // Coleta os R$ do texto, marcando se estao entre asteriscos (negrito).
+    for (const linha of lines) {
+      if (DE_CONCORRENTE.test(linha)) continue;
+      const moneyRegex = /(\*?)\s*r?\$\s*([\d][\d.,]*)\s*(\*?)/gi;
+      let match: RegExpExecArray | null;
+      while ((match = moneyRegex.exec(linha)) !== null) {
+        const n = parseBrazilianNumber(match[2]);
+        if (n === null || n < 10000 || n > 2_000_000) continue;
+        if (seenInFipeLines.has(n)) continue;
+        const bold = match[1] === "*" || match[3] === "*";
+        allValues.push({ value: n, bold, raw: match[0] });
+      }
     }
     // De-duplica mantendo a primeira ocorrencia
     const unique: typeof allValues = [];

@@ -41,6 +41,13 @@ const SIGLAS = new Set([
   "ADAS", "ATR", "HT", "AT3", "KO2",
 ]);
 const LIGACAO = new Set(["DO", "DA", "DE", "NO", "NA", "EM", "E"]);
+// Numeral romano fica em maiusculas ("casco nível III-A"). O padrao e estrito
+// de proposito: "CIVIC" e "MIL" tambem so tem letras de romano.
+const ROMANO = /^(?=[IVXLCDM]{1,6}$)M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
+const ehRomano = (bruto: string) => {
+  const partes = bruto.split("-");
+  return ROMANO.test(partes[0]) && partes.slice(1).every((x) => /^[A-Z0-9]{1,2}$/.test(x));
+};
 // Palavra curta e comum que, numa linha de pneu, NAO e modelo de pneu.
 const NAO_E_MARCA = new Set(["BOM", "BOA", "BONS", "BOAS", "NOVO", "NOVA", "NOVOS", "RUIM", "MEIA", "VIDA", "ZERO", "AROS", "ARO"]);
 
@@ -58,6 +65,7 @@ function frasear(l: string): string {
       if (nu.length < 2 || nu !== nu.toUpperCase() || !/[A-ZÀ-Ú]/.test(nu)) return p;
       if (/^4x[24]$/i.test(nu)) return p.toLowerCase();
       if (/\d/.test(nu) || SIGLAS.has(nu)) return p; // "V6", "T270", "IPVA"
+      if (ehRomano(p.replace(/[^A-Za-z0-9-]/g, ""))) return p; // "III-A"
       // "Placa PE", "Placa J do RS": letra e estado da placa ficam.
       if (dePlaca && nu.length <= 2 && !LIGACAO.has(nu)) return p;
       if (dePneu && nu.length <= 4 && !LIGACAO.has(nu) && !NAO_E_MARCA.has(nu)) return p;

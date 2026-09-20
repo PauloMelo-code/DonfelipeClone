@@ -357,6 +357,60 @@ Preciso de R$ 137.500`;
   assert.equal(tituloDoAnuncio(v), "Tiggo 7 Sport 1.5T (aut.)");
 });
 
+caso("L2.6 anuncio do cliente inteiro: o Tiggo sai como ele escreveu", () => {
+  const texto = `TIGGO 7 SELECIONADA PARA O ESTOQUE
+Tiggo 7 Sport 1.5 Turbo 2025 Autom.
+27 mil km Todas revisões na concessionária
+BLINDADA CASCO NIVEL III-A
+PLACA J do RS
+LAUDO CAUTELAR APROVADO
+Mais barata anunciada no Brasil (Webmotors) R$ 179.900
+Preciso de R$ 137.500`;
+  const v = extractWithRegex(texto)!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: texto }, { profitMarginPercent: 0 }).split("\n");
+  assert.equal(anuncio[0], "*Tiggo 7 Sport 1.5T (aut.)*");
+  assert.equal(anuncio[1], "2025 | 27.000km");
+  // O km abre a linha, mas a revisao que vem depois dele nao pode sumir.
+  assert.ok(anuncio.includes("Todas revisões na concessionária"), anuncio.join(" | "));
+  assert.ok(anuncio.includes("Blindada casco nivel III-A"), "numeral romano fica em maiusculas");
+  assert.ok(anuncio.includes("Placa J do RS"));
+  // O valor do concorrente nao e a Fipe nem a pedida.
+  assert.ok(!anuncio.some((l) => l.includes("179.900")), "179.900 e anuncio de concorrente");
+  assert.equal(anuncio.at(-1), "Por: *137.500,00*");
+});
+
+caso("L2.8 anuncio do cliente inteiro: o Fastback sai como ele escreveu", () => {
+  const texto = `FIAT/FASTBACK AUDACE 1.0 200 T. FLEX AUT
+ANO/MOD: 2023/2024
+KM: 52.812
+Teto solar
+Bancos de couro
+Rodas de liga leve
+Ar gelando
+Gasta 2 peças
+Faz 1 retoque
+Sem leilão
+FIPE 120.000
+POR 99.990`;
+  const v = extractWithRegex(texto)!;
+  assert.deepEqual(
+    formatVehicleAd({ ...v, rawDescription: texto }, { profitMarginPercent: 0 }).split("\n"),
+    [
+      "*Fastback Audace 1.0T (aut.)*",
+      "2023/24 | 53.000km",
+      "",
+      "Teto-solar",
+      "Bancos em couro",
+      "",
+      "Fazer 1 retoque",
+      "Pintar 2 peças",
+      "",
+      "Fipe: 120.000,00",
+      "Por: *99.990,00*",
+    ],
+  );
+});
+
 caso("L2.22 marca sai do titulo, qualquer que seja", () => {
   const t = (model: string) => tituloDoAnuncio({ model, transmission: "AUTOMATICO" });
   assert.equal(t("RANGE ROVER EVOQUE P250 SE R-DYNAMIC"), "Evoque P250 SE R-Dynamic (aut.)");
