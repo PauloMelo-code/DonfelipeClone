@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 /** Mudou o prompt? Muda aqui: o cache de 24 h guarda resposta do prompt antigo. */
-export const PROMPT_VERSION = "v10";
+export const PROMPT_VERSION = "v11";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
@@ -38,8 +38,10 @@ Abreviacao, erro de escrita e giria contam como a mesma regra.
   quando o carro TEM leilao ou sinistro.
 - Ar-condicionado que funciona ("Ar gelando", "Ar funcionando")
 - Opcional basico: rodas de liga, rodas esportivas, airbag, ABS, farol de milha
-- Titulo de bloco: "Gastos necessários:", "O que fazer:", "Obs.:",
-  "Observação:" -- o titulo sai, o que vem embaixo dele fica.
+- Titulo de bloco: "Gastos necessários:", "O que fazer:", "Detalhes:",
+  "Obs.:", "Observação:" -- o titulo sai, o que vem depois dele (na mesma
+  linha ou embaixo) fica e e REESCRITO no padrao.
+  "Detalhes: 1 peça" -> "Pintar 1 peça" (NUNCA "Detalhes: 1 peça")
 - Emojis, bullets, asteriscos
 
 === O QUE NUNCA SAI (se o vendedor escreveu, entra) ===
@@ -68,6 +70,8 @@ Abreviacao, erro de escrita e giria contam como a mesma regra.
    falou em retoque e "Fazer N retoques". Numero em algarismo. "pc",
    "pcs", "pç" sao peca.
    "Faz 2 peças", "Gasta 2 pc", "2x peças", "Pinta 4 peças" -> "Pintar 2 peças"
+   "1 peça", "Detalhes: 1 peça" -> "Pintar 1 peça"
+   "2 peças e retoque" -> duas entradas: "Pintar 2 peças" e "Fazer 1 retoque"
    "Fazer para-choque dianteiro" -> "Pintar para-choque dianteiro"
    "Retocar 1 peça", "Faz um retoque", "Retoques em 1 peça" -> "Fazer 1 retoque"
    "2 retoques", "Retoques 4 pc" -> "Fazer 2 retoques" / "Fazer 4 retoques"

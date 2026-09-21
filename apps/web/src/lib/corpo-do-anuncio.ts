@@ -328,7 +328,9 @@ const DIZ_EXCELENTE_ESTADO =
 
 // ── 20 e 33. Titulo de bloco, que nao entra no anuncio ─────────────────────
 const TITULO_DE_BLOCO =
-  /^(?:gastos?\s+(?:necess[áa]ri[oa]s?|previstos?)|o\s+que\s+(?:tem\s+)?(?:para\s+|pra\s+)?fazer|(?:para|pra)\s+fazer|a\s+fazer|afazeres|detalhes?\s+(?:para|pra)\s+fazer|custos?|servi[çc]os?\s+(?:necess[áa]ri[oa]s?|pendentes?)|observa[çc][õo]es|observa[çc][ãa]o|obs\.?|defeitos?|avarias?|repar[oa]s?|itens?\s+a\s+fazer)\s*:?\s*$/i;
+  /^(?:gastos?\s+(?:necess[áa]ri[oa]s?|previstos?)|o\s+que\s+(?:tem\s+)?(?:para\s+|pra\s+)?fazer|(?:para|pra)\s+fazer|a\s+fazer|afazeres|detalhes?\s+(?:para|pra)\s+fazer|custos?|servi[çc]os?\s+(?:necess[áa]ri[oa]s?|pendentes?)|observa[çc][õo]es|observa[çc][ãa]o|obs\.?|defeitos?|avarias?|repar[oa]s?|itens?\s+a\s+fazer|detalhes?|pend[êe]ncias?)\s*:?\s*$/i;
+// "Detalhes: nenhum" -- o rotulo diz que nao ha nada, e nada entra.
+const CONTEUDO_VAZIO = /^(nenhum[a]?|nada|n[ãa]o|sem|zero|ok|n\/?a|-+)$/i;
 
 // ── 1, 31 e 35. Linha que nao entra no anuncio ─────────────────────────────
 const DESCARTAR: RegExp[] = [
@@ -365,7 +367,9 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
   // 20 e 33. "Gastos necessários:", "Obs.:" -- o titulo sai, o que vem
   // escrito depois dele na mesma linha fica.
   const titulo = /^([^:]{2,30}):\s*(.+)$/.exec(l);
-  if (titulo && TITULO_DE_BLOCO.test(`${titulo[1]}:`)) return fechada(padronizar(titulo[2]).linhas);
+  if (titulo && TITULO_DE_BLOCO.test(`${titulo[1]}:`)) {
+    return fechada(CONTEUDO_VAZIO.test(titulo[2].trim()) ? [] : padronizar(titulo[2]).linhas);
+  }
   if (TITULO_DE_BLOCO.test(l)) return fechada([]);
 
   // 28. "Boa de andar e boa de pneus" -> duas linhas.
@@ -400,6 +404,17 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
   l = okParaBom(l);
   const servico = polimento(l);
   if (servico) return fechada(servico);
+  // "2 peças e retoque": dois servicos numa linha. Inteira, ela caia no
+  // retoque com o numero das pecas -- "Fazer 2 retoques", pintura sumida. So
+  // separa quando cada parte, sozinha, e traducao fechada do bloco de baixo;
+  // "Motor, caixa e suspensão OK" fica inteira.
+  const partes = l.split(/\s*(?:,|;|\+|\be\b)\s*/i).filter(Boolean);
+  if (partes.length > 1) {
+    const cada = partes.map(padronizar);
+    if (cada.every((p) => p.canonica && p.linhas.length > 0 && p.linhas.every(eAFazer))) {
+      return fechada(cada.flatMap((p) => p.linhas));
+    }
+  }
   const lataria = retocar(l) ?? pintar(l) ?? pneuRuim(l) ?? boaDe(l);
   if (lataria) return fechada([lataria]);
   // 21. "Só lavar" -> "Apenas lavar"

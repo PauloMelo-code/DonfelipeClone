@@ -429,6 +429,39 @@ caso("resposta 3 do cliente: combustivel ESCRITO fica no titulo; o deduzido pela
   assert.equal(tituloDoAnuncio({ model: "COROLLA CROSS XRX HYBRID", fuel: "HIBRIDO" }), "Corolla Cross XRX (híbrido)");
 });
 
+caso("'Detalhes: 1 peça' (Amarok do cliente, 21/09) vira 'Pintar 1 peça', no bloco de baixo", () => {
+  const texto = `Marca: VW
+Modelo: Amarok Comf 3.0 v6 diesel 4x4 aut
+Ano: 2023
+KM: 64.000
+Pneus:  Bons
+Manual e chave copia ok
+IPVA: 2026 confirma
+Detalhes: 1 peça
+
+Fipe: R$ 160.400,00
+Valor: R$ 137.990,00`;
+  assert.deepEqual(padronizarLinha("Detalhes: 1 peça"), ["Pintar 1 peça"]);
+  // A IA copiou a linha como estava: a fonte manda, sai no padrao.
+  const lido = lerItens(JSON.stringify({ itens: [
+    { fonte: "Pneus:  Bons", saida: "Pneus bons" },
+    { fonte: "Detalhes: 1 peça", saida: "Detalhes: 1 peça" },
+  ] }), texto)!;
+  assert.deepEqual(lido.linhas, ["Pneus bons", "Pintar 1 peça"]);
+  const v = extractWithRegex(texto)!;
+  const anuncio = formatVehicleAd(
+    { ...v, rawDescription: conferirComOVendedor(lido.linhas.join("\n"), texto, lido.cobertas) },
+    { profitMarginPercent: 0 },
+  );
+  assert.match(anuncio, /\n\nPintar 1 peça\n\nFipe/, "no bloco de baixo, por ultimo");
+  assert.doesNotMatch(anuncio, /Detalhes/);
+  // Rotulo vazio nao inventa nada; dois servicos na linha viram dois.
+  assert.deepEqual(padronizarLinha("Detalhes: nenhum"), []);
+  assert.deepEqual(padronizarLinha("Detalhes: 2 peças e retoque"), ["Pintar 2 peças", "Fazer 1 retoque"],
+    "antes saia 'Fazer 2 retoques': a pintura sumia");
+  assert.deepEqual(padronizarLinha("Motor, caixa e suspensão OK"), ["Motor, caixa e suspensão bons"], "item bom fica junto");
+});
+
 caso("L2.22 marca sai do titulo, qualquer que seja", () => {
   const t = (model: string) => tituloDoAnuncio({ model, transmission: "AUTOMATICO" });
   assert.equal(t("RANGE ROVER EVOQUE P250 SE R-DYNAMIC"), "Evoque P250 SE R-Dynamic (aut.)");
