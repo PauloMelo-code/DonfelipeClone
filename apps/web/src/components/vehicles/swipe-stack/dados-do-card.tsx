@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
 import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
-import { SeloDeMargem } from "./selo-de-margem";
+import { anuncioParaExibir } from "@/lib/vehicle-formatter";
+import { SeloDeMargem, SeloDoPor } from "./selo-de-margem";
 import { formatKm, formatPrice, type CardProps } from "./tipos";
 
 // ---------------------------------------------------------------------------
@@ -21,12 +22,16 @@ type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
   edicaoDoTexto?: EdicaoDoTexto;
 };
 
-/** Marcadores do canto direito: score de qualidade, VIP e hibrido. */
-function Selos({ vehicle }: Pick<CardProps, "vehicle">) {
+/**
+ * Marcadores do canto direito: margem da compra, margem da venda, score de
+ * qualidade, VIP e hibrido. `texto` e o anuncio que esta na caixa agora.
+ */
+function Selos({ vehicle, texto }: Pick<CardProps, "vehicle"> & { texto: string | null }) {
   const score = vehicle.qualityScore;
   return (
     <div className="flex flex-col items-end gap-1">
       <SeloDeMargem price={vehicle.price} fipePrice={vehicle.fipePrice} />
+      <SeloDoPor texto={texto} fipePrice={vehicle.fipePrice} />
       {score != null && (
         <span className={cn(
           "rounded-full border px-2 py-0.5 text-xs font-bold",
@@ -122,7 +127,7 @@ export function DadosDoCard({ vehicle, onUpdateField, edicaoDoTexto }: Props) {
             ) : formatPrice(vehicle.price)}
           </p>
         </div>
-        <Selos vehicle={vehicle} />
+        <Selos vehicle={vehicle} texto={edicaoDoTexto?.rascunho ?? anuncioParaExibir(vehicle)} />
       </div>
 
       <QuadroDoAnuncio vehicle={vehicle} edicao={edicaoDoTexto} />

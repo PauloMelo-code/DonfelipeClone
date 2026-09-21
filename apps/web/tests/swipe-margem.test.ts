@@ -17,10 +17,33 @@ import {
   MARGEM_BOA,
   MARGEM_OTIMA,
   classificarMargem,
+  margemDoPor,
 } from "../src/components/vehicles/swipe-stack/margem";
+import { lerFipeDoAnuncio } from "../src/lib/vehicle-formatter";
 import { lerEstado, lerOrigem } from "../src/components/vehicles/swipe-stack/origem";
 import { tipoDaOrigem } from "../src/lib/tipo-de-origem";
 import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos";
+
+// ── O segundo selo: o "Por:" do anuncio contra a Fipe (cliente, 21/09/2026) ─
+// Os numeros sao os da Amarok que ele mandou: Fipe 160.400, Por 137.990.
+{
+  const anuncio = (fipe: string, por: string) =>
+    `*Amarok Comf 3.0 V6 Diesel 4X4 (aut.)*\n2023 | 64.000km\n\nPneus bons\n\nPintar 1 peça\n\n${fipe}\n${por}`;
+  assert.equal(margemDoPor(anuncio("Fipe: 160.400,00", "Por: *137.990,00*"))?.rotulo, "Por -14% FIPE");
+  // Ele muda o Por: o selo acompanha.
+  assert.equal(margemDoPor(anuncio("Fipe: 160.400,00", "Por: *145.000,00*"))?.rotulo, "Por -10% FIPE");
+  // Ele muda a Fipe: vale a que ele digitou, nao a do carro.
+  assert.equal(margemDoPor(anuncio("Fipe: 170.000,00", "Por: *145.000,00*"), 160400)?.rotulo, "Por -15% FIPE");
+  assert.equal(lerFipeDoAnuncio("Fipe: R$ 170.000"), 170000);
+  // Sem linha "Fipe:" no texto, vale a Fipe do carro.
+  assert.equal(margemDoPor("Por: 137.990", 160400)?.rotulo, "Por -14% FIPE");
+  assert.equal(margemDoPor("Por: 170.000", 160400)?.rotulo, "Por +6% FIPE", "acima da Fipe");
+  assert.equal(margemDoPor("Por: 160.400", 160400)?.rotulo, "Por = FIPE");
+  // Sem Por ou sem Fipe nenhuma, o selo nao aparece.
+  assert.equal(margemDoPor("Fipe: 160.400,00", 160400), null, "sem Por:");
+  assert.equal(margemDoPor("Por: 137.990", null), null, "sem Fipe");
+  assert.equal(margemDoPor(null, 160400), null, "sem texto");
+}
 
 // ── Sem FIPE nao ha o que comparar ────────────────────────────────────────
 {

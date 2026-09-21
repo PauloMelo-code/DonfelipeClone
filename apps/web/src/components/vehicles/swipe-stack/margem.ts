@@ -7,6 +7,8 @@
 // nenhum. Por isso os casos degenerados avisam em vez de calcular.
 // ---------------------------------------------------------------------------
 
+import { lerFipeDoAnuncio, lerPrecoDeVenda } from "@/lib/vehicle-formatter";
+
 export type NivelDeMargem = "otima" | "boa" | "magra" | "negativa" | "alerta";
 
 export interface Margem {
@@ -48,6 +50,27 @@ export function classificarMargem(preco: number, fipe?: number | null): Margem |
   if (desconto >= MARGEM_BOA) return { nivel: "boa", desconto, rotulo: `-${desconto}% FIPE` };
   if (desconto >= 0) return { nivel: "magra", desconto, rotulo: `-${desconto}% FIPE` };
   return { nivel: "negativa", desconto, rotulo: `+${Math.abs(desconto)}% FIPE` };
+}
+
+/**
+ * Quanto o preco de VENDA ficou abaixo da Fipe -- o segundo selo do card.
+ *
+ * Pedido do cliente (21/09/2026): o selo de cima compara o preco do
+ * fornecedor com a Fipe; este compara o "Por:" que ele poe no anuncio com a
+ * "Fipe:" que ele informou, os dois lidos do texto da caixa, e muda enquanto
+ * ele digita. Sem linha "Fipe:" no texto, vale a Fipe do carro.
+ */
+export function margemDoPor(
+  texto: string | null | undefined,
+  fipeDoCarro?: number | null
+): { desconto: number; rotulo: string } | null {
+  const por = lerPrecoDeVenda(texto);
+  const fipe = lerFipeDoAnuncio(texto) ?? fipeDoCarro ?? null;
+  if (!por || !fipe || fipe <= 0) return null;
+  const desconto = Math.round((1 - por / fipe) * 100);
+  if (!Number.isFinite(desconto)) return null;
+  const rotulo = desconto > 0 ? `Por -${desconto}% FIPE` : desconto < 0 ? `Por +${-desconto}% FIPE` : "Por = FIPE";
+  return { desconto, rotulo };
 }
 
 export const ESTILO_DA_MARGEM: Record<NivelDeMargem, string> = {

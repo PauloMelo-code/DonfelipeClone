@@ -247,9 +247,20 @@ export function trocarPrecoDeVenda(texto: string, valor: number): string {
  * valida -- "Por dentro, impecavel" ou "Por 2 anos" nao sao preco.
  */
 export function lerPrecoDeVenda(texto: string | null | undefined): number | null {
+  return lerValorDaLinha(texto, "por");
+}
+
+/** A Fipe da linha "Fipe:" do anuncio -- a que o operador digitou, se mexeu nela. */
+export function lerFipeDoAnuncio(texto: string | null | undefined): number | null {
+  return lerValorDaLinha(texto, "fipe");
+}
+
+/** O valor da ultima linha que comeca pelo rotulo, em qualquer das grafias acima. */
+function lerValorDaLinha(texto: string | null | undefined, rotulo: string): number | null {
   if (!texto) return null;
   let achado: number | null = null;
-  for (const m of texto.matchAll(/^[\s*_~]*por\b[\s:*_~]*(?:r\$)?[\s*_~]*([\d.,]+)\s*(mil)?/gim)) {
+  const linha = new RegExp(String.raw`^[\s*_~]*${rotulo}\b[\s:*_~]*(?:r\$)?[\s*_~]*([\d.,]+)\s*(mil)?`, "gim");
+  for (const m of texto.matchAll(linha)) {
     const bruto = m[1];
     const valor = m[2]
       ? parseFloat(bruto.replace(",", ".")) * 1000
