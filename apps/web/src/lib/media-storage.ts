@@ -64,6 +64,25 @@ interface ImageData {
 }
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+
+/**
+ * O tipo pela assinatura dos bytes, nao pelo cabecalho: o CDN do WhatsApp
+ * responde `application/octet-stream`. Nao e imagem (pagina de erro, arquivo
+ * cifrado): null -- guardar isso vira foto quebrada no card.
+ */
+export function tipoDaImagem(b: Buffer): string | null {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
+  if (b.subarray(0, 4).toString("ascii") === "GIF8") return "image/gif";
+  if (b.subarray(0, 4).toString("ascii") === "RIFF" && b.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  if (b.subarray(4, 8).toString("ascii") === "ftyp") {
+    const marca = b.subarray(8, 12).toString("ascii");
+    if (/^(heic|heix|hevc|mif1|msf1)$/.test(marca)) return "image/heic";
+    if (/^avi[fs]$/.test(marca)) return "image/avif";
+  }
+  return null;
+}
 const MAX_REDIRECTS = 5;
 
 async function downloadImage(
@@ -138,10 +157,13 @@ async function downloadImage(
       res.on("end", () => {
         if (totalSize > MAX_IMAGE_SIZE) return; // already resolved null
         const buffer = Buffer.concat(chunks);
-        let mimeType = res.headers["content-type"] || "image/jpeg";
-        // WhatsApp CDN often returns application/octet-stream for images
-        if (mimeType === "application/octet-stream" || mimeType.startsWith("application/")) {
-          mimeType = "image/jpeg";
+        const mimeType = tipoDaImagem(buffer);
+        if (!mimeType) {
+          console.warn(
+            `[MediaStorage] Resposta nao e imagem (${buffer.length} bytes, ${res.headers["content-type"] ?? "sem tipo"}): ${url.substring(0, 80)}`
+          );
+          resolve(null);
+          return;
         }
         resolve({
           base64: buffer.toString("base64"),
@@ -152,7 +174,16 @@ async function downloadImage(
       }
     );
 
-    req.on("timeout", () => { req.destroy(); resolve(null); });
-    req.on("error", () => resolve(null));
+    // Falha de rede era silenciosa: o card ficava com a URL crua e ninguem
+    // sabia por que. Agora aparece no log.
+    req.on("timeout", () => {
+      console.warn(`[MediaStorage] Timeout ${timeout}ms: ${url.substring(0, 80)}`);
+      req.destroy();
+      resolve(null);
+    });
+    req.on("error", (e) => {
+      console.warn(`[MediaStorage] Erro de rede (${(e as NodeJS.ErrnoException).code ?? e.message}): ${url.substring(0, 80)}`);
+      resolve(null);
+    });
   });
 }

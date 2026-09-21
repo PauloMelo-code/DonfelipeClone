@@ -23,6 +23,7 @@ process.env.UAZAPI_TOKEN = "token-de-teste";
 
 import { uazapi } from "../src/lib/uazapi";
 import { novasPublicacoes } from "../src/lib/canais/publicacoes";
+import { tipoDaImagem } from "../src/lib/media-storage";
 
 let resposta: unknown = [];
 let status = 200;
@@ -114,6 +115,34 @@ async function main() {
   });
   const chats = await uazapi.listChats();
   assert.deepEqual(chats.map((c) => c.kind), ["lid", "user", "group"], "@lid e conversa 1-1");
+
+  // ── A foto da publicacao do canal ──────────────────────────────────────
+  // Formatos reais de /newsletter/messages (15 a 17/09/2026): metade das
+  // publicacoes vem SEM `URL`, so com `directPath`. O link sai dele -- sem
+  // isto o carro do canal nem entrava.
+  const CAMINHO = "/m1/v/t24/An_FNtT88c?ccb=9-4&oh=01_Q5&oe=6A0F1B26&_nc_sid=e6ed6c";
+  devolvendo({
+    response: [
+      { messageid: "com-url", timestamp: "2026-09-16T16:09:33Z",
+        message: { imageMessage: { URL: "https://mmg.whatsapp.net/m1/v/t24/Aaa?oe=1", directPath: "/m1/v/t24/Aaa?oe=1", caption: "Vitara" } } },
+      { messageid: "so-caminho", timestamp: "2026-09-15T13:55:34Z",
+        message: { imageMessage: { directPath: CAMINHO, caption: "Onix" } } },
+      { messageid: "so-texto", timestamp: "2026-09-14T19:19:10Z", message: { conversation: "Bom dia, grupo" } },
+    ],
+  });
+  const fotos = Object.fromEntries((await uazapi.newsletterMessages("1@newsletter")).map((p) => [p.messageId, p.imagemUrl]));
+  assert.equal(fotos["com-url"], "https://mmg.whatsapp.net/m1/v/t24/Aaa?oe=1", "com URL, vale a URL");
+  assert.equal(fotos["so-caminho"], `https://mmg.whatsapp.net${CAMINHO}`, "sem URL, o link sai do directPath");
+  assert.equal(fotos["so-texto"], null, "publicacao sem foto continua sem foto");
+
+  // So vira foto o que e imagem de verdade: pagina de erro ou arquivo
+  // cifrado guardado como foto e o card com o "?" no lugar da imagem.
+  const bytes = (...b: number[]) => Buffer.concat([Buffer.from(b), Buffer.alloc(16)]);
+  assert.equal(tipoDaImagem(bytes(0xff, 0xd8, 0xff, 0xe0)), "image/jpeg");
+  assert.equal(tipoDaImagem(bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)), "image/png");
+  assert.equal(tipoDaImagem(Buffer.concat([Buffer.from("RIFF\0\0\0\0WEBP"), Buffer.alloc(8)])), "image/webp");
+  assert.equal(tipoDaImagem(Buffer.from("<!DOCTYPE html><html>erro</html>")), null, "HTML nao e foto");
+  assert.equal(tipoDaImagem(bytes(0x13, 0x37, 0xbe, 0xef)), null, "arquivo cifrado nao e foto");
 
   // ── O que conta como publicacao nova ────────────────────────────────────
   const post = (horasAtras: number, id: string) => ({

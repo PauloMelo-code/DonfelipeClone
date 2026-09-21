@@ -117,7 +117,9 @@ export async function verificarUrlExterna(bruta: string): Promise<UrlVerificada>
     if (ehEnderecoPrivado(e.address)) return { ok: false, motivo: "endereco_privado" };
   }
 
-  const escolhido = enderecos[0];
+  // IPv4 primeiro. O CDN do WhatsApp responde IPv6 antes, e o container
+  // (node:20-alpine) nao tem rota IPv6: a conexao presa nesse endereco falha.
+  const escolhido = enderecos.find((e) => e.family === 4) ?? enderecos[0];
   return {
     ok: true,
     endereco: escolhido.address,

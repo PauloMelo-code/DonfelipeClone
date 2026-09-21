@@ -70,6 +70,11 @@ export interface ResumoDaBusca {
 async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string; name: string }, segredo: string) {
   // Formato aninhado do webhook. A foto vai como URL: quem persiste e a
   // esteira, do mesmo jeito que faz com a foto que chega de grupo.
+  //
+  // Sem `participant`: publicacao de canal chega inteira, foto e legenda
+  // juntas. Com remetente, a esteira guardava a legenda de um post esperando
+  // foto e colava na foto sem legenda do post seguinte -- carro de um com a
+  // foto de outro.
   const corpo = {
     event: "messages",
     data: {
@@ -77,7 +82,6 @@ async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string;
         remoteJid: canal.groupId,
         id: publicacao.messageId,
         fromMe: false,
-        participant: canal.groupId,
       },
       pushName: canal.name,
       message: publicacao.imagemUrl

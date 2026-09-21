@@ -393,6 +393,11 @@ class UazapiClient {
    * A foto do canal vem numa URL aberta (`imageMessage.URL`): `/message/download`
    * nao acha publicacao de canal ("Message not found"), porque ela nao fica no
    * acervo da instancia.
+   *
+   * Metade das publicacoes vem SEM `URL`, so com `directPath` (medido nas
+   * respostas reais de 15 a 17/09/2026). O `directPath` ja traz a assinatura
+   * do link: com o host do CDN na frente, baixa o mesmo JPEG. Sem isto a foto
+   * nao chegava e o carro nem entrava.
    */
   async newsletterMessages(jid: string, count = 20): Promise<PublicacaoDeCanal[]> {
     const { data } = await this.client.post("/newsletter/messages", { jid, count });
@@ -401,13 +406,15 @@ class UazapiClient {
     return raw
       .map((m) => {
         const img = m?.message?.imageMessage ?? {};
+        const caminho = img.directPath ?? img.DirectPath;
         const texto =
           img.caption ?? m?.message?.conversation ?? m?.message?.extendedTextMessage?.text ?? null;
         return {
           messageId: String(m?.messageid ?? m?.id ?? ""),
           quando: new Date(m?.timestamp ?? 0),
           texto: typeof texto === "string" && texto.trim() ? texto : null,
-          imagemUrl: img.URL ?? img.url ?? null,
+          imagemUrl:
+            img.URL ?? img.url ?? (typeof caminho === "string" && caminho.startsWith("/") ? `https://mmg.whatsapp.net${caminho}` : null),
         };
       })
       .filter((p) => p.messageId && !Number.isNaN(p.quando.getTime()));
