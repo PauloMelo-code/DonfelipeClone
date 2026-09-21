@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { geminiGenerateText, isGeminiConfigured } from "../gemini";
 import type { VehicleData } from "./tipos";
 import { extractWithRegex } from "./regex";
-import { cambioConfirmado } from "./cambio";
+import { cambioConfirmado, combustivelConfirmado } from "./cambio";
 import { extractKmFromText } from "./numeros";
 import {
   EXTRACTION_SYSTEM_PROMPT,
@@ -201,6 +201,7 @@ async function completarCambio(v: VehicleData | null, text: string): Promise<Veh
   if (!v) return v;
   if (!v.transmission) v.transmission = await inferirCambio(v.model, v.brand);
   v.transmission = cambioConfirmado(v.transmission, text);
+  v.fuel = combustivelConfirmado(v.fuel, text);
   return v;
 }
 

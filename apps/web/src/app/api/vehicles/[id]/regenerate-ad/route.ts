@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { extractVehicleFromTextNoCache } from "@/lib/ai";
+import { combustivelConfirmado } from "@/lib/ai/cambio";
 
 // Detecta se o modelo no DB e uma chamada/loja (deve ser re-extraido)
 const BAD_MODEL_PATTERNS: RegExp[] = [
@@ -145,7 +146,8 @@ export async function POST(
         price,
         fipePrice,
         transmission: vehicle.transmission,
-        fuel: vehicle.fuel,
+        // Carro antigo pode ter o combustivel que a IA deduziu: so o escrito vale.
+        fuel: combustivelConfirmado(vehicle.fuel, vehicle.rawDescription),
         features,
         rawDescription: cleanedDesc || vehicle.rawDescription,
       },

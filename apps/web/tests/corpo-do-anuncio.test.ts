@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { eAFazer, eObrigatoria, montarCorpo, padronizarLinha } from "../src/lib/corpo-do-anuncio";
 import { extractWithRegex } from "../src/lib/ai/regex";
 import { formatVehicleAd, tituloDoAnuncio } from "../src/lib/vehicle-formatter";
+import { combustivelConfirmado } from "../src/lib/ai/cambio";
 import { conferirComOVendedor, lerItens } from "../src/lib/ad-cleaner";
 
 let falhas = 0;
@@ -310,7 +311,7 @@ caso("L2.35 ar-condicionado so aparece quando tem problema", () => {
 
 caso("L2.12 cambio manual sai '(mec.)' no titulo", () => {
   assert.equal(tituloDoAnuncio({ model: "MONTANA 1.2 Turbo Flex 12V 4p Mec.", transmission: "MANUAL" }),
-    "Montana 1.2T 12V 4P (mec.)");
+    "Montana 1.2T Flex 12V 4P (mec.)");
   assert.equal(tituloDoAnuncio({ model: "GOL 1.0", transmission: "MANUAL" }), "Gol 1.0 (mec.)");
 });
 
@@ -339,7 +340,7 @@ POR 99.990,00`;
   const v = extractWithRegex(texto)!;
   assert.equal(v.brand, "FIAT");
   const anuncio = formatVehicleAd({ ...v, rawDescription: texto }, { profitMarginPercent: 0 }).split("\n");
-  assert.equal(anuncio[0], "*Toro 1.3T 270 Volcano (aut.)*");
+  assert.equal(anuncio[0], "*Toro 1.3T 270 Volcano Flex (aut.)*");
   assert.equal(anuncio[1], "2022 | 75.000km");
   assert.ok(anuncio.includes("Nada para fazer"), anuncio.join(" | "));
   assert.ok(anuncio.includes("Fipe: 115.400,00"));
@@ -396,7 +397,7 @@ POR 99.990`;
   assert.deepEqual(
     formatVehicleAd({ ...v, rawDescription: texto }, { profitMarginPercent: 0 }).split("\n"),
     [
-      "*Fastback Audace 1.0T (aut.)*",
+      "*Fastback Audace 1.0T Flex (aut.)*",
       "2023/24 | 53.000km",
       "",
       "Teto-solar",
@@ -409,6 +410,23 @@ POR 99.990`;
       "Por: *99.990,00*",
     ],
   );
+});
+
+caso("resposta 3 do cliente: combustivel ESCRITO fica no titulo; o deduzido pela IA nao", () => {
+  // Escrito no nome do modelo: fica onde o vendedor pos.
+  assert.equal(tituloDoAnuncio({ model: "COMPASS LONGITUDE FLEX T270", fuel: "FLEX", transmission: "AUTOMATICO" }),
+    "Compass Longitude Flex T270 (aut.)");
+  // Escrito em outra linha: entra antes do cambio.
+  assert.equal(tituloDoAnuncio({ model: "TORO 1.3 T270 VOLCANO", fuel: "DIESEL", transmission: "AUTOMATICO",
+    rawDescription: "TORO 1.3 T270 VOLCANO\nDIESEL\n2022" }), "Toro 1.3T 270 Volcano Diesel (aut.)");
+  // A IA deduziu pelo modelo, o vendedor nao escreveu: nao entra. A Toro existe flex e diesel.
+  assert.equal(tituloDoAnuncio({ model: "TORO 1.3 T270 VOLCANO", fuel: "DIESEL", transmission: "AUTOMATICO",
+    rawDescription: "TORO 1.3 T270 VOLCANO\n2022\n75.000 km" }), "Toro 1.3T 270 Volcano (aut.)");
+  assert.equal(combustivelConfirmado("FLEX", "Onix LT 2021\n50.000 km"), undefined);
+  assert.equal(combustivelConfirmado("ETANOL", "Gol 1.0 ÁLCOOL"), "ETANOL", "álcool e etanol");
+  assert.equal(combustivelConfirmado("HIBRIDO", "Corolla Cross XRX"), "HIBRIDO", "hibrido muda o rotulo: passa");
+  // Hibrido continua virando o rotulo, sem repetir a palavra.
+  assert.equal(tituloDoAnuncio({ model: "COROLLA CROSS XRX HYBRID", fuel: "HIBRIDO" }), "Corolla Cross XRX (híbrido)");
 });
 
 caso("L2.22 marca sai do titulo, qualquer que seja", () => {

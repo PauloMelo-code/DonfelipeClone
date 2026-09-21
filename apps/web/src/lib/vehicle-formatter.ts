@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { montarCorpo, padronizarLinha } from "./corpo-do-anuncio";
+import { COMBUSTIVEL_ESCRITO, combustivelConfirmado } from "./ai/cambio";
 
 export interface FormatSettings {
   profitMarginPercent: number;
@@ -164,13 +165,21 @@ function tirarMarcaDoComeco(texto: string, marca?: string | null): string {
   return resto;
 }
 
-/** O titulo do anuncio, sem os asteriscos do negrito. */
+/**
+ * O titulo do anuncio, sem os asteriscos do negrito.
+ *
+ * Com `rawDescription` (o texto ORIGINAL do vendedor), o combustivel so entra
+ * se estiver escrito nele -- carro capturado antes de 21/09/2026 pode ter o
+ * combustivel que a IA deduziu pelo modelo.
+ */
 export function tituloDoAnuncio(v: {
   model: string;
   brand?: string | null;
   fuel?: string | null;
   transmission?: string | null;
+  rawDescription?: string | null;
 }): string {
+  const fuel = v.rawDescription ? combustivelConfirmado(v.fuel, v.rawDescription) : v.fuel;
   let t = (v.model || "").replace(/[*_~`]/g, " ").replace(/\s+/g, " ").trim();
   t = tirarMarcaDoComeco(t, v.brand);
 
@@ -185,10 +194,10 @@ export function tituloDoAnuncio(v: {
     .replace(/(^|\s)(?:aut(?:om)?\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
     .replace(/(\S\s+)at(?=\s|$)/gi, "$1")
     // "Limited+" -> "Limited": o cliente nao quer o "+" no titulo.
-    .replace(/\s*\+(?=\s|$)/g, "")
-    // Combustivel nao faz parte do padrao.
-    .replace(/(^|\s)(?:flex|gasolina|etanol|[aá]lcool)(?=\s|$)/gi, " ");
-  if (v.fuel === "HIBRIDO") t = t.replace(/(^|\s)(?:h[ií]brido|hybrid)(?=\s|$)/gi, " ");
+    .replace(/\s*\+(?=\s|$)/g, "");
+  // O combustivel fica (o cliente, 21/09/2026). So o hibrido sai, porque vira
+  // o rotulo "(híbrido)" no fim.
+  if (fuel === "HIBRIDO") t = t.replace(/(^|\s)(?:h[ií]brido|hybrid)(?=\s|$)/gi, " ");
   // "1.0 MT" repete o "(manual)" do fim -- so sai quando o rotulo vai entrar.
   if (v.transmission) t = t.replace(/(\S\s+)mt(?=\s|$)/gi, "$1");
 
@@ -214,7 +223,12 @@ export function tituloDoAnuncio(v: {
   let titulo = palavras.join(" ").replace(/^[\s\-|,.:]+|[\s\-|,:]+$/g, "").trim();
   if (!titulo) titulo = caixaDaPalavra((v.model || "").trim());
 
-  const rotulo = getTransmissionLabel(v.fuel ?? undefined, v.transmission ?? undefined);
+  // Combustivel escrito fora da linha do modelo ("TORO 1.3 T270 VOLCANO" e,
+  // embaixo, "FLEX") entra antes do cambio: "Toro 1.3T 270 Volcano Flex (aut.)".
+  const combustivel = fuel ? COMBUSTIVEL_ESCRITO[fuel] : undefined;
+  if (combustivel && !combustivel.escrito.test(titulo)) titulo = `${titulo} ${combustivel.rotulo}`;
+
+  const rotulo = getTransmissionLabel(fuel ?? undefined, v.transmission ?? undefined);
   return rotulo ? `${titulo} ${rotulo}` : titulo;
 }
 
@@ -262,6 +276,7 @@ export function anuncioParaExibir(v: {
   brand?: string | null;
   fuel?: string | null;
   transmission?: string | null;
+  rawDescription?: string | null;
 }): string | null {
   const texto = v.formattedAd?.trim();
   if (!texto) return null;
@@ -327,7 +342,9 @@ export function formatVehicleAd(
 
   // --- First line: titulo no padrao (bold for WhatsApp) ---
   // O cliente pediu SEM marca (antes a marca era forcada em maiusculas).
-  const modelLine = `*${tituloDoAnuncio(vehicle)}*`;
+  // Sem o rawDescription: aqui ele pode ser o texto ja limpo pela IA, que as
+  // vezes tira a linha "FLEX". Quem chama manda o combustivel ja conferido.
+  const modelLine = `*${tituloDoAnuncio({ ...vehicle, rawDescription: null })}*`;
 
   // --- Build ad ---
   // Format: bold title, year|km, then rawDescription body (original seller text),

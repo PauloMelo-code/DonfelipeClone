@@ -36,7 +36,9 @@ Extraia os seguintes campos do texto ou imagem fornecida:
   de documentacao, NAO cambio. So use MANUAL se o anuncio disser que o
   cambio e manual. "Ar automatico" e "farol automatico" tambem nao sao cambio.
   Carro eletrico e sempre AUTOMATICO.
-- fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO"
+- fuel: tipo de combustivel - "GASOLINA", "ETANOL", "FLEX", "DIESEL", "HIBRIDO" ou "ELETRICO".
+  SO se estiver escrito no anuncio; nao deduza pelo modelo (a Toro existe
+  flex e diesel). Nao escrito: null.
 - color: cor do veiculo
 - plate: placa se mencionada (formato ABC1D23 ou ABC-1234)
 - location: cidade/regiao mencionada

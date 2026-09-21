@@ -53,6 +53,29 @@ export function detectarCambio(texto: string): Cambio | undefined {
 }
 
 /**
+ * Como cada combustivel aparece escrito, e como ele vai no titulo. "Álcool"
+ * comeca com acento: o \b do JS nao serve, o limite e por letra.
+ */
+export const COMBUSTIVEL_ESCRITO: Record<string, { rotulo: string; escrito: RegExp }> = {
+  FLEX: { rotulo: "Flex", escrito: /(?<!\p{L})flex(?!\p{L})/iu },
+  DIESEL: { rotulo: "Diesel", escrito: /(?<!\p{L})diesel(?!\p{L})/iu },
+  GASOLINA: { rotulo: "Gasolina", escrito: /(?<!\p{L})gasolina(?!\p{L})/iu },
+  ETANOL: { rotulo: "Etanol", escrito: /(?<!\p{L})(etanol|[aá]lcool)(?!\p{L})/iu },
+};
+
+/**
+ * Combustivel so vale ESCRITO no anuncio -- ele vai no titulo. O cliente
+ * (21/09/2026): "a IA nao sabe os carros que sao flex ou diesel", e a Toro
+ * existe nos dois. Hibrido e eletrico passam: mudam o rotulo do cambio, e o
+ * eletrico e reconhecido pelo nome do modelo.
+ */
+export function combustivelConfirmado(fuel: string | null | undefined, texto: string | null | undefined): string | undefined {
+  const c = fuel ? COMBUSTIVEL_ESCRITO[fuel] : undefined;
+  if (c && !(texto && c.escrito.test(texto))) return undefined;
+  return fuel ?? undefined;
+}
+
+/**
  * "Manual" so vale ESCRITO no anuncio. A IA chuta manual pelo modelo, e
  * "manual e chave copia" a induz: uma Rampage automatica foi publicada como
  * "(manual)". Automatico e CVT ficam -- o chute por modelo acerta neles.

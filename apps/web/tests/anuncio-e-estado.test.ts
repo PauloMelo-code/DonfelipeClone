@@ -132,7 +132,7 @@ console.log("Titulo no padrao");
 const TITULOS: [Parameters<typeof tituloDoAnuncio>[0], string][] = [
   [{ model: "COROLLA GLI 2.0 AUT", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Corolla GLI 2.0 (aut.)"],
   [{ model: "C180 AVANTGARDE 1.6 TURBO", brand: "MERCEDES", transmission: "AUTOMATICO" }, "C180 Avantgarde 1.6T (aut.)"],
-  [{ model: "Compass Longitude flex T270 2023", brand: "JEEP", transmission: "AUTOMATICO" }, "Compass Longitude T270 (aut.)"],
+  [{ model: "Compass Longitude flex T270 2023", brand: "JEEP", transmission: "AUTOMATICO" }, "Compass Longitude Flex T270 (aut.)"],
   [{ model: "A45 AMG 2.0T 4MATIC", brand: null, transmission: null }, "A45 AMG 2.0T 4MATIC"],
   [{ model: "ONIX LT 1.0 TURBO MANUAL", brand: "CHEVROLET", transmission: "MANUAL" }, "Onix LT 1.0T (mec.)"],
   [{ model: "VW T-CROSS HIGHLINE 250 TSI", brand: "VOLKSWAGEN", transmission: "AUTOMATICO" }, "T-Cross Highline 250 TSI (aut.)"],
@@ -141,7 +141,7 @@ const TITULOS: [Parameters<typeof tituloDoAnuncio>[0], string][] = [
   [{ model: "JEEP", brand: "JEEP", transmission: null }, "Jeep"],
   [{ model: "MERCEDES-BENZ GLA 200 1.3 TB 2021/2022", brand: "MERCEDES", transmission: "AUTOMATICO" }, "GLA 200 1.3T (aut.)"],
   // Sigla sempre inteira em maiusculas, palavra comum so com a inicial.
-  [{ model: "TOYOTA HILUX CD SRV 2.7 4X4 FLEX", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Hilux CD SRV 2.7 4X4 (aut.)"],
+  [{ model: "TOYOTA HILUX CD SRV 2.7 4X4 FLEX", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Hilux CD SRV 2.7 4X4 Flex (aut.)"],
   [{ model: "HILUX CE", brand: "TOYOTA", transmission: "MANUAL" }, "Hilux CE (mec.)"],
   [{ model: "COROLLA XLI 1.8", brand: "TOYOTA", transmission: "AUTOMATICO" }, "Corolla XLI 1.8 (aut.)"],
   [{ model: "PALIO ELX 1.0", brand: "FIAT", transmission: "MANUAL" }, "Palio ELX 1.0 (mec.)"],
@@ -284,13 +284,13 @@ caso("o carro e a linha do carro, nao a frase da loja", () => {
   const v = extractWithRegex(SPIN)!;
   assert.equal(v.model, "SPIN PREMIER 1.8");
   assert.equal(v.km, 46000); // "Km: 46 mil"
-  assert.equal(tituloDoAnuncio(v), "Spin Premier 1.8 (aut.)");
+  assert.equal(tituloDoAnuncio(v), "Spin Premier 1.8 Flex (aut.)");
 });
 caso("o cabecalho e as condicoes do fornecedor nao entram no anuncio", () => {
   const v = extractWithRegex(SPIN)!;
   const anuncio = formatVehicleAd({ ...v, rawDescription: SPIN }, { profitMarginPercent: 0 });
   assert.equal(anuncio, [
-    "*Spin Premier 1.8 (aut.)*",
+    "*Spin Premier 1.8 Flex (aut.)*",
     "2025 | 46.000km",
     "",
     "Pneus bons",
