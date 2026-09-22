@@ -462,6 +462,31 @@ Valor: R$ 137.990,00`;
   assert.deepEqual(padronizarLinha("Motor, caixa e suspensão OK"), ["Motor, caixa e suspensão bons"], "item bom fica junto");
 });
 
+caso("cliente 21/09: 'VENDA' nao se repete; 'Volante gasto' e detalhe vao pro bloco de baixo; Diesel fica", () => {
+  // Toro do cliente, como veio do fornecedor.
+  const toro = "Toro ultra DIESEL\n120 mil km\n2023\n\nFipe 138.000,00\nVENDA 110.000,00";
+  const v = extractWithRegex(toro)!;
+  assert.equal(v.price, 110000, "'VENDA' e o preco");
+  const anuncio = formatVehicleAd({ ...v, transmission: "AUTOMATICO", rawDescription: toro }, { profitMarginPercent: 0 });
+  assert.equal(anuncio.split("\n")[0], "*Toro Ultra Diesel (aut.)*");
+  assert.doesNotMatch(anuncio, /\nVenda/i, "o preco ja esta no Por:, nao repete no corpo");
+  // Como a IA de extracao devolveu em producao: modelo sem o combustivel.
+  assert.equal(tituloDoAnuncio({ model: "Toro Ultra", fuel: "DIESEL", transmission: "AUTOMATICO", rawDescription: toro }),
+    "Toro Ultra Diesel (aut.)");
+
+  for (const l of ["Volante gasto", "Banco gasto", "1 Detalhe banco motorista", "Detalhe na porta", "Pequeno detalhe no capô"]) {
+    assert.ok(eAFazer(padronizarLinha(l)[0]), `defeito: ${l}`);
+  }
+  for (const l of ["Sem detalhes", "Mais detalhes no privado", "Detalhes no whats"]) {
+    assert.ok(!eAFazer(l), `nao e defeito: ${l}`);
+  }
+  // O print do cliente: volante e detalhe no fim, junto do "Pintar 4 peças".
+  assert.deepEqual(
+    montarCorpo(["Placa I", "Com manual", "Volante gasto", "Bancos em couro", "Com chave reserva", "1 Detalhe banco motorista", "Pintar 4 peças"]),
+    ["Placa I", "Com manual", "Bancos em couro", "Com chave reserva", "", "1 Detalhe banco motorista", "Pintar 4 peças", "Volante gasto"],
+  );
+});
+
 caso("L2.22 marca sai do titulo, qualquer que seja", () => {
   const t = (model: string) => tituloDoAnuncio({ model, transmission: "AUTOMATICO" });
   assert.equal(t("RANGE ROVER EVOQUE P250 SE R-DYNAMIC"), "Evoque P250 SE R-Dynamic (aut.)");

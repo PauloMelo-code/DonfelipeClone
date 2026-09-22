@@ -430,7 +430,7 @@ export function formatVehicleAd(
         // "Faço R$ 65.900" "Custo 199.998" "Por: 217.998" "Faz 127.000"
         // "Pra hj 122.000" "Tabela 138.000" "Sinal 5.000" "Entrada 20.000"
         // O sistema gera a propria secao Fipe/Por -- nada de preco vaza pro corpo.
-        /^(fipe|fifa|pedida|preciso(\s*de)?|faço|faco|faz|valor|preco|preço|por|custo|tabela|sinal|entrada|à\s*vista|a\s*vista|pra\s*(hoje|hj))\s*:?\s*r?\$?\s*~?\s*[\d.,]+/i.test(l) ||
+        /^(fipe|fifa|pedida|preciso(\s*de)?|faço|faco|faz|valor|venda|preco|preço|por|custo|tabela|sinal|entrada|à\s*vista|a\s*vista|pra\s*(hoje|hj))\s*:?\s*r?\$?\s*~?\s*[\d.,]+/i.test(l) ||
         // Bare price: "R$ 360.900" or just "360.900"
         /^r?\$?\s*[\d.,]+\s*(mil|reais)?\s*$/i.test(l) ||
         // Frases de marketing/chamada do vendedor da fonte -- nao entram no

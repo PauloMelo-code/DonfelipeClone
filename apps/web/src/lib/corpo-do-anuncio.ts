@@ -428,7 +428,11 @@ export const padronizarLinha = (bruta: string) => padronizar(bruta).linhas;
 const VERBO_A_FAZER =
   /^(?:apenas\s+|s[óo]\s+)?(fazer|refazer|pintar|retocar|trocar|substituir|costurar|arrumar|consertar|reparar|recuperar|restaurar|polir|higienizar|lavar|limpar|alinhar|balancear|regularizar|colocar|instalar|repor|desamassar|soldar|revisar|precisa|necessita|falta|faltam|faltando)\b/i;
 const AVARIA =
-  /\b(polimento|higieniza[çc][ãa]o|amassad\w*|riscad\w*|riscos?|arranh\w*|batid[ao]s?|trincad\w*|trinca|rachad\w*|quebrad\w*|queimad\w*|estragad\w*|avaria\w*|defeito\w*|vazament\w*|vazando|barulh\w*|falhando|n[ãa]o\s+funciona\w*|luz\s+d[ea]\s+inje[çc][ãa]o|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|fracos?)|ipva\s+(?:\d{2,4}\s+)?(?:a\s+pagar|atrasad\w*|vencid\w*|em\s+aberto|pendente)|multas?|d[ée]bitos?|gastos?\s+necess\w*|(?<!mais\s)detalhes?\s+(?:n[oa]s?|de|em)\s+(?!privado|pv|whats|contato)|ralad\w*|martelinho|funilaria|retoques?|pinc[eé](?:l|is)|pinceis|leil[ãa]o|sinistr\w*|(?:m[ée]dia|pequena|grande)\s+monta|recuperad[ao]s?)\b/i;
+  /\b(polimento|higieniza[çc][ãa]o|amassad\w*|riscad\w*|riscos?|arranh\w*|batid[ao]s?|trincad\w*|trinca|rachad\w*|quebrad\w*|queimad\w*|estragad\w*|avaria\w*|defeito\w*|vazament\w*|vazando|barulh\w*|falhando|n[ãa]o\s+funciona\w*|luz\s+d[ea]\s+inje[çc][ãa]o|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|fracos?)|ipva\s+(?:\d{2,4}\s+)?(?:a\s+pagar|atrasad\w*|vencid\w*|em\s+aberto|pendente)|multas?|d[ée]bitos?|gastos?\s+necess\w*|(?<!mais\s)detalhes?\s+(?:n[oa]s?|de|em)\s+(?!privado|pv|whats|contato)|ralad\w*|gast[oa]s?|martelinho|funilaria|retoques?|pinc[eé](?:l|is)|pinceis|leil[ãa]o|sinistr\w*|(?:m[ée]dia|pequena|grande)\s+monta|recuperad[ao]s?)\b/i;
+// "1 Detalhe banco motorista", "Pequeno detalhe na porta": detalhe, no repasse,
+// e defeito. "Mais detalhes no privado" e contato; "Sem detalhes", elogio.
+const DETALHE =
+  /^(?:\d+|uma?|dois|duas)?\s*(?:pequen[oa]s?\s+)?detalhes?\b(?!\s*(?:n[oa]s?\s+)?(?:privado|pv|whats|contato)\b)(?=\s+\S)/i;
 // 26. "RS" do repasse e recuperado de sinistro -- mas "Placa J do RS" e estado.
 const SO_RS = /^(?:tem\s+|com\s+|)rs(?:\s+no\s+documento)?$/i;
 // Falta de item e o unico "sem ..." que vai pro bloco de baixo.
@@ -439,7 +443,7 @@ export function eAFazer(l: string): boolean {
   if (l === NADA_PARA_FAZER || FALTA.test(l) || SO_RS.test(l)) return true;
   if (l === PRONTO_PARA_VENDA || l === ACIMA_DA_MEDIA) return false;
   if (NEGADO.test(l) || /^rec[eé]m\b/i.test(l)) return false;
-  return VERBO_A_FAZER.test(l) || AVARIA.test(l);
+  return VERBO_A_FAZER.test(l) || AVARIA.test(l) || DETALHE.test(l);
 }
 
 // ── O que o vendedor escreveu e nao pode sumir ─────────────────────────────

@@ -155,7 +155,7 @@ export function extractWithRegex(text: string): VehicleData | null {
   let price: number | null = null;
   const priceText = lines.filter((l) => !ROTULO_FIPE.test(l) && !DE_CONCORRENTE.test(l)).join("\n");
   const pricePatterns = [
-    /(?:pedid[ao]|preciso(?:\s+de)?|faço|faco|valor|vendo|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
+    /(?:pedid[ao]|preciso(?:\s+de)?|faço|faco|valor|vendo|venda|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
     /r\$\s*([\d.,]+\s*(?:mil)?)/i,
     /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m,
   ];
