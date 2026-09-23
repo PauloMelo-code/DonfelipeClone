@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import https from "https";
 import http from "http";
+import { eq } from "drizzle-orm";
 import { db, arquivosMidia } from "./db";
 import { verificarUrlExterna, lookupFixo } from "./url-guard";
 
@@ -49,6 +50,33 @@ export async function persistImage(originalUrl: string): Promise<string> {
     console.error("[MediaStorage] Failed to persist image:", err);
     return originalUrl;
   }
+}
+
+/**
+ * Conserta a foto de um anuncio ja capturado.
+ *
+ * Card de canal ficou com a foto quebrada quando o download falhava (a URL
+ * crua era guardada) ou quando a resposta nao era imagem (guardada como JPEG
+ * mesmo assim). As duas coisas ja nao acontecem mais na captura, mas os
+ * registros antigos continuam quebrados -- e o unico botao que o operador tem
+ * pra esses cards e o "Regerar".
+ *
+ * Devolve a mesma url quando nao ha nada a consertar, ou quando o conserto
+ * falhou: perder a foto seria pior.
+ */
+export async function repararFoto(url: string): Promise<string> {
+  if (url.startsWith("http")) return persistImage(url);
+  if (!url.startsWith("/api/media/")) return url;
+
+  const id = url.slice("/api/media/".length);
+  const [arquivo] = await db.select().from(arquivosMidia).where(eq(arquivosMidia.id, id)).limit(1);
+  if (!arquivo?.originalUrl) return url;
+  // Ja e imagem de verdade? Entao nao ha o que consertar.
+  if (tipoDaImagem(Buffer.from(arquivo.data, "base64"))) return url;
+
+  console.warn(`[MediaStorage] Foto guardada nao e imagem, baixando de novo: ${id}`);
+  const nova = await persistImage(arquivo.originalUrl);
+  return nova === arquivo.originalUrl ? url : nova;
 }
 
 /**

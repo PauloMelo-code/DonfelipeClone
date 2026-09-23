@@ -7,6 +7,7 @@ import { formatVehicleAd } from "@/lib/vehicle-formatter";
 import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { extractVehicleFromTextNoCache } from "@/lib/ai";
 import { combustivelConfirmado } from "@/lib/ai/cambio";
+import { repararFoto } from "@/lib/media-storage";
 
 // Detecta se o modelo no DB e uma chamada/loja (deve ser re-extraido)
 const BAD_MODEL_PATTERNS: RegExp[] = [
@@ -154,6 +155,13 @@ export async function POST(
       { profitMarginPercent: margin }
     );
 
+    // Card antigo de canal pode ter ficado com a foto quebrada: o Regerar e
+    // o botao que o operador tem pra esses.
+    let fotos: string[] = [];
+    try { fotos = JSON.parse(vehicle.photos || "[]"); } catch { /* ignore */ }
+    const fotosConsertadas = await Promise.all(fotos.map((f) => repararFoto(f).catch(() => f)));
+    const fotoMudou = fotosConsertadas.some((f, i) => f !== fotos[i]);
+
     if (body.save) {
       const sellingPrice = price * (1 + margin / 100);
       // Sem carimbo de colisao: a regeracao chama IA e pode demorar; o
@@ -167,6 +175,7 @@ export async function POST(
           sellingPrice,
           ...(modelChanged ? { model, brand } : {}),
           ...(dataChanged ? { km, year, yearModel, fipePrice, price } : {}),
+          ...(fotoMudou ? { photos: JSON.stringify(fotosConsertadas) } : {}),
           ...carimboDeEdicao(auth.user.id),
         })
         .where(travaDeColisao(veiculos, id));
@@ -184,6 +193,7 @@ export async function POST(
       fipePrice,
       modelChanged,
       dataChanged,
+      fotoMudou,
       saved: !!body.save,
     });
   } catch (error) {
