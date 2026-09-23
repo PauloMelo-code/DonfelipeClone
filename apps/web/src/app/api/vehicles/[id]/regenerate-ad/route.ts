@@ -8,6 +8,7 @@ import { cleanAdDescription } from "@/lib/ad-cleaner";
 import { extractVehicleFromTextNoCache } from "@/lib/ai";
 import { combustivelConfirmado } from "@/lib/ai/cambio";
 import { repararFoto } from "@/lib/media-storage";
+import { calculateQualityScore } from "@/lib/quality-score";
 
 // Detecta se o modelo no DB e uma chamada/loja (deve ser re-extraido)
 const BAD_MODEL_PATTERNS: RegExp[] = [
@@ -162,6 +163,12 @@ export async function POST(
     const fotosConsertadas = await Promise.all(fotos.map((f) => repararFoto(f).catch(() => f)));
     const fotoMudou = fotosConsertadas.some((f, i) => f !== fotos[i]);
 
+    // A nota guardada e de quando o carro entrou; com os dados corrigidos (e
+    // com a leitura de leilao/sinistro consertada) ela pode ter mudado.
+    const { score: qualityScore } = calculateQualityScore({
+      km, year, price, fipePrice, rawDescription: vehicle.rawDescription,
+    });
+
     if (body.save) {
       const sellingPrice = price * (1 + margin / 100);
       // Sem carimbo de colisao: a regeracao chama IA e pode demorar; o
@@ -176,6 +183,7 @@ export async function POST(
           ...(modelChanged ? { model, brand } : {}),
           ...(dataChanged ? { km, year, yearModel, fipePrice, price } : {}),
           ...(fotoMudou ? { photos: JSON.stringify(fotosConsertadas) } : {}),
+          ...(qualityScore !== vehicle.qualityScore ? { qualityScore } : {}),
           ...carimboDeEdicao(auth.user.id),
         })
         .where(travaDeColisao(veiculos, id));

@@ -6,6 +6,7 @@ import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
 import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
+import { calculateQualityScore } from "@/lib/quality-score";
 import { SeloDeMargem, SeloDoPor } from "./selo-de-margem";
 import { formatKm, formatPrice, type CardProps } from "./tipos";
 
@@ -27,14 +28,25 @@ type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
  * qualidade, VIP e hibrido. `texto` e o anuncio que esta na caixa agora.
  */
 function Selos({ vehicle, texto }: Pick<CardProps, "vehicle"> & { texto: string | null }) {
-  const score = vehicle.qualityScore;
+  // A nota sai dos dados que estao na tela: se o operador corrige o km ou o
+  // preco, ela acompanha. E o `title` diz de onde veio cada ponto -- o
+  // cliente perguntou como o sistema chega na nota (22/09/2026).
+  const nota = calculateQualityScore({
+    km: vehicle.km,
+    year: vehicle.year,
+    price: vehicle.price,
+    fipePrice: vehicle.fipePrice,
+    rawDescription: vehicle.rawDescription,
+  });
+  const score = vehicle.qualityScore == null ? null : nota.score;
+  const porQue = `Nota ${nota.score}/10 — ${nota.reasons.join(" · ") || "sem destaque nem ressalva"}`;
   return (
     <div className="flex flex-col items-end gap-1">
       <SeloDeMargem price={vehicle.price} fipePrice={vehicle.fipePrice} />
       <SeloDoPor texto={texto} fipePrice={vehicle.fipePrice} />
       {score != null && (
-        <span className={cn(
-          "rounded-full border px-2 py-0.5 text-xs font-bold",
+        <span title={porQue} className={cn(
+          "cursor-help rounded-full border px-2 py-0.5 text-xs font-bold",
           score >= 8 ? "bg-success/20 border-success/50 text-success"
             : score >= 5 ? "bg-warning/15 border-warning/40 text-warning"
               : "bg-destructive/10 border-destructive/30 text-destructive"

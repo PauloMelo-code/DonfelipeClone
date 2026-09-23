@@ -1,3 +1,30 @@
+// ---------------------------------------------------------------------------
+// A nota do carro, de 0 a 10.
+//
+// O cliente pegou uma Sportage 2018, 91 mil km, 16% abaixo da FIPE, com nota
+// 2/10 (22/09/2026). O anuncio dizia "SEM SINISTRO" e "SEM LEILÃO", e a nota
+// lia so as palavras "sinistro" e "leilão": tirava 5 pontos do carro por ele
+// NAO ter passado por leilao. Agora a negacao antes da palavra conta.
+//
+// `reasons` explica cada ponto -- e o que a tela mostra quando ele pergunta
+// por que a nota e essa.
+// ---------------------------------------------------------------------------
+
+/** Palavra que derruba a nota... quando o carro TEM aquilo. */
+const RISCO = /\b(leil[aã]o|sinistr\w*|batid[oa]s?|enchente|recuperad[oa]s?|(?:m[ée]dia|pequena)\s+monta)\b/gi;
+/** "Sem", "não tem", "nunca passou por" logo antes: o carro nao tem aquilo. */
+const NEGADO_ANTES =
+  /\b(?:sem|s\/|n[ãa]o(?:\s+(?:tem|possui|teve))?|nunca(?:\s+\w+){0,2}|zero|nenhum[a]?|livre\s+de|nada\s+de)\s+(?:passagem\s+(?:por|em|de)\s+)?$/i;
+
+/** O anuncio diz que o carro TEM leilao/sinistro, ou diz que NAO tem? */
+export function temSinalDeRisco(descricao: string): boolean {
+  for (const achado of descricao.matchAll(RISCO)) {
+    const antes = descricao.slice(Math.max(0, (achado.index ?? 0) - 40), achado.index);
+    if (!NEGADO_ANTES.test(antes)) return true;
+  }
+  return false;
+}
+
 interface QualityInput {
   km: number;
   year: number;
@@ -38,13 +65,14 @@ export function calculateQualityScore(v: QualityInput): { score: number; reasons
   // Bandeiras vermelhas no texto (peso -3)
   if (v.rawDescription) {
     const desc = v.rawDescription.toLowerCase();
-    if (/\b(leil[aã]o|sinistro|batido|enchente|recuperado)\b/i.test(desc)) {
-      score -= 5; reasons.push("Sinais de risco (leilao/sinistro)");
+    if (temSinalDeRisco(desc)) {
+      score -= 5; reasons.push("Sinais de risco (leilão/sinistro)");
     }
-    if (/\b(unico\s*dono|único\s*dono|procedencia)\b/i.test(desc)) {
+    // O \b do JS nao enxerga o "Ú" acentuado: "único dono" nunca pontuava.
+    if (/(?<![a-zà-ú])([uú]nic[oa]\s*don[oa]|proced[êe]ncia)(?![a-zà-ú])/i.test(desc)) {
       score += 1; reasons.push("Único dono");
     }
-    if (/\b(revisado|revis[oõ]es|laudo\s*aprovado)\b/i.test(desc)) {
+    if (/\b(revisado|revis[oõ]es|laudo\s*aprovado|dekra|cautelar)\b/i.test(desc)) {
       score += 1; reasons.push("Revisado/laudo");
     }
   }
