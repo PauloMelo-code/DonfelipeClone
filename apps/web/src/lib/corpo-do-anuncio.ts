@@ -31,7 +31,9 @@ function quantia(bruta?: string): { texto: string; plural: boolean } {
 const plural = (p: boolean, singular: string, pl: string) => (p ? pl : singular);
 const NEGADO = /^(sem|s\/|zero|nenhum[a]?|n[ãa]o\s+tem|n[ãa]o\s+possui|nunca)\b/i;
 const semAcento = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "");
-const maiuscula = (s: string) => s.replace(/^([^A-Za-zÀ-ú]*)([a-zà-ú])/, (_, a, c) => a + c.toUpperCase());
+/** Inicial maiuscula -- mas linha que comeca por numero fica como esta
+ * ("272cv", "1 pneu ruim"), senao a letra do meio subia. */
+const maiuscula = (s: string) => s.replace(/^([^A-Za-zÀ-ú0-9]*)([a-zà-ú])/, (_, a, c) => a + c.toUpperCase());
 
 // ── 1 e 15 (lista 1), 11 (lista 2). Maiusculas ─────────────────────────────
 // Sigla que fica inteira em maiusculas no corpo.
@@ -91,7 +93,11 @@ function glossario(l: string): string {
     // 30. "Bancos de couro" -> "Bancos em couro"
     .replace(/\bbancos?\s+de\s+couro\b/gi, "bancos em couro")
     // 34. "Trato de loja" -> "Bem cuidado"
-    .replace(/\btrato\s+de\s+loja\b/gi, "bem cuidado");
+    .replace(/\btrato\s+de\s+loja\b/gi, "bem cuidado")
+    // 1 (lista 3). "272 cavalos" e "272 cv" -> "272cv"
+    .replace(/(\d+)\s*(?:cavalos?|cv)\b/gi, "$1cv");
+  // 9 (lista 3). Acento e hifen das palavras do ramo.
+  for (const [errado, certo] of ORTOGRAFIA) r = r.replace(errado, certo);
   // "IPVA 2026 PAGO" -> "IPVA 26 pago", como o cliente escreve.
   if (!/\b(n[ãa]o|a\s+pagar|atrasad|vencid|abert|pendente|falta)/i.test(r)) {
     r = r.replace(
@@ -100,6 +106,52 @@ function glossario(l: string): string {
     );
   }
   return maiuscula(r);
+}
+
+// ── 9 (lista 3). Ortografia, acento e hifen ────────────────────────────────
+// "para choque e capo" -> "para-choque e capô". So palavra do ramo: corretor
+// geral erraria nome de modelo e versao.
+const ORTOGRAFIA: [RegExp, string][] = [
+  [/\bpara\s*-?\s*choque(s?)\b/gi, "para-choque$1"],
+  [/\bparachoque(s?)\b/gi, "para-choque$1"],
+  [/\bpara\s*-?\s*lama(s?)\b/gi, "para-lama$1"],
+  [/\bpara\s*-?\s*brisa(s?)\b/gi, "para-brisa$1"],
+  [/\bporta\s+malas\b/gi, "porta-malas"],
+  [/\bar\s+condicionado\b/gi, "ar-condicionado"],
+  [/\bcapo\b/gi, "capô"],
+  [/\bcambio\b/gi, "câmbio"],
+  [/\bdirecao\b/gi, "direção"],
+  [/\bsuspensao\b/gi, "suspensão"],
+  [/\brevisao\b/gi, "revisão"],
+  [/\brevisoes\b/gi, "revisões"],
+  [/\bmanutencao\b/gi, "manutenção"],
+  [/\bhigienizacao\b/gi, "higienização"],
+  [/\bmecanica\b/gi, "mecânica"],
+  [/\beletrica\b/gi, "elétrica"],
+  [/\bmultimidia\b/gi, "multimídia"],
+  [/\bmidia\b/gi, "mídia"],
+  [/\bfarois\b/gi, "faróis"],
+  [/\bpecas\b/gi, "peças"],
+  [/\bpeca\b/gi, "peça"],
+  [/\btracao\b/gi, "tração"],
+  [/\bcaminhonete\b/gi, "caminhonete"],
+];
+
+// ── 12 (lista 3). Verbo do vendedor no infinitivo ──────────────────────────
+// "Troca 1 pisca" -> "Trocar 1 pisca". Nao mexe em "Troca de óleo feita", que
+// e servico FEITO, nem em "Troca de ...", que e substantivo.
+const VERBO_CURTO: Record<string, string> = {
+  troca: "Trocar", arruma: "Arrumar", conserta: "Consertar", repara: "Reparar",
+  alinha: "Alinhar", balanceia: "Balancear", costura: "Costurar", revisa: "Revisar",
+  limpa: "Limpar", coloca: "Colocar", instala: "Instalar", recupera: "Recuperar",
+  restaura: "Restaurar", solda: "Soldar", desamassa: "Desamassar", substitui: "Substituir",
+};
+const FEITO = /\b(feit[oa]s?|nov[oa]s?|recentes?|em dia|revisad[oa]s?|trocad[oa]s?)\b/i;
+
+function infinitivo(l: string): string {
+  const m = /^([a-zà-ú]+)\s+(?!d[eoa]s?\b)/i.exec(l);
+  const certo = m && VERBO_CURTO[m[1].toLowerCase()];
+  return certo && !FEITO.test(l) ? certo + l.slice(m![1].length) : l;
 }
 
 // ── 2 e 14. Diminutivo ─────────────────────────────────────────────────────
@@ -179,9 +231,18 @@ const FIM = String.raw`(?![a-zà-ú])`;
 const TROCA = /\b(?:substitu[ií]d[ao]s?|substitui[çc][ãa]o|substituir|trocad[ao]s?|trocar?)(?:\s+d[ea]s?)?\b/i;
 const QUANTIDADE = new RegExp(`\\b${N}\\b`, "i");
 
+/**
+ * 11 (lista 3). Negacao ANTES do servico: "Dekra aprovada sem retoque" nao e
+ * retoque a fazer. O NEGADO so olha o comeco da linha; aqui a negacao pode
+ * estar no meio, e foi assim que um laudo aprovado virou "Fazer 1 retoque".
+ */
+const SEM_SERVICO =
+  /\b(?:sem|s\/|zero|nenhum[a]?|n[ãa]o\s+(?:tem|precisa|faz))\s+(?:nenhum[a]?\s+)?(?:retoques?|pinc[eé](?:l|is)|pinceis|martel\w+|amassad\w+|riscos?|avarias?|detalhes?)\b/i;
+
 /** 27. Retoque pendente, do jeito que o cliente pediu: "Fazer 2 retoques". */
 function retocar(l: string): string | null {
-  if (NEGADO.test(l) || !/\b(retoques?|retoc\w+|refor[çc]\w+|pinc[eé](?:l|is)|pinceis)\b/i.test(l)) return null;
+  if (NEGADO.test(l) || SEM_SERVICO.test(l)) return null;
+  if (!/\b(retoques?|retoc\w+|refor[çc]\w+|pinc[eé](?:l|is)|pinceis)\b/i.test(l)) return null;
   // 25. "Faz 2 pincel" -> "Fazer 2 pincéis"
   const pincel = /\bpinc[eé](?:l|is)\b|\bpinceis\b/i.test(l);
   const q = quantia(QUANTIDADE.exec(l)?.[1]);
@@ -217,12 +278,38 @@ function pintar(bruta: string): string | null {
   return trocada && new RegExp(`^${PECA}$`, "i").test(l) ? (/s$/i.test(l) ? "Pintar peças" : "Pintar 1 peça") : null;
 }
 
+// ── 6 (lista 3). Martelo e martelinho sao martelinho de ouro ───────────────
+function martelinho(l: string): string | null {
+  if (!/\bmartel/i.test(l) || NEGADO.test(l) || SEM_SERVICO.test(l)) return null;
+  const q = quantia(QUANTIDADE.exec(l)?.[1]);
+  const pl = q.texto ? q.plural : /\bmartel\w*s\b/i.test(l);
+  const onde = /\b(n[oa]s?\s+[a-zà-ú][\wà-ú\s-]*)$/i.exec(l);
+  const quantos = q.texto || (pl ? "" : "1 ");
+  return `Fazer ${quantos}${plural(pl, "martelinho de ouro", "martelinhos de ouro")}${onde ? ` ${onde[1].trim()}` : ""}`;
+}
+
+// ── 8 (lista 3). "Gasta X" e coisa a fazer ─────────────────────────────────
+// Peca, pneu e martelo ja caem nas regras proprias. Item que so se troca vira
+// "Trocar X". Fora disso a palavra do vendedor FICA -- inventar o reparo e
+// pior que repetir "gasta"; o bloco de baixo ja vem do eAFazer.
+const TROCAVEL =
+  /^(?:lonas?(?:\s+mar[ií]tima)?|bateria|amortecedores?|correias?|pastilhas?|discos?|far[oó](?:l|is)|lanternas?|retrovisor(?:es)?|vidros?|para-brisa|palhetas?|escapamentos?|embreagem|bombas?|radiador|sensores?|filtros?|velas?|molas?|buchas?|coxins?|volante|estepe|tapetes?)\b/i;
+
+function gasta(l: string): string | null {
+  const m = /^(?:gast[ao]|gastar)\s+(.+)$/i.exec(l);
+  if (!m) return null;
+  const q = quantia(QUANTIDADE.exec(m[1])?.[1]);
+  const semQtd = m[1].replace(QUANTIDADE, "").replace(/\s+/g, " ").trim();
+  return TROCAVEL.test(semQtd) ? maiuscula(`trocar ${q.texto}${semQtd}`) : null;
+}
+
 // ── 32. Pneu pra trocar e pneu ruim ────────────────────────────────────────
 // Com quantidade na frente a linha ja comeca por numero: "1 pneu ruim".
 const comQuantia = (q: { texto: string }, resto: string) =>
   q.texto ? `${q.texto}${resto}` : maiuscula(resto);
 function pneuRuim(l: string): string | null {
-  let m = new RegExp(`^(?:trocar?|substituir|precisa(?:\\s+de)?|tem\\s+que\\s+trocar)\\s+(?:${N}\\s+)?pneus?\\b\\s*$`, "i").exec(l);
+  // "Gasta 2 pneus" cai aqui: pneu pra trocar e pneu ruim (regra 32).
+  let m = new RegExp(`^(?:trocar?|substituir|gast[ao]|gastar|precisa(?:\\s+de)?|tem\\s+que\\s+trocar)\\s+(?:${N}\\s+)?pneus?\\b\\s*$`, "i").exec(l);
   if (m) {
     const q = quantia(m[1]);
     return comQuantia(q, plural(q.plural, "pneu ruim", "pneus ruins"));
@@ -315,13 +402,19 @@ export const ACIMA_DA_MEDIA = "Veículo conservado acima da média";
 
 // 13 e 15. "Filé", "filezão", "bem pronto", elogio solto -> acima da media.
 const DIZ_ACIMA_DA_MEDIA =
-  /^(?:(?:o\s+)?(?:carro|ve[ií]culo)\s+)?(?:t[áa]\s+|est[áa]\s+|)(?:muito\s+|bem\s+|super\s+|bastante\s+|pronto\s+)?(?:fil[ée]z[ãa]o|fil[ée]zinho|fil[ée]|file|filezao|bem\s+pront[oa]|inteir[ãa]o|inteir[oa]|bonit[oa]|lind[oa])(?:\s+(?:carro|ve[ií]culo|camioneta|caminhonete|picape|suv|sed[aã]|de\s+mais|demais))?$/i;
+  /^(?:(?:o\s+)?(?:carro|ve[ií]culo)\s+)?(?:t[áa]\s+|est[áa]\s+|)(?:muito\s+|bem\s+|super\s+|bastante\s+|pronto\s+)?(?:fil[ée]z[ãa]o|fil[ée]zinho|fil[ée]|file|filezao|bem\s+pront[oa]|inteir[ãa]o|inteir[oa]|bonit[oa]|lind[oa]|diferenciad[oa])(?:\s+(?:carro|ve[ií]culo|camioneta|caminhonete|picape|suv|sed[aã]|de\s+mais|demais))?$/i;
 // 16. "Pronta", "Pronto só vender": nada relevante a fazer.
 const DIZ_PRONTO =
   /^(?:(?:o\s+)?(?:carro|ve[ií]culo)\s+)?pront[oa](?:\s*[,/-]?\s*(?:s[óo]\s+|apenas\s+)?(?:vender|venda|para\s+(?:a\s+)?(?:venda|vender|loja|revenda|anunciar)|pra\s+(?:venda|vender)|p\/\s*(?:venda|vender)))?$/i;
 // 5 (lista 1). Nada para fazer.
 const DIZ_NADA_PARA_FAZER =
   /^(?:carro\s+|ve[ií]culo\s+)?(?:(?:sem\s+)?nada\s+(?:para|pra|pa|a)\s+fazer|n[ãa]o\s+faz\s+nada|n[ãa]o\s+(?:tem|precisa)(?:\s+de)?\s+nada(?:\s+(?:para|pra|a)\s+fazer)?|n[ãa]o\s+gasta\s+nada|(?:sem|zero)\s+(?:custos?|gastos?))$/i;
+// 7 (lista 3). "Muito boa" e elogio ao estado -- "Boa de andar", nao.
+const DIZ_MUITO_BOA = /^(?:(?:o\s+)?(?:carro|ve[ií]culo)\s+)?(?:muito|super|bastante)\s+bo[ma]$/i;
+// 10 (lista 3). Lavar so aparece quando e a unica coisa a fazer -- quem decide
+// isso e o montarCorpo, que ve a lista inteira.
+export const LAVAR = "Lavar";
+const DIZ_LAVAR = /^(?:s[óo]\s+|apenas\s+)?lavar(?:\s+(?:o|a)\s+(?:carro|ve[ií]culo))?$/i;
 // 17. Elogio ao estado, no formal.
 const DIZ_EXCELENTE_ESTADO =
   /^(?:(?:o\s+)?(?:carro|ve[ií]culo)\s+)?(?:em\s+|est[áa]\s+em\s+)?(excelente|[óo]timo|[óo]tima|[óo]tim[oa]s?|bom|boa)\s+estado(?:\s+de\s+conserva[çc][ãa]o)?$/i;
@@ -380,7 +473,13 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
   l = carroParaVeiculo(semDiminutivo(glossario(frasear(l))));
 
   // 13, 15, 16, 17 e 5 (lista 1): as frases fechadas.
-  if (DIZ_ACIMA_DA_MEDIA.test(l)) return fechada([ACIMA_DA_MEDIA]);
+  if (DIZ_ACIMA_DA_MEDIA.test(l) || DIZ_MUITO_BOA.test(l)) return fechada([ACIMA_DA_MEDIA]);
+  if (DIZ_LAVAR.test(l)) return fechada([LAVAR]);
+  // 11 (lista 3). "Dekra aprovada sem retoque" e laudo, nao retoque a fazer.
+  if (/\bdekra\b/i.test(l) && /aprovad/i.test(l)) {
+    return fechada([`Laudo aprovado${SEM_SERVICO.test(l) ? " sem retoques" : ""}`]);
+  }
+  if (/^(?:bancos?\s+(?:em|de)\s+)?couro$/i.test(l)) return fechada(["Bancos em couro"]);
   if (DIZ_NADA_PARA_FAZER.test(l)) return fechada([NADA_PARA_FAZER]);
   if (DIZ_PRONTO.test(l)) return fechada([PRONTO_PARA_VENDA]);
   const estado = DIZ_EXCELENTE_ESTADO.exec(l);
@@ -401,7 +500,7 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
       : { linhas: [dentroEFora], canonica: false };
   }
 
-  l = okParaBom(l);
+  l = infinitivo(okParaBom(l));
   const servico = polimento(l);
   if (servico) return fechada(servico);
   // "2 peças e retoque": dois servicos numa linha. Inteira, ela caia no
@@ -415,9 +514,9 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
       return fechada(cada.flatMap((p) => p.linhas));
     }
   }
-  const lataria = retocar(l) ?? pintar(l) ?? pneuRuim(l) ?? boaDe(l);
+  const lataria = retocar(l) ?? pintar(l) ?? pneuRuim(l) ?? martelinho(l) ?? gasta(l) ?? boaDe(l);
   if (lataria) return fechada([lataria]);
-  // 21. "Só lavar" -> "Apenas lavar"
+  // 21 (lista 2). "Só polir" -> "Apenas polir" (o "lavar" tem regra propria).
   l = l.replace(/^s[óo]\s+(?=[a-zà-ú])/i, "Apenas ");
   return { linhas: [maiuscula(l)], canonica: false };
 }
@@ -428,7 +527,7 @@ export const padronizarLinha = (bruta: string) => padronizar(bruta).linhas;
 const VERBO_A_FAZER =
   /^(?:apenas\s+|s[óo]\s+)?(fazer|refazer|pintar|retocar|trocar|substituir|costurar|arrumar|consertar|reparar|recuperar|restaurar|polir|higienizar|lavar|limpar|alinhar|balancear|regularizar|colocar|instalar|repor|desamassar|soldar|revisar|precisa|necessita|falta|faltam|faltando)\b/i;
 const AVARIA =
-  /\b(polimento|higieniza[çc][ãa]o|amassad\w*|riscad\w*|riscos?|arranh\w*|batid[ao]s?|trincad\w*|trinca|rachad\w*|quebrad\w*|queimad\w*|estragad\w*|avaria\w*|defeito\w*|vazament\w*|vazando|barulh\w*|falhando|n[ãa]o\s+funciona\w*|luz\s+d[ea]\s+inje[çc][ãa]o|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|fracos?)|ipva\s+(?:\d{2,4}\s+)?(?:a\s+pagar|atrasad\w*|vencid\w*|em\s+aberto|pendente)|multas?|d[ée]bitos?|gastos?\s+necess\w*|(?<!mais\s)detalhes?\s+(?:n[oa]s?|de|em)\s+(?!privado|pv|whats|contato)|ralad\w*|gast[oa]s?|martelinho|funilaria|retoques?|pinc[eé](?:l|is)|pinceis|leil[ãa]o|sinistr\w*|(?:m[ée]dia|pequena|grande)\s+monta|recuperad[ao]s?)\b/i;
+  /\b(polimento|higieniza[çc][ãa]o|amassad\w*|riscad\w*|riscos?|arranh\w*|batid[ao]s?|trincad\w*|trinca|rachad\w*|quebrad\w*|queimad\w*|estragad\w*|avaria\w*|defeito\w*|vazament\w*|vazando|barulh\w*|falhando|n[ãa]o\s+funciona\w*|luz\s+d[ea]\s+inje[çc][ãa]o|pneus?\s+(?:ruim|ruins|gast\w*|carec\w*|fracos?)|ipva\s+(?:\d{2,4}\s+)?(?:a\s+pagar|atrasad\w*|vencid\w*|em\s+aberto|pendente)|multas?|d[ée]bitos?|gastos?\s+necess\w*|(?<!mais\s)detalhes?\s+(?:n[oa]s?|de|em)\s+(?!privado|pv|whats|contato)|ralad\w*|gast[oa]s?|aces[ao]s?|martel\w*|funilaria|retoques?|pinc[eé](?:l|is)|pinceis|leil[ãa]o|sinistr\w*|(?:m[ée]dia|pequena|grande)\s+monta|recuperad[ao]s?)\b/i;
 // "1 Detalhe banco motorista", "Pequeno detalhe na porta": detalhe, no repasse,
 // e defeito. "Mais detalhes no privado" e contato; "Sem detalhes", elogio.
 const DETALHE =
@@ -442,7 +541,7 @@ const FALTA = /^(sem|n[ãa]o\s+tem|n[ãa]o\s+possui)\s+(a\s+|o\s+)?(manual|chave
 export function eAFazer(l: string): boolean {
   if (l === NADA_PARA_FAZER || FALTA.test(l) || SO_RS.test(l)) return true;
   if (l === PRONTO_PARA_VENDA || l === ACIMA_DA_MEDIA) return false;
-  if (NEGADO.test(l) || /^rec[eé]m\b/i.test(l)) return false;
+  if (NEGADO.test(l) || SEM_SERVICO.test(l) || /^rec[eé]m\b/i.test(l)) return false;
   return VERBO_A_FAZER.test(l) || AVARIA.test(l) || DETALHE.test(l);
 }
 
@@ -491,7 +590,32 @@ export const largura = (s: string) =>
  * O corpo em dois blocos: o que o carro tem de bom, do curto pro longo; uma
  * linha em branco; o que precisa ser feito, do longo pro curto.
  */
-export function montarCorpo(linhas: string[]): string[] {
+/**
+ * 2 (lista 3). Manual numa linha e chave reserva noutra viram uma linha so --
+ * o fornecedor as vezes separa. So quando o veiculo tem os DOIS.
+ */
+function unirManualEChave(linhas: string[]): string[] {
+  const so = (p: RegExp) => linhas.findIndex((l) => p.test(l));
+  const iManual = so(/^(?:com\s+)?manual$/i);
+  const iChave = so(/^(?:com\s+)?chave\s+reserva$/i);
+  if (iManual < 0 || iChave < 0) return linhas;
+  const juntas = linhas.filter((_, i) => i !== iChave);
+  juntas[juntas.indexOf(linhas[iManual])] = "Com manual e chave reserva";
+  return juntas;
+}
+
+/**
+ * 10 (lista 3). "Lavar" so vale quando e a UNICA coisa a fazer; ai vira
+ * "Apenas lavar". Com outro afazer na lista, lavar nao interessa e sai.
+ */
+function resolverLavar(aFazer: string[]): string[] {
+  const outros = aFazer.filter((l) => l !== LAVAR);
+  if (outros.length === aFazer.length) return aFazer;
+  return outros.length ? outros : ["Apenas lavar"];
+}
+
+export function montarCorpo(entrada: string[]): string[] {
+  const linhas = unirManualEChave(entrada);
   // Entre duas linhas que dizem a mesma coisa, fica a que diz mais.
   const porChave = new Map<string, string>();
   for (const l of linhas) {
@@ -504,6 +628,6 @@ export function montarCorpo(linhas: string[]): string[] {
   // Empate de largura: ordem alfabetica, no mesmo sentido do bloco.
   const crescente = (a: string, b: string) => largura(a) - largura(b) || a.localeCompare(b, "pt-BR");
   const bom = unicas.filter((l) => !eAFazer(l)).sort(crescente);
-  const aFazer = unicas.filter(eAFazer).sort((a, b) => crescente(b, a));
+  const aFazer = resolverLavar(unicas.filter(eAFazer)).sort((a, b) => crescente(b, a));
   return bom.length && aFazer.length ? [...bom, "", ...aFazer] : [...bom, ...aFazer];
 }

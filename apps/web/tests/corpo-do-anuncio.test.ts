@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { eAFazer, eObrigatoria, montarCorpo, padronizarLinha } from "../src/lib/corpo-do-anuncio";
 import { extractWithRegex } from "../src/lib/ai/regex";
 import { formatVehicleAd, tituloDoAnuncio } from "../src/lib/vehicle-formatter";
-import { combustivelConfirmado } from "../src/lib/ai/cambio";
+import { combustivelConfirmado, detectarCambio } from "../src/lib/ai/cambio";
 import { conferirComOVendedor, lerItens } from "../src/lib/ad-cleaner";
 
 let falhas = 0;
@@ -229,9 +229,13 @@ caso("L2.20/33 titulo de bloco nao entra; o que vem embaixo entra", () => {
   assert.deepEqual(padronizarLinha("Obs.: faz 2 peças"), ["Pintar 2 peças"]);
 });
 
-caso("L2.21 'Só lavar' -> 'Apenas lavar', no fim da lista", () => {
-  assert.deepEqual(padronizarLinha("Só lavar"), ["Apenas lavar"]);
+caso("L2.21/L3.10 lavar: 'Apenas lavar' so quando nao ha mais nada a fazer", () => {
+  assert.deepEqual(padronizarLinha("Só lavar"), ["Lavar"]);
+  assert.deepEqual(padronizarLinha("Lavar o carro"), ["Lavar"]);
   assert.ok(eAFazer("Apenas lavar"));
+  assert.deepEqual(montarCorpo(["Pneus bons", "Lavar"]), ["Pneus bons", "", "Apenas lavar"]);
+  assert.deepEqual(montarCorpo(["Lavar", "Pintar 2 peças", "1 pneu ruim"]), ["Pintar 2 peças", "1 pneu ruim"],
+    "com outro afazer, lavar sai");
 });
 
 caso("L2.23 'gasta' e quantidade de peca = pintar", pares([
@@ -304,7 +308,99 @@ caso("L2.35 ar-condicionado so aparece quando tem problema", () => {
   }
   assert.deepEqual(padronizarLinha("Revisar ar-condicionado"), ["Revisar ar-condicionado"]);
   assert.ok(eAFazer("Revisar ar-condicionado"));
-  assert.deepEqual(padronizarLinha("Ar condicionado"), ["Ar condicionado"], "o opcional em si fica");
+  assert.deepEqual(padronizarLinha("Ar condicionado"), ["Ar-condicionado"], "o opcional em si fica");
+});
+
+// ── Lista 3 (22/09/2026) ────────────────────────────────────────────────────
+
+caso("L3.1 cavalaria vira cv, colado no numero", pares([
+  ["272 cavalos", "272cv"],
+  ["272 cv", "272cv"],
+  ["Motor 272 cavalos", "Motor 272cv"],
+]));
+
+caso("L3.2 manual numa linha e chave reserva noutra viram uma linha so", () => {
+  assert.deepEqual(montarCorpo(["Placa I", "Bancos em couro", "Com manual", "Com chave reserva"]),
+    ["Placa I", "Bancos em couro", "Com manual e chave reserva"]);
+  assert.deepEqual(montarCorpo(["Com manual", "Sem chave reserva"]),
+    ["Com manual", "", "Sem chave reserva"], "so une quando o carro tem os dois");
+  assert.deepEqual(padronizarLinha("Couro"), ["Bancos em couro"]);
+});
+
+caso("L3.6 martelo e martelinho viram martelinho de ouro", pares([
+  ["Fazer 2 martelos", "Fazer 2 martelinhos de ouro"],
+  ["3 martelinhos", "Fazer 3 martelinhos de ouro"],
+  ["Martelinho", "Fazer 1 martelinho de ouro"],
+  ["Martelinho no capo", "Fazer 1 martelinho de ouro no capô"],
+]));
+
+caso("L3.7/18 'muito boa' e 'diferenciado' sao elogio ao estado", () => {
+  for (const l of ["Muito boa", "Super boa", "Carro diferenciado", "Veículo diferenciado"]) {
+    assert.deepEqual(padronizarLinha(l), [ACIMA], l);
+  }
+  assert.deepEqual(padronizarLinha("Boa de andar"), ["Boa de andar"], "'boa de andar' nao e isso");
+});
+
+caso("L3.8 'gasta' e coisa a fazer; sem saber o servico, a palavra do vendedor fica", () => {
+  assert.deepEqual(padronizarLinha("Gasta lona marítima"), ["Trocar lona marítima"]);
+  assert.deepEqual(padronizarLinha("Gasta bateria"), ["Trocar bateria"]);
+  assert.deepEqual(padronizarLinha("Gasta 2 martelos"), ["Fazer 2 martelinhos de ouro"]);
+  assert.deepEqual(padronizarLinha("Gasta 2 peças"), ["Pintar 2 peças"]);
+  assert.deepEqual(padronizarLinha("Gasta 2 pneus"), ["2 pneus ruins"], "pneu segue a regra 32 da lista 2");
+  // Servico desconhecido: nao inventa reparo, mas vai pro bloco de baixo.
+  assert.deepEqual(padronizarLinha("Gasta som"), ["Gasta som"]);
+  assert.ok(eAFazer("Gasta som"));
+});
+
+caso("L3.9/12 ortografia e verbo no infinitivo", pares([
+  ["para choque e capo", "Para-choque e capô"],
+  ["Pintar para choques", "Pintar para-choques"],
+  ["Revisao feita", "Revisão feita"],
+  ["Troca 1 pisca retrovisor", "Trocar 1 pisca retrovisor"],
+  ["Troca de óleo feita", "Troca de óleo feita"],
+]));
+
+caso("L3.11 'sem retoque' nunca vira retoque a fazer", () => {
+  assert.deepEqual(padronizarLinha("DEKRA APROVADA SEM RETOQUE"), ["Laudo aprovado sem retoques"]);
+  assert.ok(!eAFazer("Laudo aprovado sem retoques"), "laudo aprovado e informacao boa");
+  for (const l of ["Sem retoque", "Sem retoques", "Não tem retoque", "Zero retoques", "Sem nenhum martelinho"]) {
+    assert.ok(!eAFazer(padronizarLinha(l)[0]), `negado: ${l}`);
+    assert.doesNotMatch(padronizarLinha(l)[0], /^Fazer/, `negado nao vira afazer: ${l}`);
+  }
+  assert.deepEqual(padronizarLinha("3 retoques"), ["Fazer 3 retoques"], "sem negacao, segue afazer");
+});
+
+caso("L3.11 o Amarok do cliente sai com o laudo no grupo de cima", () => {
+  const vendedor = `VW AMAROK EXTREME V6
+
+2025 • 73.000 Km
+
+DEKRA APROVADA SEM RETOQUE
+ÚNICA DONA
+GARANTIA DE FÁBRICA
+PNEUS BONS
+IPVA 2026 PAGO
+
+FIPE R$289.000,00
+POR R$247.000,00`;
+  const v = extractWithRegex(vendedor)!;
+  const anuncio = formatVehicleAd({ ...v, transmission: "AUTOMATICO", rawDescription: vendedor }, { profitMarginPercent: 0 });
+  assert.doesNotMatch(anuncio, /Fazer 1 retoque/, "o erro que o cliente pegou");
+  assert.match(anuncio, /Laudo aprovado sem retoques/);
+  // Nada a fazer: o anuncio nao ganha segundo bloco.
+  assert.doesNotMatch(anuncio, /\n\n[^\n]+\n\nFipe/);
+});
+
+caso("L3.17 luz acesa e defeito", () => {
+  assert.ok(eAFazer("Luz do airbag acesa"));
+  assert.ok(eAFazer("Luz da injeção acesa"));
+});
+
+caso("L3.16 'Auto' no fim do modelo e cambio automatico", () => {
+  assert.equal(tituloDoAnuncio({ model: "COMPASS LONGITUDE 2.0 Auto", transmission: "AUTOMATICO" }),
+    "Compass Longitude 2.0 (aut.)");
+  assert.equal(detectarCambio("Modelo X 2.0 Auto\n2023"), "AUTOMATICO");
+  assert.equal(detectarCambio("Onix LT 1.0\nAuto Center Silva"), undefined, "nome de loja nao e cambio");
 });
 
 // ── Titulo e cabecalho ──────────────────────────────────────────────────────
@@ -483,7 +579,7 @@ caso("cliente 21/09: 'VENDA' nao se repete; 'Volante gasto' e detalhe vao pro bl
   // O print do cliente: volante e detalhe no fim, junto do "Pintar 4 peças".
   assert.deepEqual(
     montarCorpo(["Placa I", "Com manual", "Volante gasto", "Bancos em couro", "Com chave reserva", "1 Detalhe banco motorista", "Pintar 4 peças"]),
-    ["Placa I", "Com manual", "Bancos em couro", "Com chave reserva", "", "1 Detalhe banco motorista", "Pintar 4 peças", "Volante gasto"],
+    ["Placa I", "Bancos em couro", "Com manual e chave reserva", "", "1 Detalhe banco motorista", "Pintar 4 peças", "Volante gasto"],
   );
 });
 

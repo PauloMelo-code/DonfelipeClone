@@ -191,7 +191,7 @@ export function tituloDoAnuncio(v: {
     .replace(/\b[\d.,]+\s*(mil\s*)?km\b/gi, " ")
     // Cambio escrito no modelo: o rotulo padrao entra no fim.
     .replace(/\((?:aut\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|h[ií]brido)\)/gi, " ")
-    .replace(/(^|\s)(?:aut(?:om)?\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
+    .replace(/(^|\s)(?:aut(?:o|om)?\.?|autom[aá]tic[oa]|manual|mec\.?|mec[aâ]nic[oa]|cvt|c[aâ]mbio)(?=\s|$)/gi, " ")
     .replace(/(\S\s+)at(?=\s|$)/gi, "$1")
     // "Limited+" -> "Limited": o cliente nao quer o "+" no titulo.
     .replace(/\s*\+(?=\s|$)/g, "");

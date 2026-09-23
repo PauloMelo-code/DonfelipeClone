@@ -41,7 +41,9 @@ export function detectarCambio(texto: string): Cambio | undefined {
     /\b\d\.\d\s*(?:t|tb|turbo)?\s*at\d?\b/i.test(limpo) ||
     /\bat[6-9]\b/i.test(limpo) ||
     // "Autom." e "Aut." abreviados -- o \b nao serve depois do ponto.
-    /\baut(?:om)?\.(?!\w)/i.test(limpo)
+    /\baut(?:om)?\.(?!\w)/i.test(limpo) ||
+    // 16 (lista 3). "Modelo X 2.0 Auto" e cambio; "Auto Center", nao.
+    /\bauto\b(?!\s*(?:center|pe[çc]as|shopping|posto|el[ée]trica|mec[âa]nica|socorro|escola|m[óo]vel))/i.test(limpo)
   ) {
     return "AUTOMATICO";
   }
