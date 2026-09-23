@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { and, eq, gte, lt, isNotNull, inArray, count, avg, desc, type SQL } from "drizzle-orm";
 import { db, veiculos, historicoPublicacao, gruposWhatsapp, vivos, vivosE } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { inicioDeDiasAtras, inicioDoDia } from "@/lib/dia";
+import { contagensDoDia } from "@/lib/contagens-do-dia";
 
 // 20s cache for the heavy 17-query payload. Multiple tabs/users share one
 // computation cycle; staleness <20s is fine for a dashboard.
@@ -29,14 +31,15 @@ export async function GET() {
   }
 
   try {
+    // O dia e o do cliente (America/Sao_Paulo), nao o do container.
     const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDay = inicioDoDia(now);
     const startOfWeek = new Date(startOfDay);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = new Date(startOfDay);
+    startOfMonth.setDate(1);
 
-    const sevenDaysAgo = new Date(startOfDay);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgo = inicioDeDiasAtras(7, now);
 
     const [
       totalVehicles,
@@ -62,15 +65,11 @@ export async function GET() {
       contar(veiculos, eq(veiculos.status, "APPROVED")),
       contar(veiculos, eq(veiculos.status, "REJECTED")),
       contar(veiculos, eq(veiculos.status, "PUBLISHED")),
-      contar(veiculos, gte(veiculos.capturedAt, startOfDay)),
+      contagensDoDia(startOfDay).then((c) => c.capturas),
       contar(veiculos, gte(veiculos.capturedAt, startOfWeek)),
       contar(veiculos, gte(veiculos.capturedAt, startOfMonth)),
       contar(historicoPublicacao, eq(historicoPublicacao.success, true)),
-      contar(
-        historicoPublicacao,
-        eq(historicoPublicacao.success, true),
-        gte(historicoPublicacao.postedAt, startOfDay)
-      ),
+      contagensDoDia(startOfDay).then((c) => c.publicacoes),
       contar(gruposWhatsapp, eq(gruposWhatsapp.role, "SOURCE"), eq(gruposWhatsapp.active, true)),
       contar(gruposWhatsapp, eq(gruposWhatsapp.role, "TARGET"), eq(gruposWhatsapp.active, true)),
       contar(veiculos, eq(veiculos.status, "PENDING"), eq(veiculos.isVip, true)),

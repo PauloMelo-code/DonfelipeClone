@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, gte, lte, eq } from "drizzle-orm";
 import { db, veiculos, historicoPublicacao, vivos } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { FUSO, diaLocal } from "@/lib/dia";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -59,11 +60,13 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < totalDays; i++) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + i);
-      const dayStr = d.toISOString().slice(0, 10);
-      const label = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      // O dia da barra e o dia do cliente: com o corte em UTC, a captura da
+      // noite caia na barra do dia seguinte.
+      const dayStr = diaLocal(d);
+      const label = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: FUSO });
 
-      const capCount = captures.filter((c) => new Date(c.capturedAt).toISOString().slice(0, 10) === dayStr).length;
-      const pubCount = publications.filter((p) => new Date(p.postedAt).toISOString().slice(0, 10) === dayStr).length;
+      const capCount = captures.filter((c) => diaLocal(new Date(c.capturedAt)) === dayStr).length;
+      const pubCount = publications.filter((p) => diaLocal(new Date(p.postedAt)) === dayStr).length;
 
       chartData.push({ date: label, capturas: capCount, publicacoes: pubCount });
     }

@@ -42,6 +42,11 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+# O "hoje" do Dashboard e o do cliente. Sem isto o container roda em UTC e o
+# dia comeca as 21h de ontem: captura da noite entrava no dia seguinte. A
+# musl precisa do tzdata, senao TZ com nome de cidade cai em UTC calado.
+RUN apk add --no-cache tzdata
+ENV TZ=America/Sao_Paulo
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
