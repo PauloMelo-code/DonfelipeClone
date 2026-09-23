@@ -12,6 +12,15 @@ import { uazapi } from "@/lib/uazapi";
 // persistencia, num arquivo de mil linhas.
 // ---------------------------------------------------------------------------
 
+/**
+ * Conversa 1-1 -- por onde chega a mensagem de LISTA DE TRANSMISSAO. Grupo tem
+ * `participant` proprio, e canal chega inteiro (foto e legenda juntas), entao
+ * nenhum dos dois entra aqui.
+ */
+function ehConversaDeUmPraUm(jid: unknown): jid is string {
+  return typeof jid === "string" && !jid.endsWith("@g.us") && !jid.endsWith("@newsletter");
+}
+
 export interface MensagemNormalizada {
   groupJid: string | null;
   messageId: string;
@@ -101,7 +110,13 @@ async function doFormatoUazapi(raw: any): Promise<ResultadoNormalizacao> {
   const messageId = chat.stanzaID || chat.messageId || raw.id || "uazapi_" + Date.now();
   const isFromMe = chat.fromMe === true || chat.fromMe === "true";
   const pushName = chat.senderName || chat.pushName || chat.wa_name || null;
-  const senderJid = chat.wa_lastMessageSender || chat.senderJid || chat.participant || null;
+  // Em GRUPO o remetente vem em `participant`. Em conversa 1-1 -- por onde
+  // chega a mensagem de LISTA DE TRANSMISSAO -- muitas vezes nao vem nenhum
+  // dos tres, e sem remetente a esteira nao junta a foto com a legenda que
+  // veio na mensagem seguinte: o anuncio morria como "sem foto". Na conversa
+  // 1-1, quem manda e a propria conversa.
+  const daConversa = ehConversaDeUmPraUm(groupJid) ? groupJid : null;
+  const senderJid = chat.wa_lastMessageSender || chat.senderJid || chat.participant || daConversa;
 
   const msgType = chat.wa_lastMessageType || chat.messageType || "";
   const content = chat.content || "";
@@ -181,8 +196,13 @@ function doFormatoPadrao(raw: any): ResultadoNormalizacao {
       messageId: key.id || "std_" + Date.now(),
       isFromMe: !!key.fromMe,
       pushName: data.pushName || null,
-      // Quem postou: usado pra juntar as fotos extras do mesmo anuncio.
-      senderJid: key.participant || data.senderJid || null,
+      // Quem postou: usado pra juntar as fotos extras do mesmo anuncio. Em
+      // conversa 1-1 (por onde chega a lista de transmissao) nao vem
+      // `participant`: ali quem manda e a propria conversa.
+      senderJid:
+        key.participant ||
+        data.senderJid ||
+        (ehConversaDeUmPraUm(key.remoteJid) ? key.remoteJid : null),
       textContent:
         message.conversation ||
         message.extendedTextMessage?.text ||

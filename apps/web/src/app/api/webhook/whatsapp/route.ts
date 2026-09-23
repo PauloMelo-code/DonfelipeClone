@@ -123,6 +123,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (!group || group.role !== "SOURCE" || !group.active) {
+      // Era o unico descarte da esteira sem nada no log: a mensagem sumia e
+      // parecia que a captura nao tinha rodado. Lista de transmissao chega
+      // pela conversa do vendedor, e e ela que precisa estar ativa.
+      console.log(
+        `[Webhook] IGNORED: group_not_monitored ${groupJid}`,
+        group ? `(cadastrado como ${group.role}, ativo=${group.active}, nome="${group.name}")` : "(nao cadastrado)"
+      );
       return NextResponse.json({
         status: "ignored",
         reason: "group_not_monitored",

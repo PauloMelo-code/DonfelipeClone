@@ -13,6 +13,45 @@ import {
 import { registrarAuditoria } from "@/lib/audit";
 import { extrairFipeDoTexto } from "@/lib/actions/veiculos";
 import { repararFoto } from "@/lib/media-storage";
+
+/**
+ * A foto pronta pra UAZAPI, ou null quando nao da pra usar.
+ *
+ * O envio escolhia foto x texto pela CONTAGEM (`photos.length > 0`), sem
+ * saber se a foto prestava. Card de canal com a URL crua do CDN, ou com id
+ * de midia que nao existe mais, mandava pra UAZAPI um `file` impossivel: ela
+ * recusava e o anuncio nao saia pra grupo nenhum -- sem aviso na tela.
+ * Agora foto que nao resolve vale como "sem foto", e o texto vai do mesmo
+ * jeito (cliente, 23/09/2026: "tentei enviar mesmo sem foto e nao publicou").
+ */
+export async function resolverFotoParaEnvio(foto?: string | null): Promise<string | null> {
+  let arquivo = foto?.trim() || null;
+  if (!arquivo) return null;
+
+  if (arquivo.startsWith("data:")) return arquivo;
+
+  // URL de fora: baixa e guarda. `repararFoto` devolve a MESMA url quando nao
+  // conseguiu -- e ai a foto nao serve.
+  if (arquivo.startsWith("http")) {
+    const url = arquivo;
+    const local = await repararFoto(url).catch(() => url);
+    if (local === url) return null;
+    console.log(`[publisher] foto externa baixada antes do envio: ${local}`);
+    arquivo = local;
+  }
+
+  if (!arquivo.startsWith("/api/media/")) return null;
+
+  const [media] = await db
+    .select({ mimeType: arquivosMidia.mimeType, data: arquivosMidia.data })
+    .from(arquivosMidia)
+    .where(vivosE(arquivosMidia, eq(arquivosMidia.id, arquivo.replace("/api/media/", ""))))
+    .limit(1);
+  if (!media?.data) return null;
+
+  const mimeType = media.mimeType === "application/octet-stream" ? "image/jpeg" : media.mimeType;
+  return `data:${mimeType};base64,${media.data}`;
+}
 import { getSendClient } from "@/lib/uazapi";
 import { canPostVehicle, recordPost } from "@/lib/deduplication";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -285,30 +324,12 @@ export async function publishVehicle(
       // 4. Send message
       let messageId: string | undefined;
 
-      if (photos.length > 0) {
-        // Resolve photo: /api/media/[id] → base64 data URI for UAZAPI (external service)
-        //
-        // Foto de canal antigo ficou como URL crua do CDN do WhatsApp: ia
-        // assim pra UAZAPI e derrubava o envio. Baixa antes; se nao der, vai
-        // como estava -- publicar sem foto e melhor que nao publicar.
-        let photoFile = photos[0];
-        if (photoFile.startsWith("http")) {
-          const local = await repararFoto(photoFile).catch(() => photoFile);
-          if (local !== photoFile) console.log(`[publisher] foto externa baixada antes do envio: ${local}`);
-          photoFile = local;
-        }
-        if (photoFile.startsWith("/api/media/")) {
-          const mediaId = photoFile.replace("/api/media/", "");
-          const [media] = await db
-            .select({ mimeType: arquivosMidia.mimeType, data: arquivosMidia.data })
-            .from(arquivosMidia)
-            .where(vivosE(arquivosMidia, eq(arquivosMidia.id, mediaId)))
-            .limit(1);
-          if (media) {
-            const mimeType = media.mimeType === "application/octet-stream" ? "image/jpeg" : media.mimeType;
-            photoFile = `data:${mimeType};base64,${media.data}`;
-          }
-        }
+      const photoFile = await resolverFotoParaEnvio(photos[0]);
+      if (photos.length > 0 && !photoFile) {
+        console.warn(`[publisher] foto nao utilizavel (${photos[0]?.slice(0, 60)}): publicando so o texto`);
+      }
+
+      if (photoFile) {
 
         // Send first photo with the ad text as caption
         const sendResult = await getSendClient().sendMedia({
@@ -319,7 +340,7 @@ export async function publishVehicle(
         });
         messageId = sendResult.key?.id;
       } else {
-        // No photos -- send text only
+        // Sem foto, ou com foto que nao da pra enviar -- vai o texto.
         const sendResult = await getSendClient().sendText({
           number: group.groupId,
           text: adText,
