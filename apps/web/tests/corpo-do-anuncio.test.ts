@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { eAFazer, eObrigatoria, montarCorpo, padronizarLinha } from "../src/lib/corpo-do-anuncio";
 import { extractWithRegex } from "../src/lib/ai/regex";
-import { formatVehicleAd, tituloDoAnuncio } from "../src/lib/vehicle-formatter";
+import { anoDeModeloValido, formatVehicleAd, tituloDoAnuncio } from "../src/lib/vehicle-formatter";
 import { combustivelConfirmado, detectarCambio } from "../src/lib/ai/cambio";
 import { conferirComOVendedor, lerItens } from "../src/lib/ad-cleaner";
 
@@ -352,8 +352,13 @@ caso("L3.8 'gasta' e coisa a fazer; sem saber o servico, a palavra do vendedor f
   assert.ok(eAFazer("Gasta som"));
 });
 
+caso("L3.9 ortografia: a peca sai escrita certa -- e cada uma e uma pintura", () => {
+  assert.deepEqual(padronizarLinha("para choque e capo"), ["Pintar para-choque", "Pintar capô"]);
+  assert.deepEqual(padronizarLinha("Risco no capo"), ["Risco no capô"]);
+});
+
 caso("L3.9/12 ortografia e verbo no infinitivo", pares([
-  ["para choque e capo", "Para-choque e capô"],
+
   ["Pintar para choques", "Pintar para-choques"],
   ["Revisao feita", "Revisão feita"],
   ["Troca 1 pisca retrovisor", "Trocar 1 pisca retrovisor"],
@@ -401,6 +406,92 @@ caso("L3.16 'Auto' no fim do modelo e cambio automatico", () => {
     "Compass Longitude 2.0 (aut.)");
   assert.equal(detectarCambio("Modelo X 2.0 Auto\n2023"), "AUTOMATICO");
   assert.equal(detectarCambio("Onix LT 1.0\nAuto Center Silva"), undefined, "nome de loja nao e cambio");
+});
+
+// ── Lista 4 (23/09/2026) ────────────────────────────────────────────────────
+
+caso("L4.1 peca da lataria citada sozinha e peca pra pintar", pares([
+  ["Para-choque dianteiro", "Pintar para-choque dianteiro"],
+  ["Para choque dianteiro", "Pintar para-choque dianteiro"],
+  ["Para-choque traseiro", "Pintar para-choque traseiro"],
+  ["Capô", "Pintar capô"],
+  ["Tampa traseira", "Pintar tampa traseira"],
+  ["Lateral direita", "Pintar lateral direita"],
+]));
+
+caso("L4.1 o que NAO e peca solta fica como veio", pares([
+  ["Para-choque novo", "Para-choque novo"],
+  ["Teto solar", "Teto-solar"],
+  ["4 portas", "4 portas"],
+  ["Porta-malas elétrico", "Porta-malas elétrico"],
+  ["Bancos em couro", "Bancos em couro"],
+]));
+
+caso("L4.5 'pinta' nunca some do anuncio", () => {
+  for (const [entra, sai] of [
+    ["Pinta para-choque", "Pintar para-choque"],
+    ["Pinta para choque", "Pintar para-choque"],
+    ["Pinta para-choque dianteiro", "Pintar para-choque dianteiro"],
+    ["Pinta para-choque traseiro", "Pintar para-choque traseiro"],
+    ["Pinta 2 peças", "Pintar 2 peças"],
+    ["Pinta capô", "Pintar capô"],
+    ["Pintar capo", "Pintar capô"],
+    ["Fazer para-choque", "Pintar para-choque"],
+  ] as [string, string][]) {
+    assert.deepEqual(padronizarLinha(entra), [sai], entra);
+    assert.ok(eAFazer(sai), `vai pro bloco de baixo: ${sai}`);
+  }
+  // No anuncio inteiro, sem IA: a linha nao pode sumir.
+  const vendedor = "COROLLA XEI 2.0@2019@97.000 km@Teto solar@Pinta para-choque@Por 97.000";
+  const v = extractWithRegex(vendedor.split("@").join("\n"))!;
+  const anuncio = formatVehicleAd({ ...v, rawDescription: vendedor.split("@").join("\n") }, { profitMarginPercent: 0 });
+  assert.match(anuncio, /Pintar para-choque/);
+});
+
+caso("L4.2 sigla do modelo e da versao em maiusculas no titulo", () => {
+  const t = (model: string) => tituloDoAnuncio({ model, transmission: "AUTOMATICO" });
+  assert.equal(t("FORD FUSION TITANIUM GTDI"), "Fusion Titanium GTDI (aut.)");
+  assert.equal(t("Fusion Titanium Gtdi"), "Fusion Titanium GTDI (aut.)");
+  assert.equal(t("HONDA CIVIC EXL VTEC"), "Civic EXL VTEC (aut.)");
+  assert.equal(t("PEUGEOT 3008 GRIFFE THP"), "3008 Griffe THP (aut.)");
+  // Palavra comum continua so com a inicial maiuscula.
+  assert.equal(t("TORO VOLCANO"), "Toro Volcano (aut.)");
+});
+
+caso("L4.3 'Pneus MV' e meia-vida, e meia-vida nao e pneu ruim", () => {
+  for (const [entra, sai] of [
+    ["Pneus MV", "Pneus meia-vida"],
+    ["Pneus mv", "Pneus meia-vida"],
+    ["Pneus meia vida", "Pneus meia-vida"],
+    ["Pneus 50%", "Pneus meia-vida"],
+    ["Pneus na metade da vida", "Pneus meia-vida"],
+  ] as [string, string][]) {
+    assert.deepEqual(padronizarLinha(entra), [sai], entra);
+    assert.ok(!eAFazer(sai), "meia-vida fica no grupo de cima");
+  }
+  // Fora da linha de pneu, "MV" nao vira nada.
+  assert.deepEqual(padronizarLinha("MV"), ["MV"]);
+  // Pneu ruim continua ruim.
+  assert.deepEqual(padronizarLinha("Pneus fracos"), ["Pneus ruins"]);
+});
+
+caso("L4.4 a barra separa DOIS ANOS -- nunca um pedaco do km", () => {
+  const cabecalho = (year: number, yearModel?: number) =>
+    formatVehicleAd({ model: "COROLLA XEI", year, yearModel, km: 97000, price: 90000 }, { profitMarginPercent: 0 })
+      .split("\n")[1];
+  assert.equal(cabecalho(2019, 2020), "2019/20 | 97.000km");
+  assert.equal(cabecalho(2019, 97), "2019 | 97.000km", "o 97 e do km, nao do modelo");
+  assert.equal(cabecalho(2019, 2097), "2019 | 97.000km");
+  assert.equal(cabecalho(2019), "2019 | 97.000km");
+  assert.equal(cabecalho(2019, 2019), "2019 | 97.000km");
+  assert.equal(anoDeModeloValido(2019, 2020), 2020);
+  assert.equal(anoDeModeloValido(2019, 97), null);
+  assert.equal(anoDeModeloValido(2019, 2025), null);
+  // A extracao tambem nao deixa passar.
+  const texto = ["COROLLA XEI 2.0", "2019/97", "97.000 km", "Por 90.000"].join("\n");
+  const v = extractWithRegex(texto)!;
+  assert.equal(v.year, 2019);
+  assert.equal(v.yearModel, undefined, "2097 nao e ano de modelo de um 2019");
 });
 
 // ── Titulo e cabecalho ──────────────────────────────────────────────────────

@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 /** Mudou o prompt? Muda aqui: o cache de 24 h guarda resposta do prompt antigo. */
-export const PROMPT_VERSION = "v12";
+export const PROMPT_VERSION = "v13";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
@@ -82,6 +82,13 @@ vendedor disse: "para choque e capo" -> "para-choque e capô".
    "Sem retoque", "Dekra aprovada sem retoque" -> NUNCA "Fazer retoque".
    "Dekra aprovada" e laudo: "Laudo aprovado sem retoques" (informacao boa)
    "1 peça", "Detalhes: 1 peça" -> "Pintar 1 peça"
+   "Pinta para-choque", "Pinta capô" -> "Pintar para-choque", "Pintar capô".
+   NUNCA jogue fora uma linha de pintura porque veio abreviada ou informal.
+   Peca da lataria citada SOZINHA e peca pra pintar:
+   "Para-choque dianteiro" -> "Pintar para-choque dianteiro"
+   Isso vale pra para-choque, capô, para-lama, tampa, lateral, coluna e saia
+   -- nao vale pra "Teto solar", "4 portas" nem "Porta-malas elétrico",
+   que sao opcionais.
    "2 peças e retoque" -> duas entradas: "Pintar 2 peças" e "Fazer 1 retoque"
    "Fazer para-choque dianteiro" -> "Pintar para-choque dianteiro"
    "Retocar 1 peça", "Faz um retoque", "Retoques em 1 peça" -> "Fazer 1 retoque"
@@ -116,6 +123,8 @@ vendedor disse: "para choque e capo" -> "para-choque e capô".
    "Interior novo", "Interna zera" -> "Interno impecável"
    "Interior bonito" -> "Interno bem conservado"
    "Trocar 2 pneus", "Pneus fracos" -> "2 pneus ruins" / "Pneus ruins"
+   "Pneus MV", "Pneus 50%", "Pneus meia vida" -> "Pneus meia-vida" (isso NAO
+   e pneu ruim: fica no grupo de cima)
    "Amassadinho na porta" -> "Pequeno amassado na porta"
    "Excelente estado" -> "Veículo em excelente estado"
    "272 cavalos", "272 cv" -> "272cv" | "Couro" -> "Bancos em couro"

@@ -15,6 +15,17 @@ export interface FormatSettings {
 }
 
 /**
+ * O ano do modelo, quando existe de verdade.
+ *
+ * Ano/modelo anda junto do ano de fabricacao: e ele, ou um a mais (as vezes um
+ * a menos). Numero fora disso nao e ano de modelo -- ja veio pedaco do km.
+ */
+export function anoDeModeloValido(ano: number, anoModelo?: number | null): number | null {
+  if (!anoModelo || anoModelo === ano) return null;
+  return anoModelo >= ano - 1 && anoModelo <= ano + 1 ? anoModelo : null;
+}
+
+/**
  * Format a price in Brazilian notation with decimals.
  * Examples:
  *   177530  -> "177.530,00"
@@ -99,6 +110,9 @@ const SIGLAS = new Set([
   "SI", "RT", "TR", "ZX", "ABS",
   // Versoes e motores com vogal, que a regra do "sem vogal" nao pega.
   "CE", "XLI", "ELX", "MSI", "MPI", "TGDI", "CRDI", "HDI", "GSI", "SCE", "TCE", "ASX",
+  // Siglas de motor e versao que tem vogal e sairiam "Gtdi", "Vtec", "Thp".
+  "GTDI", "FSI", "VVT", "VVTI", "VTEC", "IVTEC", "DOHC", "SOHC", "CVVT", "THP",
+  "MJT", "JTD", "CDI", "DCI", "DDIS", "TDCI", "MPFI", "GSR", "EVO", "AWD", "4WD",
   "AMT", "BEV", "EQA", "EQB", "EQC", "EQE", "EQS", "ES", "IS", "UX", "RAM",
 ]);
 
@@ -347,9 +361,10 @@ export function formatVehicleAd(
 
   // --- Year display ---
   // 8. "2023/2024" sai "2023/24" -- o ano do modelo so com os dois digitos.
-  const yearDisplay = vehicle.yearModel && vehicle.yearModel !== vehicle.year
-    ? `${vehicle.year}/${String(vehicle.yearModel).slice(-2)}`
-    : `${vehicle.year}`;
+  // A barra so entra com DOIS ANOS de verdade: ja saiu "2019/97 | 97.000km",
+  // com o 97 vindo do km (cliente, 23/09/2026).
+  const anoModelo = anoDeModeloValido(vehicle.year, vehicle.yearModel);
+  const yearDisplay = anoModelo ? `${vehicle.year}/${String(anoModelo).slice(-2)}` : `${vehicle.year}`;
 
   // --- First line: titulo no padrao (bold for WhatsApp) ---
   // O cliente pediu SEM marca (antes a marca era forcada em maiusculas).

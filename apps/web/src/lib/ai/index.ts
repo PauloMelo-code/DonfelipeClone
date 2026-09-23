@@ -151,6 +151,16 @@ function validateAndFix(parsed: VehicleData, text: string): VehicleData {
     console.warn(`[ai] km=${parsed.km} num carro de ${parsed.year}: lendo como ${parsed.km * 1000}`);
     parsed.km *= 1000;
   }
+  // Ano de modelo impossivel: a IA ja devolveu 97 (pedaco do km) num carro
+  // 2019, e o anuncio saiu "2019/97 | 97.000km".
+  if (parsed.yearModel != null && parsed.year != null) {
+    const perto = parsed.yearModel >= parsed.year - 1 && parsed.yearModel <= parsed.year + 1;
+    if (!perto) {
+      console.warn(`[ai] yearModel=${parsed.yearModel} nao combina com year=${parsed.year}: descartando`);
+      parsed.yearModel = undefined;
+    }
+  }
+
   return parsed;
 }
 

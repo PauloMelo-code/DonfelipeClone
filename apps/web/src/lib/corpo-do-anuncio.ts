@@ -96,6 +96,16 @@ function glossario(l: string): string {
     .replace(/\btrato\s+de\s+loja\b/gi, "bem cuidado")
     // 1 (lista 3). "272 cavalos" e "272 cv" -> "272cv"
     .replace(/(\d+)\s*(?:cavalos?|cv)\b/gi, "$1cv");
+  // 3 (lista 4). Pneu com metade da vida: "MV", "meia vida", "50%". Nao e
+  // pneu ruim -- fica no grupo de cima, como o vendedor disse.
+  if (/\bpneus?\b/i.test(r)) {
+    r = r
+      .replace(/\bmv\b/gi, "meia-vida")
+      .replace(/\bmeia\s+vida\b/gi, "meia-vida")
+      .replace(/\b(?:50|cinquenta)\s*%/gi, "meia-vida")
+      .replace(/\bmetade\s+da\s+vida\b/gi, "meia-vida")
+      .replace(/\b(?:na|com|de)\s+meia-vida\b/gi, "meia-vida");
+  }
   // 9 (lista 3). Acento e hifen das palavras do ramo.
   for (const [errado, certo] of ORTOGRAFIA) r = r.replace(errado, certo);
   // "IPVA 2026 PAGO" -> "IPVA 26 pago", como o cliente escreve.
@@ -302,6 +312,16 @@ function gasta(l: string): string | null {
   const semQtd = m[1].replace(QUANTIDADE, "").replace(/\s+/g, " ").trim();
   return TROCAVEL.test(semQtd) ? maiuscula(`trocar ${q.texto}${semQtd}`) : null;
 }
+
+// ── 1 (lista 4). Peca da lataria sozinha ──────────────────────────────────
+// "Para-choque dianteiro" numa linha so e peca pra pintar -- ninguem lista a
+// peca por ela mesma. Fora da lista: teto ("Teto solar"), porta ("4 portas") e
+// porta-malas, que aparecem como opcional e virariam pintura sem ser.
+const PECA_PINTAVEL = String.raw`(?:para-?\s?choques?|parachoques?|cap[ôo]s?|capot|para-?\s?lamas?|paralamas?|tampas?|laterais|lateral|colunas?|saias?|ca[çc]ambas?|aleta?s?)`;
+const LADO = String.raw`(?:dianteir[oa]s?|traseir[oa]s?|direit[oa]s?|esquerd[oa]s?|d[ao]\s+frente|de\s+tr[áa]s|d[ao]\s+lado(?:\s+\w+)?|do\s+motorista|do\s+passageiro)`;
+const PECA_SOLTA = new RegExp(`^${PECA_PINTAVEL}(?:\\s+${LADO})?$`, "i");
+
+const pecaSolta = (l: string) => (PECA_SOLTA.test(l) ? `Pintar ${l.charAt(0).toLowerCase()}${l.slice(1)}` : null);
 
 // ── 32. Pneu pra trocar e pneu ruim ────────────────────────────────────────
 // Com quantidade na frente a linha ja comeca por numero: "1 pneu ruim".
@@ -514,7 +534,8 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
       return fechada(cada.flatMap((p) => p.linhas));
     }
   }
-  const lataria = retocar(l) ?? pintar(l) ?? pneuRuim(l) ?? martelinho(l) ?? gasta(l) ?? boaDe(l);
+  const lataria =
+    retocar(l) ?? pintar(l) ?? pecaSolta(l) ?? pneuRuim(l) ?? martelinho(l) ?? gasta(l) ?? boaDe(l);
   if (lataria) return fechada([lataria]);
   // 21 (lista 2). "Só polir" -> "Apenas polir" (o "lavar" tem regra propria).
   l = l.replace(/^s[óo]\s+(?=[a-zà-ú])/i, "Apenas ");

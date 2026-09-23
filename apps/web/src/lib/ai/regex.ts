@@ -63,7 +63,9 @@ export function extractWithRegex(text: string): VehicleData | null {
     if (ym) {
       year = parseInt(ym[1]);
       const ym2 = ym[2].length === 2 ? 2000 + parseInt(ym[2]) : parseInt(ym[2]);
-      yearModel = ym2;
+      // So vale como ano de modelo o que anda junto do ano de fabricacao:
+      // "2019/97" e km, nao modelo 2097.
+      yearModel = ym2 >= year - 1 && ym2 <= year + 1 ? ym2 : null;
       break;
     }
     // "Ano 2022" or "Ano: 2022"
