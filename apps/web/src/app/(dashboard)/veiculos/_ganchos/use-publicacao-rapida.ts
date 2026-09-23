@@ -33,8 +33,13 @@ export function usePublicacaoRapida({ grupos, carregarGrupos, setRegioesAbertas,
     const estado = estadoDoVeiculo(v);
 
     const preSelecionar = (lista: WhatsAppGroup[]) => {
+      // Sem estado, marca TODOS os destinos -- e o mesmo que a rota faz quando
+      // nao recebe grupo nenhum. Antes ficava zero marcado, o botao "Publicar
+      // (0)" nascia desabilitado e o clique nao fazia nada, sem aviso. Isso
+      // atingia anuncio de canal, que nasce sem regiao (o cliente, 22/09/2026).
       if (!estado) {
-        setSelecionados([]);
+        setSelecionados(lista.map((g) => g.groupId));
+        setRegioesAbertas((prev) => new Set([...prev, ...lista.map((g) => `__quick_${g.region || "Outros"}`)]));
         return;
       }
       setSelecionados(lista.filter((g) => g.region === estado).map((g) => g.groupId));

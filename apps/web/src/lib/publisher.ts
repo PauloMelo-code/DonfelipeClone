@@ -12,6 +12,7 @@ import {
 } from "@/lib/db";
 import { registrarAuditoria } from "@/lib/audit";
 import { extrairFipeDoTexto } from "@/lib/actions/veiculos";
+import { repararFoto } from "@/lib/media-storage";
 import { getSendClient } from "@/lib/uazapi";
 import { canPostVehicle, recordPost } from "@/lib/deduplication";
 import { formatVehicleAd } from "@/lib/vehicle-formatter";
@@ -286,7 +287,16 @@ export async function publishVehicle(
 
       if (photos.length > 0) {
         // Resolve photo: /api/media/[id] → base64 data URI for UAZAPI (external service)
+        //
+        // Foto de canal antigo ficou como URL crua do CDN do WhatsApp: ia
+        // assim pra UAZAPI e derrubava o envio. Baixa antes; se nao der, vai
+        // como estava -- publicar sem foto e melhor que nao publicar.
         let photoFile = photos[0];
+        if (photoFile.startsWith("http")) {
+          const local = await repararFoto(photoFile).catch(() => photoFile);
+          if (local !== photoFile) console.log(`[publisher] foto externa baixada antes do envio: ${local}`);
+          photoFile = local;
+        }
         if (photoFile.startsWith("/api/media/")) {
           const mediaId = photoFile.replace("/api/media/", "");
           const [media] = await db
