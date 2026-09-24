@@ -4,7 +4,7 @@ import { Car } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tituloDoAnuncio } from "@/lib/vehicle-formatter";
 import { FotoEditavel } from "./foto-editavel";
-import type { CardProps } from "./tipos";
+import type { VeiculoDaFoto } from "./tipos";
 
 // ---------------------------------------------------------------------------
 // A foto do card e o que se faz nela sem sair da triagem.
@@ -17,11 +17,21 @@ import type { CardProps } from "./tipos";
 // O card de baixo so aparece de fundo: foto estatica com o titulo por cima.
 // ---------------------------------------------------------------------------
 
-type Props = Pick<CardProps, "vehicle" | "isTop" | "onPhotoClick" | "onSetMainPhoto" | "onPhotoEdited">;
+interface Props {
+  vehicle: VeiculoDaFoto;
+  /** Na grade todo card esta "por cima": todos aceitam edicao. */
+  isTop: boolean;
+  /** Abrir a galeria. Quem chama ja sabe de qual carro se trata. */
+  aoAmpliar?: () => void;
+  onSetMainPhoto?: (vehicleId: string, indice: number) => void;
+  onPhotoEdited?: (vehicleId: string, foto: string) => void;
+  /** A grade poe a marca na frente; sem isto vale o titulo do anuncio. */
+  titulo?: string;
+}
 
-export function FotoDoCard({ vehicle, isTop, onPhotoClick, onSetMainPhoto, onPhotoEdited }: Props) {
+export function FotoDoCard({ vehicle, isTop, aoAmpliar, onSetMainPhoto, onPhotoEdited, titulo: tituloDado }: Props) {
   const fotos = vehicle.photos;
-  const titulo = tituloDoAnuncio(vehicle);
+  const titulo = tituloDado ?? tituloDoAnuncio(vehicle);
   const aoEditar = isTop && fotos.length > 0 && onPhotoEdited
     ? (foto: string) => onPhotoEdited(vehicle.id, foto)
     : null;
@@ -33,7 +43,7 @@ export function FotoDoCard({ vehicle, isTop, onPhotoClick, onSetMainPhoto, onPho
           foto={fotos[0]}
           alt={vehicle.model}
           aoEditar={aoEditar}
-          aoAmpliar={onPhotoClick ? () => onPhotoClick(vehicle) : undefined}
+          aoAmpliar={aoAmpliar}
         />
       ) : (
         <div className="relative h-48 sm:h-60 bg-card">

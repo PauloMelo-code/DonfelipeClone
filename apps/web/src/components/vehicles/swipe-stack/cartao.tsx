@@ -161,7 +161,7 @@ export function SwipeCard({
         <FotoDoCard
           vehicle={vehicle}
           isTop={isTop}
-          onPhotoClick={onPhotoClick}
+          aoAmpliar={onPhotoClick ? () => onPhotoClick(vehicle) : undefined}
           onSetMainPhoto={onSetMainPhoto}
           onPhotoEdited={onPhotoEdited}
         />

@@ -201,6 +201,9 @@ function TelaDeVeiculos() {
             aoPublicarDireto={publicarDireto}
             publicandoId={rapida.publicandoId}
             aoAtualizarCampo={fila.atualizarCampo}
+            aoAbrirGaleria={(id) => { const v = porId(id); if (v) { setGaleria(v); setFotoDaGaleria(0); } }}
+            aoEditarFotoPrincipal={fila.trocarFotoPrincipal}
+            aoDefinirPrincipal={fila.definirFotoPrincipal}
           />
         )}
 

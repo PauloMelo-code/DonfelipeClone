@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Car, Check, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
+import { AlertTriangle, Check, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { anuncioParaExibir, tituloDoAnuncio } from "@/lib/vehicle-formatter";
 import { DadosDoCard } from "@/components/vehicles/swipe-stack/dados-do-card";
+import { FotoDoCard } from "@/components/vehicles/swipe-stack/foto-do-card";
 import { parseArray, statusConfig, type Vehicle } from "./tipos";
 
 // ---------------------------------------------------------------------------
@@ -20,9 +21,10 @@ import { parseArray, statusConfig, type Vehicle } from "./tipos";
 // escolher em quais mexer (24/09/2026): repasse gira rapido, e o carro bom
 // some enquanto ele analisa os da frente.
 //
-// Entao o card aqui usa o MESMO bloco da pilha (`DadosDoCard`): de onde veio,
-// quando foi capturado, as margens, a nota, e ano/km/preco e o texto do
-// anuncio editaveis na propria linha. Nao e uma copia parecida -- e o mesmo
+// Entao o card aqui e montado das MESMAS pecas da pilha -- `FotoDoCard` e
+// `DadosDoCard`. Vem tudo junto: recorte, blur e pincel na foto, a escolha da
+// capa nas miniaturas, ano/km/preco editaveis na linha, o texto do anuncio na
+// caixa, as margens e a nota. Nao e uma copia parecida -- e o mesmo
 // componente, pra que as duas telas nao possam divergir.
 // ---------------------------------------------------------------------------
 
@@ -41,6 +43,11 @@ interface AcoesDoCard {
   publicandoId?: string | null;
   /** Sem isto nada no card e editavel -- so leitura. */
   aoAtualizarCampo?: (id: string, campo: string, valor: string | number) => Promise<void>;
+  aoAbrirGaleria?: (id: string) => void;
+  /** A foto principal foi recortada, borrada ou pintada. */
+  aoEditarFotoPrincipal?: (id: string, foto: string) => void;
+  /** Uma miniatura virou a capa. */
+  aoDefinirPrincipal?: (id: string, indice: number) => void;
 }
 
 interface Props extends AcoesDoCard {
@@ -69,6 +76,7 @@ function CardDeVeiculo({
   veiculo, abaAtiva, carregandoAcao, marcados,
   aoMarcar, aoEditar, aoReenviar, aoRejeitar, aoPreVisualizar,
   aoAprovar, aoPublicarDireto, publicandoId, aoAtualizarCampo,
+  aoAbrirGaleria, aoEditarFotoPrincipal, aoDefinirPrincipal,
 }: AcoesDoCard & { veiculo: Vehicle }) {
   const fotos = parseArray(veiculo.photos);
   const opcionais = parseArray(veiculo.features);
@@ -84,6 +92,8 @@ function CardDeVeiculo({
   // Edicao no proprio card so nos pendentes: nas outras abas ha o modal de
   // Editar, que ja vem com a escolha dos grupos junto.
   const editavel = veiculo.status === "PENDING" ? aoAtualizarCampo : undefined;
+  // Recorte, blur, pincel e troca de capa: so nos pendentes, como na pilha.
+  const fotoEditavel = veiculo.status === "PENDING" && !!aoEditarFotoPrincipal;
 
   // null = o operador nao mexeu no texto.
   const [rascunho, setRascunho] = useState<string | null>(null);
@@ -131,7 +141,7 @@ function CardDeVeiculo({
       exit={{ opacity: 0, scale: 0.95 }}
       className="glass rounded-2xl overflow-hidden hover:glow-gold-sm transition-all duration-300"
     >
-      <div className="relative h-40 sm:h-52 bg-card">
+      <div className="relative">
         {abaAtiva === "APPROVED" && (
           <button
             className="absolute top-2 left-2 z-10"
@@ -143,18 +153,19 @@ function CardDeVeiculo({
             }
           </button>
         )}
-        {fotos.length > 0 ? (
-          <img src={fotos[0]} alt={veiculo.model} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <Car className="h-12 w-12 text-muted-foreground/20" />
-          </div>
+        {/* Com a foto editavel, a faixa de Pincel/Blur ocupa o topo -- e o selo
+            diria "Pendente" numa aba que so tem pendentes. */}
+        {!fotoEditavel && (
+          <Badge className={cn("absolute top-3 right-3 z-10 border", sc.color)}>{sc.label}</Badge>
         )}
-        <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
-        <Badge className={cn("absolute top-3 right-3 border", sc.color)}>{sc.label}</Badge>
-        <h3 className="absolute bottom-3 left-4 right-4 font-semibold text-white text-base drop-shadow-lg truncate">
-          {temMarca ? `${veiculo.brand} ` : ""}{titulo}
-        </h3>
+        <FotoDoCard
+          vehicle={{ ...veiculo, photos: fotos }}
+          isTop={fotoEditavel}
+          titulo={temMarca ? `${veiculo.brand} ${titulo}` : titulo}
+          aoAmpliar={aoAbrirGaleria ? () => aoAbrirGaleria(veiculo.id) : undefined}
+          onSetMainPhoto={fotoEditavel ? aoDefinirPrincipal : undefined}
+          onPhotoEdited={fotoEditavel ? aoEditarFotoPrincipal : undefined}
+        />
       </div>
 
       <div className="flex flex-col gap-3 p-5">

@@ -43,6 +43,17 @@ export interface SwipeVehicle {
   } | null;
 }
 
+/** O que a foto do card le. As fotos ja chegam em lista, nao em JSON. */
+export interface VeiculoDaFoto {
+  id: string;
+  model: string;
+  brand?: string | null;
+  fuel?: string | null;
+  transmission?: string | null;
+  rawDescription?: string | null;
+  photos: string[];
+}
+
 /**
  * O que o bloco de dados do card le -- e so isso.
  *
