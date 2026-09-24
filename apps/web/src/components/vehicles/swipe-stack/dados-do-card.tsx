@@ -6,7 +6,7 @@ import { lerEstado, lerOrigem } from "./origem";
 import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
 import { Selos } from "./selo-de-margem";
-import { formatKm, formatPrice, horaDaCaptura, quandoChegou, type CardProps } from "./tipos";
+import { formatKm, formatPrice, horaDaCaptura, quandoChegou, type VeiculoDoCard } from "./tipos";
 
 // ---------------------------------------------------------------------------
 // Os dados do carro, com os campos que o operador conserta na hora.
@@ -17,7 +17,10 @@ import { formatKm, formatPrice, horaDaCaptura, quandoChegou, type CardProps } fr
 // texto simples.
 // ---------------------------------------------------------------------------
 
-type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
+type Props = {
+  vehicle: VeiculoDoCard;
+  /** Sem isto ano, km e preco viram texto simples. */
+  onUpdateField?: (id: string, campo: string, valor: string | number) => Promise<void>;
   edicaoDoTexto?: EdicaoDoTexto;
 };
 

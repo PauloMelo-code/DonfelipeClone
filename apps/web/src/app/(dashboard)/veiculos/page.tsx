@@ -200,6 +200,7 @@ function TelaDeVeiculos() {
             aoAprovar={aprovar}
             aoPublicarDireto={publicarDireto}
             publicandoId={rapida.publicandoId}
+            aoAtualizarCampo={fila.atualizarCampo}
           />
         )}
 

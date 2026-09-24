@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Eye, FileText, Loader2 } from "lucide-react";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
-import type { SwipeVehicle } from "./tipos";
+
 
 // ---------------------------------------------------------------------------
 // O anuncio como vai para o grupo, ja editavel no proprio card.
@@ -26,8 +26,20 @@ export interface EdicaoDoTexto {
   salvando: boolean;
 }
 
+
+/** So o que o quadro le -- assim a grade de cards usa o MESMO quadro. */
+export interface VeiculoDoQuadro {
+  model: string;
+  brand?: string | null;
+  fuel?: string | null;
+  transmission?: string | null;
+  rawDescription?: string | null;
+  formattedAd?: string | null;
+  adEditedAt?: string | Date | null;
+}
+
 interface Props {
-  vehicle: SwipeVehicle;
+  vehicle: VeiculoDoQuadro;
   /** Sem isto o quadro so mostra o texto (card de baixo da pilha). */
   edicao?: EdicaoDoTexto;
 }

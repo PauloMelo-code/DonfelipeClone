@@ -43,6 +43,44 @@ export interface SwipeVehicle {
   } | null;
 }
 
+/**
+ * O que o bloco de dados do card le -- e so isso.
+ *
+ * Declarado a parte de `SwipeVehicle` porque a grade de cards da tela de
+ * Veiculos usa o MESMO bloco, e la o veiculo tem fotos e opcionais em texto
+ * JSON. Nenhum dos dois campos e lido aqui, entao os dois tipos servem.
+ */
+export interface VeiculoDoCard {
+  id: string;
+  model: string;
+  brand?: string | null;
+  year: number;
+  km: number;
+  price: number;
+  fipePrice?: number | null;
+  transmission?: string | null;
+  fuel?: string | null;
+  color?: string | null;
+  location?: string | null;
+  state?: string | null;
+  capturedAt?: string;
+  qualityScore?: number | null;
+  isVip?: boolean;
+  rawDescription?: string | null;
+  formattedAd?: string | null;
+  adEditedAt?: string | null;
+  sourceGroup?: {
+    name: string;
+    groupId: string;
+    isCommunity?: boolean;
+    isAnnounce?: boolean;
+    isContact?: boolean;
+    kindOverride?: string | null;
+    ownerPhone?: string | null;
+    region?: string | null;
+  } | null;
+}
+
 /** O que a pilha precisa saber fazer. O card recebe o mesmo conjunto mais o seu estado. */
 export interface SwipeStackProps {
   vehicles: SwipeVehicle[];
