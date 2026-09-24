@@ -88,12 +88,6 @@ export function CamposDeNegocio({ cfg }: { cfg: Configuracoes }) {
           <CampoNumero cfg={cfg} chave="filter_min_price" rotulo="Preço mínimo (R$)" />
           <CampoNumero
             cfg={cfg}
-            chave="filter_max_km_por_ano"
-            rotulo="Km máximo rodado por ano"
-            ajuda="0 desliga. Com 15000, um carro de 2020 com mais de 90.000 km é recusado."
-          />
-          <CampoNumero
-            cfg={cfg}
             chave="filter_max_km"
             rotulo="KM máxima"
             placeholder="300000"

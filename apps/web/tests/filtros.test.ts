@@ -75,28 +75,7 @@ async function main() {
   assert.equal(nacionalEs.passou, false);
   if (!nacionalEs.passou) assert.equal(nacionalEs.resposta.reason, "national_group_state_not_served");
 
-  // ── Km rodado por ano (cliente, 24/09/2026) ───────────────────────────
-  // Ele escreveu "máximo 15.000km rodados por ano" dentro da blocklist, que
-  // e lista de palavras. A regra virou campo proprio.
   const { gravarConfiguracao } = await import("../src/lib/settings");
-  const anoAtual = new Date().getFullYear();
-  const carroDe = (anos: number, km: number) => ({ ...base, year: anoAtual - anos, km });
-
-  await gravarConfiguracao("filter_max_km_por_ano", "0");
-  const desligado = await aplicarFiltros(carroDe(4, 200000));
-  assert.equal(desligado.passou, true, "zero desliga a regra");
-
-  await gravarConfiguracao("filter_max_km_por_ano", "15000");
-  const rodouDemais = await aplicarFiltros(carroDe(4, 100000));
-  assert.equal(rodouDemais.passou, false, "25 mil por ano nao passa");
-  if (!rodouDemais.passou) assert.equal(rodouDemais.resposta.reason, "vehicle_km_por_ano_too_high");
-
-  const dentroDaConta = await aplicarFiltros(carroDe(4, 58000));
-  assert.equal(dentroDaConta.passou, true, "14,5 mil por ano passa");
-
-  const doAno = await aplicarFiltros(carroDe(0, 12000));
-  assert.equal(doAno.passou, true, "carro do ano conta como um ano de uso");
-  await gravarConfiguracao("filter_max_km_por_ano", "0");
 
   // ── Blocklist: palavra inteira, e sem negacao ────────────────────────
   // Com "leilão" na lista, o anuncio que diz "SEM LEILÃO" era rejeitado

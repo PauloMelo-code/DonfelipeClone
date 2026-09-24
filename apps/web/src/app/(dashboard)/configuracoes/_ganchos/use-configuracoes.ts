@@ -23,7 +23,6 @@ const PADROES: Settings = {
   filter_min_year: "2018",
   filter_min_price: "30000",
   filter_max_km: "300000",
-  filter_max_km_por_ano: "0",
   blocklist_keywords: "",
   vip_keywords: "",
   score_km_muito_baixa: "30000",
