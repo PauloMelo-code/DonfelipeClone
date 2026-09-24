@@ -23,6 +23,7 @@ import {
 import { persistImage } from "@/lib/media-storage";
 import { checkRejectionPattern, checkBlocklist } from "@/lib/rejection-learning";
 import { calculateQualityScore } from "@/lib/quality-score";
+import { lerCriteriosDoScore } from "@/lib/criterios-do-score";
 import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
 import { normalizarEstado } from "@/lib/estados";
@@ -361,7 +362,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Quality score
-    const { score: qualityScore } = calculateQualityScore({ km, year, price, fipePrice, rawDescription: textContent });
+    const { score: qualityScore } = calculateQualityScore(
+      { km, year, price, fipePrice, rawDescription: textContent },
+      await lerCriteriosDoScore()
+    );
 
     // VIP detection
     const isVip = await isVipVehicle(model, brand);

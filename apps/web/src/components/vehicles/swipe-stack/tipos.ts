@@ -73,6 +73,29 @@ export interface CardProps extends Omit<SwipeStackProps, "vehicles"> {
 /** Quanto o dedo precisa percorrer pra decidir o carro. */
 export const DISTANCIA_DE_DECISAO = 150;
 
+/**
+ * Ha quanto tempo o carro chegou. O repasse gira rapido e o cliente quer ver,
+ * de relance, se o anuncio e de agora ou de ontem (23/09/2026).
+ */
+export function quandoChegou(iso: string, agora: Date = new Date()): string {
+  const quando = new Date(iso);
+  if (Number.isNaN(quando.getTime())) return "";
+  const minutos = Math.floor((agora.getTime() - quando.getTime()) / 60000);
+  if (minutos < 1) return "agora";
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24 && quando.getDate() === agora.getDate()) return `há ${horas}h`;
+  const hora = quando.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const ontem = new Date(agora);
+  ontem.setDate(ontem.getDate() - 1);
+  if (quando.toDateString() === ontem.toDateString()) return `ontem ${hora}`;
+  return `${quando.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} ${hora}`;
+}
+
+/** Data e hora por extenso, para o `title` do card. */
+export const horaDaCaptura = (iso: string) =>
+  new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
 export const formatPrice = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 

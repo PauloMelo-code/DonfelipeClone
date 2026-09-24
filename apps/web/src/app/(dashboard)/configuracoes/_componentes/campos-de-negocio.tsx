@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, Crown, Filter, MapPin, Percent, Wifi } from "lucide-react";
+import { Ban, Crown, Filter, Gauge, MapPin, Percent, Wifi } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,6 +95,28 @@ export function CamposDeNegocio({ cfg }: { cfg: Configuracoes }) {
             className="sm:col-span-2"
           />
         </div>
+      </SectionCard>
+
+      <SectionCard icon={<Gauge />} title="Nota do carro (Score)" padding="lg">
+        <p className={`${AJUDA} mb-4`}>
+          A nota parte de 5 e sobe ou desce conforme o carro. Aqui se ajusta ONDE cada faixa começa;
+          quanto cada uma vale em pontos continua fixo. Leilão ou sinistro de verdade tira 5 pontos.
+          Passe o mouse no selo do Score, no card, para ver a conta de cada carro.
+        </p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <CampoNumero cfg={cfg} chave="score_km_muito_baixa" rotulo="Km muito baixa, até (+2 pontos)" />
+          <CampoNumero cfg={cfg} chave="score_km_baixa" rotulo="Km baixa, até (+1 ponto)" />
+          <CampoNumero cfg={cfg} chave="score_km_alta" rotulo="Km alta, acima de (-1 ponto)" />
+          <CampoNumero cfg={cfg} chave="score_km_muito_alta" rotulo="Km muito alta, acima de (-2 pontos)" />
+          <CampoNumero cfg={cfg} chave="score_idade_novo" rotulo="Carro novo, até quantos anos (+1 ponto)" />
+          <CampoNumero cfg={cfg} chave="score_idade_antigo" rotulo="Carro antigo, a partir de quantos anos (-1 ponto)" />
+          <CampoNumero cfg={cfg} chave="score_desconto_bom" rotulo="Bom desconto da FIPE, a partir de (%) (+2 pontos)" />
+          <CampoNumero cfg={cfg} chave="score_desconto_excelente" rotulo="Desconto excelente da FIPE, a partir de (%) (+3 pontos)" />
+        </div>
+        <p className={`${AJUDA} mt-3`}>
+          Mudou aqui? Os cards já mostram a nota nova na hora. A nota guardada no banco -- a que o
+          Dashboard soma -- se atualiza quando o anúncio passa pelo &quot;Regerar&quot;.
+        </p>
       </SectionCard>
 
       <SectionCard icon={<Ban />} title="Palavras-chave" padding="lg">

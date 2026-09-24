@@ -19,6 +19,14 @@ export interface Settings {
   filter_max_km: string;
   blocklist_keywords: string;
   vip_keywords: string;
+  score_km_muito_baixa: string;
+  score_km_baixa: string;
+  score_km_alta: string;
+  score_km_muito_alta: string;
+  score_idade_novo: string;
+  score_idade_antigo: string;
+  score_desconto_bom: string;
+  score_desconto_excelente: string;
 }
 
 /**
@@ -38,6 +46,14 @@ export const CHAVES_GRAVAVEIS: (keyof Settings)[] = [
   "filter_max_km",
   "blocklist_keywords",
   "vip_keywords",
+  "score_km_muito_baixa",
+  "score_km_baixa",
+  "score_km_alta",
+  "score_km_muito_alta",
+  "score_idade_novo",
+  "score_idade_antigo",
+  "score_desconto_bom",
+  "score_desconto_excelente",
 ];
 
 export type WaState = "open" | "connecting" | "close" | "error" | "unknown" | "not_configured";

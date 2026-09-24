@@ -1,6 +1,6 @@
 "use client";
 
-import { Flame, MapPin, Star } from "lucide-react";
+import { Clock, Flame, MapPin, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
@@ -8,7 +8,8 @@ import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
 import { calculateQualityScore } from "@/lib/quality-score";
 import { SeloDeMargem, SeloDoPor } from "./selo-de-margem";
-import { formatKm, formatPrice, type CardProps } from "./tipos";
+import { formatKm, formatPrice, horaDaCaptura, quandoChegou, type CardProps } from "./tipos";
+import { useCriteriosDoScore } from "./criterios";
 
 // ---------------------------------------------------------------------------
 // Os dados do carro, com os campos que o operador conserta na hora.
@@ -28,16 +29,21 @@ type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
  * qualidade, VIP e hibrido. `texto` e o anuncio que esta na caixa agora.
  */
 function Selos({ vehicle, texto }: Pick<CardProps, "vehicle"> & { texto: string | null }) {
+  // As referencias da nota sao as que o cliente ajusta em Configuracoes.
+  const criterios = useCriteriosDoScore();
   // A nota sai dos dados que estao na tela: se o operador corrige o km ou o
   // preco, ela acompanha. E o `title` diz de onde veio cada ponto -- o
   // cliente perguntou como o sistema chega na nota (22/09/2026).
-  const nota = calculateQualityScore({
-    km: vehicle.km,
-    year: vehicle.year,
-    price: vehicle.price,
-    fipePrice: vehicle.fipePrice,
-    rawDescription: vehicle.rawDescription,
-  });
+  const nota = calculateQualityScore(
+    {
+      km: vehicle.km,
+      year: vehicle.year,
+      price: vehicle.price,
+      fipePrice: vehicle.fipePrice,
+      rawDescription: vehicle.rawDescription,
+    },
+    criterios
+  );
   const score = vehicle.qualityScore == null ? null : nota.score;
   const porQue = `Nota ${nota.score}/10 — ${nota.reasons.join(" · ") || "sem destaque nem ressalva"}`;
   return (
@@ -79,6 +85,16 @@ export function DadosDoCard({ vehicle, onUpdateField, edicaoDoTexto }: Props) {
             {estado.veioDoGrupo && <span className="text-[10px] opacity-60 normal-case ml-0.5">(grupo)</span>}
           </span>
           {vehicle.location && <span className="text-xs text-muted-foreground">{vehicle.location}</span>}
+        </div>
+      )}
+
+      {vehicle.capturedAt && (
+        <div
+          className="flex items-center gap-1.5 text-xs text-muted-foreground/80 -mt-1"
+          title={`Capturado em ${horaDaCaptura(vehicle.capturedAt)}`}
+        >
+          <Clock className="h-3 w-3 shrink-0" />
+          <span>Capturado {quandoChegou(vehicle.capturedAt)}</span>
         </div>
       )}
 

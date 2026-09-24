@@ -21,6 +21,7 @@ import {
 } from "../src/components/vehicles/swipe-stack/margem";
 import { lerFipeDoAnuncio } from "../src/lib/vehicle-formatter";
 import { lerEstado, lerOrigem } from "../src/components/vehicles/swipe-stack/origem";
+import { quandoChegou } from "../src/components/vehicles/swipe-stack/tipos";
 import { tipoDaOrigem } from "../src/lib/tipo-de-origem";
 import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos";
 
@@ -43,6 +44,20 @@ import type { SwipeVehicle } from "../src/components/vehicles/swipe-stack/tipos"
   assert.equal(margemDoPor("Fipe: 160.400,00", 160400), null, "sem Por:");
   assert.equal(margemDoPor("Por: 137.990", null), null, "sem Fipe");
   assert.equal(margemDoPor(null, 160400), null, "sem texto");
+}
+
+// ── Ha quanto tempo o carro chegou (cliente, 23/09/2026) ─────────────────
+{
+  const agora = new Date("2026-09-24T15:00:00-03:00");
+  const atras = (minutos: number) => new Date(agora.getTime() - minutos * 60000).toISOString();
+  assert.equal(quandoChegou(atras(0), agora), "agora");
+  assert.equal(quandoChegou(atras(1), agora), "há 1 min");
+  assert.equal(quandoChegou(atras(45), agora), "há 45 min");
+  assert.equal(quandoChegou(atras(3 * 60), agora), "há 3h");
+  // Passou da meia-noite: vira hora do dia, nao "há 20h".
+  assert.equal(quandoChegou(atras(20 * 60), agora), "ontem 19:00");
+  assert.equal(quandoChegou(atras(48 * 60), agora), "22/09 15:00");
+  assert.equal(quandoChegou("data ruim", agora), "", "data invalida nao quebra o card");
 }
 
 // ── Sem FIPE nao ha o que comparar ────────────────────────────────────────

@@ -87,6 +87,15 @@ export const ALLOWED_SETTING_KEYS = [
   "blocklist_keywords",
   "vip_keywords",
   "publishing_paused",
+  // As referencias da nota do carro (tela de Configuracoes).
+  "score_km_muito_baixa",
+  "score_km_baixa",
+  "score_km_alta",
+  "score_km_muito_alta",
+  "score_idade_novo",
+  "score_idade_antigo",
+  "score_desconto_bom",
+  "score_desconto_excelente",
 ] as const;
 
 export const updateSettingsSchema = z

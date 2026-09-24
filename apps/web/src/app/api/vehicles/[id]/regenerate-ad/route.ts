@@ -9,6 +9,7 @@ import { extractVehicleFromTextNoCache } from "@/lib/ai";
 import { combustivelConfirmado } from "@/lib/ai/cambio";
 import { repararFoto } from "@/lib/media-storage";
 import { calculateQualityScore } from "@/lib/quality-score";
+import { lerCriteriosDoScore } from "@/lib/criterios-do-score";
 
 // Detecta se o modelo no DB e uma chamada/loja (deve ser re-extraido)
 const BAD_MODEL_PATTERNS: RegExp[] = [
@@ -165,9 +166,10 @@ export async function POST(
 
     // A nota guardada e de quando o carro entrou; com os dados corrigidos (e
     // com a leitura de leilao/sinistro consertada) ela pode ter mudado.
-    const { score: qualityScore } = calculateQualityScore({
-      km, year, price, fipePrice, rawDescription: vehicle.rawDescription,
-    });
+    const { score: qualityScore } = calculateQualityScore(
+      { km, year, price, fipePrice, rawDescription: vehicle.rawDescription },
+      await lerCriteriosDoScore()
+    );
 
     if (body.save) {
       const sellingPrice = price * (1 + margin / 100);

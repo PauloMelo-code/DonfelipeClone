@@ -10,7 +10,12 @@
  * Uso: pnpm --filter web exec tsx tests/quality-score.test.ts
  */
 import assert from "node:assert/strict";
-import { calculateQualityScore, temSinalDeRisco } from "../src/lib/quality-score";
+import {
+  CRITERIOS_PADRAO,
+  calculateQualityScore,
+  criteriosDoScore,
+  temSinalDeRisco,
+} from "../src/lib/quality-score";
 
 let falhas = 0;
 function caso(nome: string, fn: () => void) {
@@ -71,6 +76,49 @@ caso("km, idade e desconto pesam como antes", () => {
   assert.equal(rodado.score, 1, rodado.reasons.join(" · "));
   const acimaDaFipe = calculateQualityScore({ km: 50000, year: 2024, price: 110000, fipePrice: 100000, rawDescription: "" });
   assert.ok(acimaDaFipe.reasons.includes("Acima da FIPE"));
+});
+
+caso("as referencias vem das Configuracoes -- o cliente muda onde cada faixa comeca", () => {
+  // A Sportage do cliente: 91 mil km, 2018, 16% abaixo da FIPE.
+  const semTexto = { ...SPORTAGE, rawDescription: "" };
+  assert.equal(calculateQualityScore(semTexto).score, 7, "com o padrao");
+
+  // Km alta a partir de 80 mil: a mesma Sportage perde um ponto.
+  const kmMaisRigida = { ...CRITERIOS_PADRAO, kmAlta: 80000 };
+  const comKmRigida = calculateQualityScore(semTexto, kmMaisRigida);
+  assert.equal(comKmRigida.score, 6);
+  assert.ok(comKmRigida.reasons.includes("Km alta"));
+
+  // Carro so e antigo a partir de 10 anos: o de 2018 deixa de perder ponto.
+  const idadeFolgada = { ...CRITERIOS_PADRAO, idadeAntigo: 10 };
+  const comIdadeFolgada = calculateQualityScore(semTexto, idadeFolgada);
+  assert.equal(comIdadeFolgada.score, 8);
+  assert.ok(!comIdadeFolgada.reasons.includes("Carro antigo"));
+
+  // Desconto so e excelente a partir de 20%: 16% vira "bom desconto".
+  const descontoRigido = { ...CRITERIOS_PADRAO, descontoExcelente: 20 };
+  const comDescontoRigido = calculateQualityScore(semTexto, descontoRigido);
+  assert.equal(comDescontoRigido.score, 6);
+  assert.ok(comDescontoRigido.reasons.some((r) => r.startsWith("Bom desconto")));
+});
+
+caso("os criterios saem das configuracoes guardadas, e o que faltar cai no padrao", () => {
+  assert.deepEqual(criteriosDoScore({}), CRITERIOS_PADRAO, "sem nada guardado, o padrao");
+  assert.deepEqual(criteriosDoScore(), CRITERIOS_PADRAO);
+
+  const lido = criteriosDoScore({
+    score_km_alta: "80000",
+    score_idade_antigo: "10",
+    score_desconto_excelente: "20",
+  });
+  assert.equal(lido.kmAlta, 80000);
+  assert.equal(lido.idadeAntigo, 10);
+  assert.equal(lido.descontoExcelente, 20);
+  assert.equal(lido.kmBaixa, CRITERIOS_PADRAO.kmBaixa, "o que nao foi mexido fica como era");
+
+  // Texto vazio, zero, negativo ou bobagem nao derruba a nota.
+  const ruim = criteriosDoScore({ score_km_alta: "", score_idade_antigo: "0", score_desconto_bom: "abc", score_km_baixa: "-5" });
+  assert.deepEqual(ruim, CRITERIOS_PADRAO);
 });
 
 if (falhas > 0) {

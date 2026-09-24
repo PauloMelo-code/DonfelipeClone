@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CHAVES_GRAVAVEIS, type Settings } from "../_componentes/tipos";
+import { esquecerCriteriosDoScore } from "@/components/vehicles/swipe-stack/criterios";
 
 // ---------------------------------------------------------------------------
 // Os parametros de negocio: margem, regiao atendida, ritmo anti-ban, filtros
@@ -24,6 +25,14 @@ const PADROES: Settings = {
   filter_max_km: "300000",
   blocklist_keywords: "",
   vip_keywords: "",
+  score_km_muito_baixa: "30000",
+  score_km_baixa: "60000",
+  score_km_alta: "100000",
+  score_km_muito_alta: "150000",
+  score_idade_novo: "2",
+  score_idade_antigo: "8",
+  score_desconto_bom: "10",
+  score_desconto_excelente: "15",
 };
 
 export function useConfiguracoes() {
@@ -64,6 +73,8 @@ export function useConfiguracoes() {
         body: JSON.stringify(corpo),
       });
       if (res.ok) {
+        // A nota dos cards sai destas referencias: o proximo card ja usa as novas.
+        esquecerCriteriosDoScore();
         toast.success("Configurações salvas!");
       } else {
         const err = await res.json().catch(() => ({ error: "Erro ao salvar" }));
