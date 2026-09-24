@@ -17,6 +17,7 @@ export interface Settings {
   filter_min_year: string;
   filter_min_price: string;
   filter_max_km: string;
+  filter_max_km_por_ano: string;
   blocklist_keywords: string;
   vip_keywords: string;
   score_km_muito_baixa: string;
@@ -44,6 +45,7 @@ export const CHAVES_GRAVAVEIS: (keyof Settings)[] = [
   "filter_min_year",
   "filter_min_price",
   "filter_max_km",
+  "filter_max_km_por_ano",
   "blocklist_keywords",
   "vip_keywords",
   "score_km_muito_baixa",

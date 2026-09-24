@@ -88,6 +88,12 @@ export function CamposDeNegocio({ cfg }: { cfg: Configuracoes }) {
           <CampoNumero cfg={cfg} chave="filter_min_price" rotulo="Preço mínimo (R$)" />
           <CampoNumero
             cfg={cfg}
+            chave="filter_max_km_por_ano"
+            rotulo="Km máximo rodado por ano"
+            ajuda="0 desliga. Com 15000, um carro de 2020 com mais de 90.000 km é recusado."
+          />
+          <CampoNumero
+            cfg={cfg}
             chave="filter_max_km"
             rotulo="KM máxima"
             placeholder="300000"
@@ -133,7 +139,7 @@ export function CamposDeNegocio({ cfg }: { cfg: Configuracoes }) {
               className={`${CAMPO} min-h-[80px]`}
             />
             <p className="text-xs text-muted-foreground">
-              Separe por vírgula. Veículos com essas palavras serão rejeitados automaticamente.
+              Separe por vírgula. É uma lista de PALAVRAS, não um comando: cada palavra é procurada inteira no anúncio. &quot;Sem leilão&quot; e &quot;não tem sinistro&quot; não contam — só rejeita quando o anúncio afirma. Regras com número ficam nos campos acima.
             </p>
           </div>
           <div className="space-y-2">

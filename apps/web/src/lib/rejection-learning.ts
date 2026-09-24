@@ -1,5 +1,6 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import { db, veiculos, configuracoes, vivos, vivosE } from "@/lib/db";
+import { palavraCitadaSemNegacao } from "@/lib/negacao";
 
 interface RejectionMatch {
   matched: boolean;
@@ -80,10 +81,13 @@ export async function checkBlocklist(rawDescription: string): Promise<string | n
     .where(and(eq(configuracoes.key, "blocklist_keywords"), vivos(configuracoes)))
     .limit(1);
   if (!setting?.value) return null;
-  const keywords = setting.value.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
-  const lower = rawDescription.toLowerCase();
+  const keywords = setting.value.split(",").map((k) => k.trim()).filter(Boolean);
   for (const kw of keywords) {
-    if (lower.includes(kw)) return kw;
+    // Palavra INTEIRA e sem negacao antes: com "leilão" na lista, o anuncio
+    // que diz "SEM LEILÃO" era rejeitado sozinho -- o carro bom sumia da fila
+    // por dizer que NAO tem leilao (cliente, 24/09/2026). "Gol" tambem
+    // rejeitava "Golf" quando a comparacao era por pedaco de palavra.
+    if (palavraCitadaSemNegacao(rawDescription, kw)) return kw;
   }
   return null;
 }

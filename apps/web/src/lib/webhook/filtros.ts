@@ -75,6 +75,19 @@ export async function aplicarFiltros(e: EntradaFiltros): Promise<ResultadoFiltro
     return recusa({ reason: "vehicle_km_too_high", km, maxKm });
   }
 
+  // Km por ano de uso: o carro de 2018 com 200 mil km passa no teto geral,
+  // mas rodou 25 mil por ano. Zero desliga a regra. Carro do ano conta como
+  // um ano de uso, senao a conta dividiria por zero.
+  const maxKmPorAno = Math.trunc(await lerConfiguracaoNumero("filter_max_km_por_ano", 0));
+  if (maxKmPorAno > 0) {
+    const anosDeUso = Math.max(1, new Date().getFullYear() - year);
+    const kmPorAno = Math.round(km / anosDeUso);
+    if (kmPorAno > maxKmPorAno) {
+      console.log(`[Webhook] FILTERED km/ano: ${kmPorAno} > ${maxKmPorAno} (${km} km em ${anosDeUso} ano(s))`);
+      return recusa({ reason: "vehicle_km_por_ano_too_high", km, anosDeUso, kmPorAno, maxKmPorAno });
+    }
+  }
+
   // Desconto minimo sobre a FIPE. Sem FIPE detectada, passa: o operador revisa.
   if (fipePrice && fipePrice > 0) {
     const minDiscount = await lerConfiguracaoNumero("min_fipe_discount", 10);

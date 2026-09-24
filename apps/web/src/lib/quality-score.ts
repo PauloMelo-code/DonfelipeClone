@@ -1,3 +1,5 @@
+import { citadoSemNegacao } from "@/lib/negacao";
+
 // ---------------------------------------------------------------------------
 // A nota do carro, de 0 a 10.
 //
@@ -12,17 +14,10 @@
 
 /** Palavra que derruba a nota... quando o carro TEM aquilo. */
 const RISCO = /\b(leil[aã]o|sinistr\w*|batid[oa]s?|enchente|recuperad[oa]s?|(?:m[ée]dia|pequena)\s+monta)\b/gi;
-/** "Sem", "não tem", "nunca passou por" logo antes: o carro nao tem aquilo. */
-const NEGADO_ANTES =
-  /\b(?:sem|s\/|n[ãa]o(?:\s+(?:tem|possui|teve))?|nunca(?:\s+\w+){0,2}|zero|nenhum[a]?|livre\s+de|nada\s+de)\s+(?:passagem\s+(?:por|em|de)\s+)?$/i;
 
 /** O anuncio diz que o carro TEM leilao/sinistro, ou diz que NAO tem? */
 export function temSinalDeRisco(descricao: string): boolean {
-  for (const achado of descricao.matchAll(RISCO)) {
-    const antes = descricao.slice(Math.max(0, (achado.index ?? 0) - 40), achado.index);
-    if (!NEGADO_ANTES.test(antes)) return true;
-  }
-  return false;
+  return citadoSemNegacao(descricao, RISCO);
 }
 
 /**
