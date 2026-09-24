@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckSquare, Search, Square } from "lucide-react";
+import { CheckSquare, Search, Square, Layers, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -51,6 +51,9 @@ interface Props {
   setBusca: (v: string) => void;
   /** Na aba Pendentes a triagem e por swipe: sem busca, sem selecao em massa. */
   ehPendentes: boolean;
+  /** Como a aba Pendentes esta sendo mostrada. */
+  modoDosPendentes?: "cards" | "lista";
+  aoTrocarModoDosPendentes?: (modo: "cards" | "lista") => void;
   mostrarSelecionarTodos: boolean;
   todosMarcados: boolean;
   aoSelecionarTodos: () => void;
@@ -59,18 +62,46 @@ interface Props {
 export function BarraDeFiltros({
   abaAtiva, aoTrocarAba, filtros, setFiltros, busca, setBusca,
   ehPendentes, mostrarSelecionarTodos, todosMarcados, aoSelecionarTodos,
+  modoDosPendentes = "cards", aoTrocarModoDosPendentes,
 }: Props) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <Tabs value={abaAtiva} onValueChange={aoTrocarAba}>
-        <TabsList className="glass overflow-x-auto flex-nowrap whitespace-nowrap">
-          {ABAS.map((aba) => (
-            <TabsTrigger key={aba.valor} value={aba.valor} className={aba.cor}>
-              {aba.rotulo}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center gap-2">
+        <Tabs value={abaAtiva} onValueChange={aoTrocarAba}>
+          <TabsList className="glass overflow-x-auto flex-nowrap whitespace-nowrap">
+            {ABAS.map((aba) => (
+              <TabsTrigger key={aba.valor} value={aba.valor} className={aba.cor}>
+                {aba.rotulo}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        {ehPendentes && aoTrocarModoDosPendentes && (
+          <div className="glass flex shrink-0 items-center gap-0.5 rounded-lg p-0.5">
+            {([
+              { modo: "cards" as const, Icone: Layers, dica: "Um carro de cada vez, com o anúncio inteiro" },
+              { modo: "lista" as const, Icone: LayoutGrid, dica: "Todos de uma vez, para escolher onde mexer" },
+            ]).map(({ modo, Icone, dica }) => (
+              <button
+                key={modo}
+                onClick={() => aoTrocarModoDosPendentes(modo)}
+                title={dica}
+                aria-label={dica}
+                aria-pressed={modoDosPendentes === modo}
+                className={cn(
+                  "rounded-md p-1.5 transition-colors",
+                  modoDosPendentes === modo
+                    ? "bg-brand-gold/15 text-brand-gold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icone className="h-4 w-4" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div>
         <div className="flex flex-wrap gap-1.5">

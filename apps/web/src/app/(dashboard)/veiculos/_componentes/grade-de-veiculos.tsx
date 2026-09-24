@@ -1,17 +1,21 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Car, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
+import { AlertTriangle, Car, Check, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatKm, formatPrice, parseArray, statusConfig, type Vehicle } from "./tipos";
 
 // ---------------------------------------------------------------------------
-// A grade de cards das abas Aprovados, Prontos, Publicados e Rejeitados.
+// A grade de cards das abas Aprovados, Prontos, Publicados e Rejeitados -- e
+// dos Pendentes, quando o operador escolhe ver em lista.
 //
-// A aba Pendentes nao usa esta grade -- la a triagem e por swipe, um carro de
-// cada vez. Aqui o operador ve varios ao mesmo tempo e age em cada um.
+// A triagem por swipe mostra um carro de cada vez, com o anuncio inteiro. E
+// boa pra decidir com calma, mas o cliente quer ver TODAS as oportunidades de
+// uma vez pra escolher em quais mexer (24/09/2026): repasse gira rapido, e o
+// carro bom some enquanto ele analisa os da frente. Entao a mesma grade das
+// outras abas serve os pendentes, com Aprovar, Publicar e Rejeitar em cada um.
 // ---------------------------------------------------------------------------
 
 interface Props {
@@ -24,11 +28,16 @@ interface Props {
   aoReenviar: (v: Vehicle) => void;
   aoRejeitar: (id: string) => void;
   aoPreVisualizar: (v: Vehicle) => void;
+  /** So na aba Pendentes. */
+  aoAprovar?: (id: string) => void;
+  aoPublicarDireto?: (id: string) => void;
+  publicandoId?: string | null;
 }
 
 export function GradeDeVeiculos({
   veiculos, abaAtiva, carregandoAcao, marcados,
   aoMarcar, aoEditar, aoReenviar, aoRejeitar, aoPreVisualizar,
+  aoAprovar, aoPublicarDireto, publicandoId,
 }: Props) {
   return (
     <motion.div layout className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -119,6 +128,44 @@ export function GradeDeVeiculos({
                 )}
 
                 <div className="flex gap-2 pt-2">
+                  {veiculo.status === "PENDING" && aoAprovar && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => aoAprovar(veiculo.id)}
+                        disabled={ocupado}
+                        className="flex-1 gap-1.5 gradient-gold text-black border-0"
+                        title="Aprovar"
+                      >
+                        {ocupado ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        Aprovar
+                      </Button>
+                      {aoPublicarDireto && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 border-brand-gold/30 text-brand-gold hover:bg-brand-gold/10"
+                          onClick={() => aoPublicarDireto(veiculo.id)}
+                          disabled={ocupado || publicandoId === veiculo.id}
+                          title="Publicar direto nos grupos"
+                        >
+                          {publicandoId === veiculo.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Send className="h-3.5 w-3.5" />}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 border-destructive/30 text-destructive hover:bg-destructive/10"
+                        onClick={() => aoRejeitar(veiculo.id)}
+                        disabled={ocupado}
+                        title="Rejeitar"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
                   {veiculo.status === "APPROVED" && (
                     <>
                       <Button

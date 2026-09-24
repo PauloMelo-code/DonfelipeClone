@@ -18,6 +18,7 @@ import { PilhaPendentes } from "./_componentes/pilha-pendentes";
 import type { Vehicle } from "./_componentes/tipos";
 import { useAutocorrecao } from "./_ganchos/use-autocorrecao";
 import { useFila } from "./_ganchos/use-fila";
+import { useModoDosPendentes } from "./_ganchos/use-modo-dos-pendentes";
 import { useGrupos } from "./_ganchos/use-grupos";
 import { useLote } from "./_ganchos/use-lote";
 import { usePublicacao } from "./_ganchos/use-publicacao";
@@ -64,6 +65,10 @@ function TelaDeVeiculos() {
 
   useAutocorrecao(fila.buscar);
 
+  // Pendentes em pilha (um carro de cada vez) ou em lista (todos de uma vez).
+  const [modoDosPendentes, trocarModoDosPendentes] = useModoDosPendentes();
+  const pilhaAberta = fila.isPending && modoDosPendentes === "cards";
+
   const [preview, setPreview] = useState<Vehicle | null>(null);
   const [galeria, setGaleria] = useState<Vehicle | null>(null);
   const [fotoDaGaleria, setFotoDaGaleria] = useState(0);
@@ -85,7 +90,9 @@ function TelaDeVeiculos() {
 
   // Atalhos da aba Pendentes: agem sempre no carro do topo da pilha.
   useEffect(() => {
-    if (!fila.isPending) return;
+    // Na lista nao ha "carro do topo": a seta agiria num carro que o operador
+    // nem esta olhando.
+    if (!pilhaAberta) return;
     const handler = (e: KeyboardEvent) => {
       // Fora quando o operador esta digitando ou com algum modal aberto.
       const alvo = e.target as HTMLElement;
@@ -111,7 +118,7 @@ function TelaDeVeiculos() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [fila.isPending, fila.swipeVehicles, rejeitando, pub.veiculo, rapida.veiculo, galeria, aprovar, publicarDireto]);
+  }, [pilhaAberta, fila.swipeVehicles, rejeitando, pub.veiculo, rapida.veiculo, galeria, aprovar, publicarDireto]);
 
   const aprovadosNaTela = fila.filtrados.filter((v) => v.status === "APPROVED").length;
 
@@ -138,6 +145,8 @@ function TelaDeVeiculos() {
           busca={fila.search}
           setBusca={fila.setSearch}
           ehPendentes={fila.isPending}
+          modoDosPendentes={modoDosPendentes}
+          aoTrocarModoDosPendentes={trocarModoDosPendentes}
           mostrarSelecionarTodos={fila.activeTab === "APPROVED" && fila.filtrados.length > 0}
           todosMarcados={lote.selecionados.size === aprovadosNaTela && lote.selecionados.size > 0}
           aoSelecionarTodos={lote.marcarTodosAprovados}
@@ -155,7 +164,7 @@ function TelaDeVeiculos() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-brand-gold" />
           </div>
-        ) : fila.isPending ? (
+        ) : pilhaAberta ? (
           <PilhaPendentes
             veiculos={fila.swipeVehicles}
             carregandoAcao={fila.actionLoading}
@@ -188,10 +197,13 @@ function TelaDeVeiculos() {
             aoReenviar={pub.abrirParaReenviar}
             aoRejeitar={setRejeitando}
             aoPreVisualizar={setPreview}
+            aoAprovar={aprovar}
+            aoPublicarDireto={publicarDireto}
+            publicandoId={rapida.publicandoId}
           />
         )}
 
-        {!fila.isPending && fila.totalPages > 1 && (
+        {!pilhaAberta && fila.totalPages > 1 && (
           <div className="flex items-center justify-center gap-3 pt-4">
             <button
               onClick={() => fila.setPage((p) => Math.max(1, p - 1))}
