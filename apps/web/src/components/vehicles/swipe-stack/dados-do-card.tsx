@@ -1,15 +1,12 @@
 "use client";
 
-import { Clock, Flame, MapPin, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Clock, MapPin } from "lucide-react";
 import { InlineEdit } from "../inline-edit";
 import { lerEstado, lerOrigem } from "./origem";
 import { QuadroDoAnuncio, type EdicaoDoTexto } from "./quadro-do-anuncio";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
-import { calculateQualityScore } from "@/lib/quality-score";
-import { SeloDeMargem, SeloDoPor } from "./selo-de-margem";
+import { Selos } from "./selo-de-margem";
 import { formatKm, formatPrice, horaDaCaptura, quandoChegou, type CardProps } from "./tipos";
-import { useCriteriosDoScore } from "./criterios";
 
 // ---------------------------------------------------------------------------
 // Os dados do carro, com os campos que o operador conserta na hora.
@@ -23,54 +20,6 @@ import { useCriteriosDoScore } from "./criterios";
 type Props = Pick<CardProps, "vehicle" | "onUpdateField"> & {
   edicaoDoTexto?: EdicaoDoTexto;
 };
-
-/**
- * Marcadores do canto direito: margem da compra, margem da venda, score de
- * qualidade, VIP e hibrido. `texto` e o anuncio que esta na caixa agora.
- */
-function Selos({ vehicle, texto }: Pick<CardProps, "vehicle"> & { texto: string | null }) {
-  // As referencias da nota sao as que o cliente ajusta em Configuracoes.
-  const criterios = useCriteriosDoScore();
-  // A nota sai dos dados que estao na tela: se o operador corrige o km ou o
-  // preco, ela acompanha. E o `title` diz de onde veio cada ponto -- o
-  // cliente perguntou como o sistema chega na nota (22/09/2026).
-  const nota = calculateQualityScore(
-    {
-      km: vehicle.km,
-      year: vehicle.year,
-      price: vehicle.price,
-      fipePrice: vehicle.fipePrice,
-      rawDescription: vehicle.rawDescription,
-    },
-    criterios
-  );
-  const score = vehicle.qualityScore == null ? null : nota.score;
-  const porQue = `Nota ${nota.score}/10 — ${nota.reasons.join(" · ") || "sem destaque nem ressalva"}`;
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <SeloDeMargem price={vehicle.price} fipePrice={vehicle.fipePrice} />
-      <SeloDoPor texto={texto} fipePrice={vehicle.fipePrice} />
-      {score != null && (
-        <span title={porQue} className={cn(
-          "cursor-help rounded-full border px-2 py-0.5 text-xs font-bold",
-          score >= 8 ? "bg-success/20 border-success/50 text-success"
-            : score >= 5 ? "bg-warning/15 border-warning/40 text-warning"
-              : "bg-destructive/10 border-destructive/30 text-destructive"
-        )}>
-          {score >= 8 && <Flame className="mr-1 inline h-3 w-3 align-[-2px]" />}Score {score}/10
-        </span>
-      )}
-      {vehicle.isVip && (
-        <span className="rounded-full border border-yellow-400/60 bg-yellow-400/15 px-2 py-0.5 text-xs font-bold text-yellow-400">
-          <Star className="mr-1 inline h-3 w-3 align-[-2px] fill-current" />VIP
-        </span>
-      )}
-      {vehicle.fuel === "HIBRIDO" && (
-        <span className="rounded-full border border-success/30 px-2 py-0.5 text-xs text-success">Hibrido</span>
-      )}
-    </div>
-  );
-}
 
 export function DadosDoCard({ vehicle, onUpdateField, edicaoDoTexto }: Props) {
   const estado = lerEstado(vehicle);

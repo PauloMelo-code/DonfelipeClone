@@ -40,7 +40,11 @@ export function lerOrigem(sg: GrupoDeOrigem): Origem {
  * O que a IA extraiu do anuncio vale mais que a regiao marcada no grupo. Quando
  * o valor vem do grupo, a tela avisa -- e um palpite, nao um dado do anuncio.
  */
-export function lerEstado(v: SwipeVehicle): { uf: string | null; veioDoGrupo: boolean } {
+export function lerEstado(
+  // So os dois campos que ela le -- assim a grade de cards chama a MESMA
+  // leitura, sem precisar ser um SwipeVehicle.
+  v: { state?: string | null; sourceGroup?: { region?: string | null } | null }
+): { uf: string | null; veioDoGrupo: boolean } {
   if (v.state) return { uf: v.state, veioDoGrupo: false };
   const doGrupo = v.sourceGroup?.region;
   return doGrupo ? { uf: doGrupo, veioDoGrupo: true } : { uf: null, veioDoGrupo: false };

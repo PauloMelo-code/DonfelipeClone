@@ -51,6 +51,7 @@ export interface Vehicle {
     region?: string | null;
   } | null;
   state?: string | null;
+  location?: string | null;
   qualityScore?: number | null;
   isVip?: boolean;
   autoRejectedReason?: string | null;

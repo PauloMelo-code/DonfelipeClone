@@ -1,10 +1,14 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Car, Check, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
+import { AlertTriangle, Car, Check, CheckSquare, Clock, Eye, Loader2, MapPin, Pencil, Send, Square, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { anuncioParaExibir, tituloDoAnuncio } from "@/lib/vehicle-formatter";
+import { lerEstado, lerOrigem } from "@/components/vehicles/swipe-stack/origem";
+import { Selos } from "@/components/vehicles/swipe-stack/selo-de-margem";
+import { horaDaCaptura, quandoChegou } from "@/components/vehicles/swipe-stack/tipos";
 import { formatKm, formatPrice, parseArray, statusConfig, type Vehicle } from "./tipos";
 
 // ---------------------------------------------------------------------------
@@ -16,6 +20,12 @@ import { formatKm, formatPrice, parseArray, statusConfig, type Vehicle } from ".
 // uma vez pra escolher em quais mexer (24/09/2026): repasse gira rapido, e o
 // carro bom some enquanto ele analisa os da frente. Entao a mesma grade das
 // outras abas serve os pendentes, com Aprovar, Publicar e Rejeitar em cada um.
+//
+// E o card conta o MESMO que o da pilha: de onde veio, quando foi capturado,
+// a margem contra a FIPE, a margem do "Por:" e a nota. Sem isso o operador
+// nao decide na lista -- teria que abrir carro por carro pra ver o que
+// importa. So o texto do anuncio fica de fora, que ai a grade nao cabe na
+// tela; pra ele ha o olho do Preview.
 // ---------------------------------------------------------------------------
 
 interface Props {
@@ -47,7 +57,13 @@ export function GradeDeVeiculos({
           const opcionais = parseArray(veiculo.features);
           const sc = statusConfig[veiculo.status] || statusConfig.PENDING;
           const ocupado = carregandoAcao === veiculo.id;
-          const temMarca = veiculo.brand && !veiculo.model.toUpperCase().startsWith(veiculo.brand.toUpperCase());
+          // O mesmo titulo da pilha e do anuncio que vai pro grupo: sem o ano,
+          // a km e o cambio que vem colados no modelo. A marca continua na
+          // frente, que numa lista de muitos carros ela ajuda a achar.
+          const titulo = tituloDoAnuncio(veiculo);
+          const temMarca = veiculo.brand && !titulo.toUpperCase().startsWith(veiculo.brand.toUpperCase());
+          const estado = lerEstado(veiculo);
+          const origem = veiculo.sourceGroup ? lerOrigem(veiculo.sourceGroup) : null;
 
           return (
             <motion.div
@@ -80,29 +96,63 @@ export function GradeDeVeiculos({
                 <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/50 to-transparent" />
                 <Badge className={cn("absolute top-3 right-3 border", sc.color)}>{sc.label}</Badge>
                 <h3 className="absolute bottom-3 left-4 right-4 font-semibold text-white text-base drop-shadow-lg truncate">
-                  {temMarca ? `${veiculo.brand} ` : ""}{veiculo.model}
+                  {temMarca ? `${veiculo.brand} ` : ""}{titulo}
                 </h3>
               </div>
 
               <div className="p-5 space-y-3">
+                {(estado.uf || veiculo.capturedAt) && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground/80">
+                    {estado.uf && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-brand-gold/15 border border-brand-gold/30 px-2 py-0.5 text-xs font-semibold text-brand-gold uppercase tracking-wide">
+                        <MapPin className="h-3 w-3" /> {estado.uf}
+                        {estado.veioDoGrupo && <span className="text-[10px] opacity-60 normal-case ml-0.5">(grupo)</span>}
+                      </span>
+                    )}
+                    {veiculo.location && <span>{veiculo.location}</span>}
+                    {veiculo.capturedAt && (
+                      <span
+                        className="inline-flex items-center gap-1.5"
+                        title={`Capturado em ${horaDaCaptura(veiculo.capturedAt)}`}
+                      >
+                        <Clock className="h-3 w-3 shrink-0" />
+                        Capturado {quandoChegou(veiculo.capturedAt)}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {origem && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
+                    <origem.icone className="h-3 w-3 shrink-0" />
+                    <span className="font-medium text-muted-foreground">{origem.rotulo}:</span>
+                    <span className="truncate flex-1 text-foreground/70">{origem.nome}</span>
+                  </div>
+                )}
+
                 <p className="text-sm text-muted-foreground">
                   {veiculo.year} &middot; {formatKm(veiculo.km)}
                   {veiculo.transmission && ` · ${veiculo.transmission}`}
                   {veiculo.fuel && ` · ${veiculo.fuel}`}
+                  {veiculo.color && ` · ${veiculo.color}`}
                 </p>
 
-                <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline justify-between gap-2">
                   <div>
                     {veiculo.fipePrice && (
                       <p className="text-xs text-muted-foreground">FIPE: {formatPrice(veiculo.fipePrice)}</p>
+                    )}
+                    {/* O selo "-X% FIPE" compara a COMPRA. Quando o numero grande
+                        e o de venda, a compra tem que aparecer, senao o selo
+                        contradiz o preco que esta na tela. */}
+                    {veiculo.sellingPrice && veiculo.sellingPrice !== veiculo.price && (
+                      <p className="text-xs text-muted-foreground">Compra: {formatPrice(veiculo.price)}</p>
                     )}
                     <p className="text-xl font-bold text-brand-gold">
                       {formatPrice(veiculo.sellingPrice || veiculo.price)}
                     </p>
                   </div>
-                  {veiculo.fuel === "HIBRIDO" && (
-                    <Badge variant="outline" className="border-success/30 text-success text-xs">Hibrido</Badge>
-                  )}
+                  <Selos vehicle={veiculo} texto={anuncioParaExibir(veiculo)} />
                 </div>
 
                 {opcionais.length > 0 && (
