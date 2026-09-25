@@ -28,6 +28,11 @@ const ISENTOS = [
   // Canais de maquina: autenticam por segredo em cabecalho, nao por cookie.
   "/api/webhook",
   "/api/whatsapp/health-monitor",
+  // Giro manual dos canais: a rota confere `x-webhook-secret` ou sessao de
+  // admin no proprio handler. Sem esta linha so dava pra chamar de dentro do
+  // navegador -- o mesmo buraco que a auditoria de 2026-09-10 achou na rota
+  // de monitoria, e que aqui aparecia como 403 na diagnose dos canais.
+  "/api/channels/poll",
 ];
 
 export function isentoDeOrigem(pathname: string): boolean {

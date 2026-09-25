@@ -35,6 +35,9 @@ const PUBLICAS = [
   // nunca era alcancada. So ela, nunca `/api/whatsapp` inteiro: os vizinhos
   // (`qr`, `send-qr`, `status`) sao administrativos.
   "/api/whatsapp/health-monitor",
+  // Idem: canal de maquina, autenticado no handler. Sem sessao de admin e sem
+  // segredo a rota responde 401 sozinha.
+  "/api/channels/poll",
   "/_next",
   "/favicon",
 ];
