@@ -142,6 +142,15 @@ export interface ResumoDoCanal {
    * A esteira ja devolve o motivo em cada entrega; e so somar.
    */
   motivos?: Record<string, number>;
+  /**
+   * Comeco do texto dos anuncios que NAO viraram carro.
+   *
+   * O motivo sozinho nao basta: "no_vehicle_data" tanto pode ser um recado do
+   * canal ("bom dia, chama no zap") quanto um anuncio de verdade que a
+   * extracao errou. Com o texto na mao da pra saber qual dos dois sem abrir o
+   * log do servidor.
+   */
+  amostras?: string[];
   erro?: string;
 }
 
@@ -194,7 +203,11 @@ async function entregar(
     body: JSON.stringify(corpo),
   });
   const resposta = await entregarNoWebhook(requisicao, ENTREGA_INTERNA);
-  const corpoDaResposta = (await resposta.json().catch(() => ({}))) as { status?: string; reason?: string };
+  const corpoDaResposta = (await resposta.json().catch(() => ({}))) as {
+    status?: string;
+    reason?: string;
+    amostra?: string;
+  };
   // O `ok` separa "a esteira olhou e decidiu" de "a esteira nem viu": so o
   // primeiro caso pode andar o marcador.
   return { ...corpoDaResposta, ok: resposta.ok };
@@ -282,6 +295,11 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
           const motivo = r.reason || r.status || "sem_motivo";
           linha.motivos ??= {};
           linha.motivos[motivo] = (linha.motivos[motivo] ?? 0) + 1;
+          const amostra = (r.amostra || anuncio.texto).replace(/\s+/g, " ").trim().slice(0, 120);
+          if (amostra) {
+            linha.amostras ??= [];
+            if (linha.amostras.length < 3) linha.amostras.push(amostra);
+          }
         }
       }
 

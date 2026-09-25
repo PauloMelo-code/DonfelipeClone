@@ -268,9 +268,18 @@ export async function POST(request: NextRequest, contexto?: unknown) {
     }
 
     if (!vehicleData) {
+      // A IA rodou (e custou) e disse que nao ha carro ali. Era o unico
+      // descarte sem log: ficava impossivel saber se o anuncio era mesmo um
+      // recado do canal ou se a extracao errou.
+      console.log(
+        "[Webhook] IGNORED: no_vehicle_data for",
+        (textContent ?? "(sem texto)").substring(0, 120),
+        imageUrl ? "(com foto)" : "(sem foto)"
+      );
       return NextResponse.json({
         status: "ignored",
         reason: "no_vehicle_data",
+        amostra: (textContent ?? "").substring(0, 120),
       });
     }
 
