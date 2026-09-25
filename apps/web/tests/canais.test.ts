@@ -265,6 +265,9 @@ async function main() {
   // texto. So o primeiro virava carro -- nos outros a foto era descartada
   // por "sem legenda" e o texto por "sem foto".
   // -------------------------------------------------------------------
+  /** Agrupa com o mesmo "agora" dos casos, pra a janela ser deterministica. */
+  const agrupar = (ps: Parameters<typeof agruparPublicacoes>[0]) => agruparPublicacoes(ps, agora).anuncios;
+
   const pub = (minutosAtras: number, id: string, texto: string | null, foto: string | null) => ({
     messageId: id,
     quando: new Date(agora.getTime() - minutosAtras * 60 * 1000),
@@ -273,13 +276,13 @@ async function main() {
   });
 
   // 1. Foto com legenda: um anuncio, uma publicacao.
-  const juntos = agruparPublicacoes([pub(10, "a1", "GOL 2020 R$ 45.000", "f1.jpg")]);
+  const juntos = agrupar([pub(10, "a1", "GOL 2020 R$ 45.000", "f1.jpg")]);
   assert.equal(juntos.length, 1, "foto com legenda vira um anuncio");
   assert.equal(juntos[0].fotos.length, 1);
   assert.equal(juntos[0].texto, "GOL 2020 R$ 45.000");
 
   // 2. Foto num post, texto no seguinte.
-  const separados = agruparPublicacoes([
+  const separados = agrupar([
     pub(10, "b1", null, "f1.jpg"),
     pub(9, "b2", "ONIX 2021 R$ 60.000", null),
   ]);
@@ -289,7 +292,7 @@ async function main() {
   assert.equal(separados[0].ultima.messageId, "b2", "o marcador anda ate o texto");
 
   // 3. Varias fotos e depois o texto: album, a primeira e a capa.
-  const album = agruparPublicacoes([
+  const album = agrupar([
     pub(10, "c1", null, "f1.jpg"),
     pub(10, "c2", null, "f2.jpg"),
     pub(9, "c3", null, "f3.jpg"),
@@ -301,7 +304,7 @@ async function main() {
 
   // 4. O erro que ja aconteceu: a foto de um anuncio NAO pode ir no texto do
   //    seguinte. Aqui os dois anuncios estao longe um do outro no tempo.
-  const doisAnuncios = agruparPublicacoes([
+  const doisAnuncios = agrupar([
     pub(60, "d1", null, "foto-do-primeiro.jpg"),
     pub(10, "d2", "SAVEIRO 2019 R$ 55.000", null),
   ]);
@@ -309,7 +312,7 @@ async function main() {
   assert.equal(doisAnuncios[0].fotos.length, 0, "a foto velha NAO cola no texto de 50 min depois");
 
   // 5. Dois anuncios completos em seguida nao se misturam.
-  const emSequencia = agruparPublicacoes([
+  const emSequencia = agrupar([
     pub(10, "e1", null, "f1.jpg"),
     pub(10, "e2", "GOL 2020", null),
     pub(9, "e3", null, "f2.jpg"),
@@ -322,10 +325,27 @@ async function main() {
   assert.equal(emSequencia[1].texto, "ONIX 2021");
 
   // 6. Foto sem texto nenhum depois nao vira carro: entraria sem dado algum.
-  assert.equal(agruparPublicacoes([pub(5, "g1", null, "f1.jpg")]).length, 0, "foto orfa nao vira anuncio");
+  assert.equal(agrupar([pub(5, "g1", null, "f1.jpg")]).length, 0, "foto orfa nao vira anuncio");
 
-  // 7. Texto sozinho continua valendo -- e como o canal sem foto sempre entrou.
-  const soTextoNoCanal = agruparPublicacoes([pub(5, "h1", "PALIO 2015 R$ 25.000", null)]);
+  // 7. FOTO ESPERANDO O TEXTO. O canal postou as fotos e o texto ainda nao
+  //    veio: o marcador NAO pode passar por elas, senao o anuncio se perde
+  //    quando o texto chegar no giro seguinte. (25/09/2026: dois canais
+  //    apareceram com "novas: 3, capturadas: 0" exatamente assim.)
+  const esperando = agruparPublicacoes([pub(1, "i1", null, "f1.jpg"), pub(1, "i2", null, "f2.jpg")], agora);
+  assert.equal(esperando.anuncios.length, 0, "sem texto ainda nao ha anuncio");
+  assert.equal(esperando.aguardando.length, 2, "as duas fotos ficam esperando o texto");
+  assert.equal(esperando.perdidas.length, 0, "nenhuma esta perdida: sao recentes");
+
+  // 8. FOTO QUE NUNCA VAI PAREAR. Passada a janela, ela tem que sair do
+  //    caminho -- senao o canal fica preso relendo a mesma foto pra sempre e
+  //    nenhum anuncio novo entra.
+  const morta = agruparPublicacoes([pub(30, "j1", null, "f1.jpg")], agora);
+  assert.equal(morta.anuncios.length, 0);
+  assert.equal(morta.aguardando.length, 0, "velha demais: nao espera mais");
+  assert.equal(morta.perdidas.length, 1, "sai do caminho pro marcador poder andar");
+
+  // 9. Texto sozinho continua valendo -- e como o canal sem foto sempre entrou.
+  const soTextoNoCanal = agrupar([pub(5, "h1", "PALIO 2015 R$ 25.000", null)]);
   assert.equal(soTextoNoCanal.length, 1);
   assert.equal(soTextoNoCanal[0].fotos.length, 0);
 

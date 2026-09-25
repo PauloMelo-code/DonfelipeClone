@@ -75,6 +75,15 @@ const JANELA_DO_ANUNCIO_MS = 5 * 60 * 1000;
 /** Teto de fotos por anuncio, igual ao do pareamento do webhook. */
 const MAXIMO_DE_FOTOS = 12;
 
+/** O que a leitura de um giro achou no canal. */
+export interface LeituraDoCanal {
+  anuncios: AnuncioDoCanal[];
+  /** Fotos que ainda podem receber o texto -- o marcador NAO passa por elas. */
+  aguardando: PublicacaoDeCanal[];
+  /** Fotos velhas demais pra pertencer a um anuncio: nunca vao parear. */
+  perdidas: PublicacaoDeCanal[];
+}
+
 /** Um anuncio montado a partir de uma ou mais publicacoes do canal. */
 export interface AnuncioDoCanal {
   /** Publicacoes com foto, na ordem. A primeira vira a capa. */
@@ -101,8 +110,12 @@ export interface AnuncioDoCanal {
  * Publicacao de foto sem texto nenhum depois nao vira anuncio -- entrar so a
  * foto daria um carro sem dado nenhum.
  */
-export function agruparPublicacoes(publicacoes: PublicacaoDeCanal[]): AnuncioDoCanal[] {
+export function agruparPublicacoes(
+  publicacoes: PublicacaoDeCanal[],
+  agora: Date = new Date()
+): LeituraDoCanal {
   const anuncios: AnuncioDoCanal[] = [];
+  const perdidas: PublicacaoDeCanal[] = [];
   let pendentes: PublicacaoDeCanal[] = [];
 
   const naJanela = (p: PublicacaoDeCanal) =>
@@ -114,7 +127,10 @@ export function agruparPublicacoes(publicacoes: PublicacaoDeCanal[]): AnuncioDoC
     const temTexto = !!p.texto;
 
     // Foto orfa que ficou velha demais nao entra no proximo anuncio.
-    if (pendentes.length > 0 && !naJanela(p)) pendentes = [];
+    if (pendentes.length > 0 && !naJanela(p)) {
+      perdidas.push(...pendentes);
+      pendentes = [];
+    }
 
     if (temTexto) {
       const fotos = temFoto ? [...pendentes, p] : pendentes;
@@ -125,7 +141,16 @@ export function agruparPublicacoes(publicacoes: PublicacaoDeCanal[]): AnuncioDoC
     }
   }
 
-  return anuncios;
+  // O que sobrou no fim: foto ainda sem texto. Se ela ainda esta dentro da
+  // janela, o texto pode chegar no proximo giro e o marcador tem que esperar
+  // por ele. Passada a janela, ela nunca mais pareia -- e ai o marcador
+  // PRECISA passar, senao o canal fica preso relendo as mesmas fotos pra
+  // sempre e nenhum anuncio novo entra.
+  const corte = agora.getTime() - JANELA_DO_ANUNCIO_MS;
+  const aguardando = pendentes.filter((p) => p.quando.getTime() > corte);
+  perdidas.push(...pendentes.filter((p) => p.quando.getTime() <= corte));
+
+  return { anuncios, aguardando, perdidas };
 }
 
 export interface ResumoDoCanal {
@@ -134,6 +159,10 @@ export interface ResumoDoCanal {
   lidas: number;
   novas: number;
   capturadas: number;
+  /** Quantos anuncios as publicacoes novas formaram. */
+  anuncios?: number;
+  /** Fotos que ficaram esperando o texto chegar no proximo giro. */
+  aguardando?: number;
   /**
    * Por que cada publicacao NAO virou carro, contado por motivo.
    *
@@ -280,8 +309,12 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
       // ignorada por ela conta (senao o proximo giro paga IA de novo pelo
       // mesmo anuncio); publicacao que ela recusou, nao -- essa volta no giro
       // seguinte em vez de se perder.
+      const leitura = agruparPublicacoes(novas);
+      linha.anuncios = leitura.anuncios.length;
+      if (leitura.aguardando.length > 0) linha.aguardando = leitura.aguardando.length;
+
       const entregas: Array<{ publicacao: PublicacaoDeCanal; atendida: boolean }> = [];
-      for (const anuncio of agruparPublicacoes(novas)) {
+      for (const anuncio of leitura.anuncios) {
         const r = await entregarAnuncio(anuncio, canal, segredo);
         entregas.push({ publicacao: anuncio.ultima, atendida: r.ok });
         if (!r.ok) {
@@ -303,7 +336,13 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
         }
       }
 
-      const ultima = ateOndeMarcar(entregas);
+      // Foto que nunca vai parear conta pro marcador junto com o que foi
+      // entregue: sem isso o canal trava nelas. O que esta AGUARDANDO fica de
+      // fora de proposito -- o texto ainda pode chegar.
+      const marcos = [ateOndeMarcar(entregas), ...leitura.perdidas].filter(
+        (p): p is PublicacaoDeCanal => p != null
+      );
+      const ultima = marcos.sort((a, b) => a.quando.getTime() - b.quando.getTime()).at(-1);
       if (ultima) {
         await gravarConfiguracao(CHAVE_DO_MARCADOR(canal.groupId), ultima.quando.toISOString());
       }
