@@ -327,6 +327,40 @@ async function main() {
   // 6. Foto sem texto nenhum depois nao vira carro: entraria sem dado algum.
   assert.equal(agrupar([pub(5, "g1", null, "f1.jpg")]).length, 0, "foto orfa nao vira anuncio");
 
+  // 6b. O PADRAO DO CANAL "TOME REPASSES", visto na producao em 25/09/2026:
+  //     o texto do anuncio vem PRIMEIRO e as fotos logo depois, segundos
+  //     atras. Ate entao o agrupamento so olhava pra tras: o anuncio entrava
+  //     sem foto nenhuma e as fotos viravam orfas, giro apos giro.
+  const textoPrimeiro = agrupar([
+    pub(10, "t1", "CAPTIVA SPORT 2.4 FWD", null),
+    pub(9.9, "t2", null, "f1.jpg"),
+    pub(9.9, "t3", null, "f2.jpg"),
+  ]);
+  assert.equal(textoPrimeiro.length, 1, "texto primeiro tambem vira um anuncio");
+  assert.deepEqual(textoPrimeiro[0].fotos.map((f) => f.messageId), ["t2", "t3"], "as fotos de depois entram");
+  assert.equal(textoPrimeiro[0].ultima.messageId, "t3", "o marcador anda ate a ultima foto");
+
+  // 6c. Uma foto entre dois textos vai pro MAIS PROXIMO, e nao sempre pro
+  //     seguinte. E o unico criterio que serve aos dois jeitos de publicar:
+  //     dentro de um anuncio as pecas estao a segundos, o vizinho a minutos.
+  const entreDois = agrupar([
+    pub(10, "u1", "GOL 2020", null),
+    pub(9.9, "u2", null, "perto-do-gol.jpg"),
+    pub(7, "u3", "ONIX 2021", null),
+    pub(6.9, "u4", null, "perto-do-onix.jpg"),
+  ]);
+  assert.equal(entreDois.length, 2);
+  assert.deepEqual(entreDois[0].fotos.map((f) => f.messageId), ["u2"], "a foto fica com o GOL, que esta a segundos dela");
+  assert.deepEqual(entreDois[1].fotos.map((f) => f.messageId), ["u4"], "e a outra com o ONIX");
+
+  // 6d. Publicacao que o sistema nao sabe ler (video sem legenda, enquete)
+  //     nao vira anuncio, mas tem que sair da frente -- senao o marcador nao
+  //     passa e o canal para de entregar. Foi o que prendeu o FCAR.
+  const ilegivel = agruparPublicacoes([pub(5, "v1", null, null)], agora);
+  assert.equal(ilegivel.anuncios.length, 0);
+  assert.equal(ilegivel.aguardando.length, 0, "nao adianta esperar por ela");
+  assert.equal(ilegivel.perdidas.length, 1, "sai da frente pro marcador andar");
+
   // 7. FOTO ESPERANDO O TEXTO. O canal postou as fotos e o texto ainda nao
   //    veio: o marcador NAO pode passar por elas, senao o anuncio se perde
   //    quando o texto chegar no giro seguinte. (25/09/2026: dois canais

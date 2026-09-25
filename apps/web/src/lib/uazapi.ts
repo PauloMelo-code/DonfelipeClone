@@ -53,6 +53,34 @@ export interface PublicacaoDeCanal {
   quando: Date;
   texto: string | null;
   imagemUrl: string | null;
+  /** Os campos que a publicacao trazia. So pra diagnostico. */
+  tipo?: string | null;
+}
+
+/**
+ * O conteudo da publicacao, ja desembrulhado.
+ *
+ * O WhatsApp embrulha a mensagem conforme o modo de envio, e o anuncio fica
+ * uma camada mais fundo. As vezes o campo chega como texto JSON.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function conteudoDaPublicacao(message: any): any {
+  let m = message;
+  if (typeof m === "string" && m.trim().startsWith("{")) {
+    try {
+      m = JSON.parse(m);
+    } catch {
+      return {};
+    }
+  }
+  return (
+    m?.viewOnceMessage?.message ??
+    m?.viewOnceMessageV2?.message ??
+    m?.ephemeralMessage?.message ??
+    m?.documentWithCaptionMessage?.message ??
+    m ??
+    {}
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -405,16 +433,28 @@ class UazapiClient {
     const raw: any[] = Array.isArray(data) ? data : data?.response ?? data?.messages ?? [];
     return raw
       .map((m) => {
-        const img = m?.message?.imageMessage ?? {};
+        const msg = conteudoDaPublicacao(m?.message);
+        const img = msg?.imageMessage ?? {};
         const caminho = img.directPath ?? img.DirectPath;
+        // A legenda tambem mora no VIDEO e no documento. O canal FCAR publica
+        // o anuncio em video, e lendo so `imageMessage.caption` a publicacao
+        // inteira chegava vazia -- sem foto e sem texto (25/09/2026).
         const texto =
-          img.caption ?? m?.message?.conversation ?? m?.message?.extendedTextMessage?.text ?? null;
+          img.caption ??
+          msg?.videoMessage?.caption ??
+          msg?.documentMessage?.caption ??
+          msg?.conversation ??
+          msg?.extendedTextMessage?.text ??
+          null;
         return {
           messageId: String(m?.messageid ?? m?.id ?? ""),
           quando: new Date(m?.timestamp ?? 0),
           texto: typeof texto === "string" && texto.trim() ? texto : null,
           imagemUrl:
             img.URL ?? img.url ?? (typeof caminho === "string" && caminho.startsWith("/") ? `https://mmg.whatsapp.net${caminho}` : null),
+          // So pra diagnostico: quando uma publicacao chega vazia, e isto que
+          // diz QUAL formato o canal usou.
+          tipo: Object.keys(msg ?? {}).join(",") || null,
         };
       })
       .filter((p) => p.messageId && !Number.isNaN(p.quando.getTime()));

@@ -114,41 +114,68 @@ export function agruparPublicacoes(
   publicacoes: PublicacaoDeCanal[],
   agora: Date = new Date()
 ): LeituraDoCanal {
-  const anuncios: AnuncioDoCanal[] = [];
+  const ordenadas = [...publicacoes].sort((a, b) => a.quando.getTime() - b.quando.getTime());
+
+  // O texto e a ancora do anuncio: cada um vira um carro.
+  const ancoras = ordenadas.filter((p) => p.texto);
   const perdidas: PublicacaoDeCanal[] = [];
-  let pendentes: PublicacaoDeCanal[] = [];
+  const orfas: PublicacaoDeCanal[] = [];
+  const fotosDe = new Map<string, PublicacaoDeCanal[]>();
+  for (const a of ancoras) fotosDe.set(a.messageId, a.imagemUrl ? [a] : []);
 
-  const naJanela = (p: PublicacaoDeCanal) =>
-    pendentes.length > 0 &&
-    p.quando.getTime() - pendentes[pendentes.length - 1].quando.getTime() <= JANELA_DO_ANUNCIO_MS;
-
-  for (const p of [...publicacoes].sort((a, b) => a.quando.getTime() - b.quando.getTime())) {
-    const temFoto = !!p.imagemUrl;
-    const temTexto = !!p.texto;
-
-    // Foto orfa que ficou velha demais nao entra no proximo anuncio.
-    if (pendentes.length > 0 && !naJanela(p)) {
-      perdidas.push(...pendentes);
-      pendentes = [];
+  for (const p of ordenadas) {
+    if (p.texto) continue;
+    if (!p.imagemUrl) {
+      // Nem foto nem texto: formato que nao sabemos ler. Nao vira anuncio,
+      // mas TEM que sair da frente -- senao o marcador nunca passa por ela e
+      // o canal fica preso relendo a mesma publicacao pra sempre.
+      perdidas.push(p);
+      continue;
     }
 
-    if (temTexto) {
-      const fotos = temFoto ? [...pendentes, p] : pendentes;
-      anuncios.push({ fotos: fotos.slice(0, MAXIMO_DE_FOTOS), texto: p.texto as string, ultima: p });
-      pendentes = [];
-    } else if (temFoto) {
-      pendentes.push(p);
+    // A foto pertence ao texto MAIS PROXIMO no tempo, dos dois lados.
+    //
+    // Os canais publicam nas duas ordens: o TOME manda o anuncio e as fotos
+    // logo depois; outros mandam as fotos e o texto em seguida. Olhar so pra
+    // tras deixava o anuncio do TOME sem foto nenhuma e as fotos viravam
+    // orfas (25/09/2026). A proximidade resolve os dois: dentro de um
+    // anuncio as pecas estao a segundos uma da outra, e o anuncio vizinho
+    // esta a minutos.
+    let escolhida: PublicacaoDeCanal | null = null;
+    let menor = Infinity;
+    for (const a of ancoras) {
+      const dist = Math.abs(p.quando.getTime() - a.quando.getTime());
+      if (dist <= JANELA_DO_ANUNCIO_MS && dist < menor) {
+        menor = dist;
+        escolhida = a;
+      }
     }
+    if (!escolhida) {
+      orfas.push(p);
+      continue;
+    }
+    const lista = fotosDe.get(escolhida.messageId)!;
+    if (lista.length < MAXIMO_DE_FOTOS) lista.push(p);
   }
 
-  // O que sobrou no fim: foto ainda sem texto. Se ela ainda esta dentro da
-  // janela, o texto pode chegar no proximo giro e o marcador tem que esperar
-  // por ele. Passada a janela, ela nunca mais pareia -- e ai o marcador
-  // PRECISA passar, senao o canal fica preso relendo as mesmas fotos pra
-  // sempre e nenhum anuncio novo entra.
+  const anuncios: AnuncioDoCanal[] = ancoras.map((a) => {
+    const fotos = (fotosDe.get(a.messageId) ?? []).sort(
+      (x, y) => x.quando.getTime() - y.quando.getTime()
+    );
+    // O marcador anda ate a ultima peca do anuncio, que pode ser uma foto
+    // publicada depois do texto.
+    // `>=`: publicacoes do mesmo segundo sao comuns num album, e o marcador
+    // tem que cobrir a ULTIMA delas.
+    const ultima = [a, ...fotos].reduce((m, p) => (p.quando >= m.quando ? p : m), a);
+    return { fotos, texto: a.texto as string, ultima };
+  });
+
+  // Foto que sobrou sem texto. Dentro da janela ainda pode receber o texto no
+  // proximo giro, e o marcador espera por ela. Passada a janela, nunca mais
+  // pareia e sai da frente.
   const corte = agora.getTime() - JANELA_DO_ANUNCIO_MS;
-  const aguardando = pendentes.filter((p) => p.quando.getTime() > corte);
-  perdidas.push(...pendentes.filter((p) => p.quando.getTime() <= corte));
+  const aguardando = orfas.filter((p) => p.quando.getTime() > corte);
+  perdidas.push(...orfas.filter((p) => p.quando.getTime() <= corte));
 
   return { anuncios, aguardando, perdidas };
 }
@@ -290,6 +317,8 @@ export interface PublicacaoVista {
   quando: string;
   temFoto: boolean;
   temTexto: boolean;
+  /** Os campos que a publicacao trazia -- diz o que e quando vem vazia. */
+  tipo?: string | null;
   /** O comeco do texto -- o bastante pra reconhecer, sem despejar o anuncio. */
   inicio: string | null;
 }
@@ -312,6 +341,7 @@ const verPublicacao = (p: PublicacaoDeCanal): PublicacaoVista => ({
   temFoto: !!p.imagemUrl,
   temTexto: !!p.texto,
   inicio: p.texto ? p.texto.replace(/\s+/g, " ").trim().slice(0, 80) : null,
+  tipo: p.tipo ?? null,
 });
 
 export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
