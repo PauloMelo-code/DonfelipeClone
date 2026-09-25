@@ -76,6 +76,14 @@ export interface ResumoDoCanal {
   lidas: number;
   novas: number;
   capturadas: number;
+  /**
+   * Por que cada publicacao NAO virou carro, contado por motivo.
+   *
+   * Sem isto o resumo dizia "novas: 1, capturadas: 0" e o motivo ficava so no
+   * log do container -- entao diagnosticar canal exigia acesso ao servidor.
+   * A esteira ja devolve o motivo em cada entrega; e so somar.
+   */
+  motivos?: Record<string, number>;
   erro?: string;
 }
 
@@ -115,7 +123,7 @@ async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string;
     body: JSON.stringify(corpo),
   });
   const resposta = await entregarNoWebhook(requisicao, ENTREGA_INTERNA);
-  const corpoDaResposta = (await resposta.json().catch(() => ({}))) as { status?: string };
+  const corpoDaResposta = (await resposta.json().catch(() => ({}))) as { status?: string; reason?: string };
   // O `ok` separa "a esteira olhou e decidiu" de "a esteira nem viu": so o
   // primeiro caso pode andar o marcador.
   return { ...corpoDaResposta, ok: resposta.ok };
@@ -166,7 +174,13 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
           console.warn(`[Canais] ${canal.name}: esteira recusou ${publicacao.messageId}, o marcador fica onde esta`);
           break;
         }
-        if (r.status === "captured") linha.capturadas++;
+        if (r.status === "captured") {
+          linha.capturadas++;
+        } else {
+          const motivo = r.reason || r.status || "sem_motivo";
+          linha.motivos ??= {};
+          linha.motivos[motivo] = (linha.motivos[motivo] ?? 0) + 1;
+        }
       }
 
       const ultima = ateOndeMarcar(entregas);
