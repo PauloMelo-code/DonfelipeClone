@@ -34,7 +34,16 @@ const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
 const _processingLock = new Set<string>();
 
 
-export async function POST(request: NextRequest) {
+/**
+ * Marca a entrega que a busca de canais faz em processo.
+ *
+ * Nao da pra forjar de fora: quem entrega assim chama a funcao, nao manda uma
+ * requisicao -- nenhum cabecalho produz este simbolo.
+ */
+export const ENTREGA_INTERNA = Symbol("entrega-interna");
+
+export async function POST(request: NextRequest, contexto?: unknown) {
+  const interna = contexto === ENTREGA_INTERNA;
   try {
     // Credencial de maquina: cabecalho, tempo constante, fail-closed em
     // QUALQUER ambiente. Antes, a ausencia de WEBHOOK_SECRET deixava a rota
@@ -53,13 +62,21 @@ export async function POST(request: NextRequest) {
     // A copia que havia aqui pegava o primeiro valor do `x-forwarded-for`, que
     // e o que o cliente escreve: bastava rodar o cabecalho para zerar o
     // contador.
-    const { ipAddress } = extractRequestMeta(request);
-    const rl = rateLimit(WEBHOOK_LIMITER, ipAddress ?? "origem-desconhecida");
-    if (!rl.allowed) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429 }
-      );
+    //
+    // A entrega interna fica FORA do teto. Ela nao tem IP, entao caia junto
+    // com todo o resto no balde "origem-desconhecida": com 3 canais a 10
+    // publicacoes cada, o giro batia nas 30 e o terceiro canal levava 429 --
+    // e o marcador andava por cima, perdendo aquele anuncio pra sempre. Era
+    // por isso que so um canal chegava (25/09/2026).
+    if (!interna) {
+      const { ipAddress } = extractRequestMeta(request);
+      const rl = rateLimit(WEBHOOK_LIMITER, ipAddress ?? "origem-desconhecida");
+      if (!rl.allowed) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded" },
+          { status: 429 }
+        );
+      }
     }
 
     // Reject oversized webhook payloads (max 10MB)

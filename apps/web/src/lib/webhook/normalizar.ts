@@ -38,6 +38,29 @@ export type ResultadoNormalizacao =
   | { ok: true; msg: MensagemNormalizada }
   | { ok: false; motivo: "event_type" };
 
+/**
+ * Pede a midia ja DECIFRADA pra UAZAPI.
+ *
+ * O que vem em `imageMessage.url`/`directPath` aponta pro CDN do WhatsApp, e
+ * o que esta la e blob cifrado: sem a `mediaKey` aquilo nao e JPEG nenhum.
+ * Quem decifra e a UAZAPI, entao a foto sai daqui -- a url do payload so
+ * serve de reserva, e de reserva ruim.
+ */
+async function midiaDaUazapi(id: string): Promise<string | null> {
+  try {
+    const media = await uazapi.downloadMedia(id);
+    if (media) {
+      const mType =
+        media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
+      if (media.base64Data) return `data:${mType};base64,${media.base64Data}`;
+      if (media.fileURL) return media.fileURL;
+    }
+  } catch (err) {
+    console.warn("[Webhook] UAZAPI download failed:", err);
+  }
+  return null;
+}
+
 /** Baixa a imagem de uma ImageMessage da UAZAPI e devolve data URI ou URL. */
 async function baixarImagem(raw: any, chat: any, content: any): Promise<string | null> {
   // O stanzaID do WhatsApp pode estar em varios lugares do payload.
@@ -76,22 +99,10 @@ async function baixarImagem(raw: any, chat: any, content: any): Promise<string |
 
   if (!waMessageId) return null;
 
-  try {
-    const media = await uazapi.downloadMedia(waMessageId as string);
-    if (media) {
-      const mType =
-        media.mimetype === "application/octet-stream" ? "image/jpeg" : media.mimetype;
-      if (media.base64Data) {
-        console.log("[Webhook] Image downloaded OK");
-        return `data:${mType};base64,${media.base64Data}`;
-      }
-      if (media.fileURL) {
-        console.log("[Webhook] Image downloaded OK (URL)");
-        return media.fileURL;
-      }
-    }
-  } catch (err) {
-    console.warn("[Webhook] UAZAPI download failed:", err);
+  const midia = await midiaDaUazapi(waMessageId as string);
+  if (midia) {
+    console.log("[Webhook] Image downloaded OK");
+    return midia;
   }
 
   // NAO existe fallback por outros ids: baixar por id de outra mensagem
@@ -179,7 +190,7 @@ async function doFormatoUazapi(raw: any): Promise<ResultadoNormalizacao> {
 }
 
 /** Formato aninhado padrao. */
-function doFormatoPadrao(raw: any): ResultadoNormalizacao {
+async function doFormatoPadrao(raw: any): Promise<ResultadoNormalizacao> {
   const event = raw.event || "messages";
   if (event !== "messages.upsert" && event !== "messages") {
     return { ok: false, motivo: "event_type" };
@@ -188,6 +199,16 @@ function doFormatoPadrao(raw: any): ResultadoNormalizacao {
   const data = raw.data || raw;
   const key = data.key || {};
   const message = data.message || {};
+
+  // E por aqui que entra a publicacao de CANAL, que o sistema vai buscar de 5
+  // em 5 minutos. Ate 25/09/2026 esta linha pegava a url do CDN e pronto --
+  // ou seja, o blob cifrado -- e a foto do canal nunca aparecia no card.
+  let imageUrl: string | null = null;
+  if (message.imageMessage) {
+    imageUrl = (key.id ? await midiaDaUazapi(String(key.id)) : null)
+      || message.imageMessage.url
+      || null;
+  }
 
   return {
     ok: true,
@@ -208,7 +229,7 @@ function doFormatoPadrao(raw: any): ResultadoNormalizacao {
         message.extendedTextMessage?.text ||
         message.imageMessage?.caption ||
         null,
-      imageUrl: message.imageMessage?.url || null,
+      imageUrl,
       chat: raw.chat || {},
     },
   };
@@ -217,7 +238,7 @@ function doFormatoPadrao(raw: any): ResultadoNormalizacao {
 export async function normalizarPayload(raw: any): Promise<ResultadoNormalizacao> {
   const chat = raw.chat || {};
   const ehUazapi = !!raw.EventType || !!chat.wa_chatid;
-  const r = ehUazapi ? await doFormatoUazapi(raw) : doFormatoPadrao(raw);
+  const r = ehUazapi ? await doFormatoUazapi(raw) : await doFormatoPadrao(raw);
 
   if (r.ok && process.env.NODE_ENV === "development") {
     console.log("[Webhook] Parsed:", {

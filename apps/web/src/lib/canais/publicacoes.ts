@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { db, gruposWhatsapp, vivos } from "@/lib/db";
 import { gravarConfiguracao, lerConfiguracao } from "@/lib/settings";
 import { uazapi, type PublicacaoDeCanal } from "@/lib/uazapi";
-import { POST as entregarNoWebhook } from "@/app/api/webhook/whatsapp/route";
+import { ENTREGA_INTERNA, POST as entregarNoWebhook } from "@/app/api/webhook/whatsapp/route";
 
 // ---------------------------------------------------------------------------
 // Busca das publicacoes dos canais.
@@ -51,6 +51,25 @@ export function novasPublicacoes(
     .slice(-MAXIMO_POR_CANAL);
 }
 
+/**
+ * Ate onde o marcador pode andar.
+ *
+ * Publicacao que a esteira OLHOU e decidiu conta, mesmo que ela tenha
+ * ignorado -- senao o giro seguinte paga IA de novo pelo mesmo anuncio.
+ * Publicacao que a esteira RECUSOU (429, erro) nao conta: essa nem foi lida,
+ * e passar o marcador por cima dela a perderia pra sempre.
+ */
+export function ateOndeMarcar(
+  entregas: Array<{ publicacao: PublicacaoDeCanal; atendida: boolean }>
+): PublicacaoDeCanal | null {
+  let ultima: PublicacaoDeCanal | null = null;
+  for (const entrega of entregas) {
+    if (!entrega.atendida) break;
+    ultima = entrega.publicacao;
+  }
+  return ultima;
+}
+
 export interface ResumoDoCanal {
   jid: string;
   nome: string;
@@ -95,8 +114,11 @@ async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string;
     headers: { "content-type": "application/json", "x-webhook-secret": segredo },
     body: JSON.stringify(corpo),
   });
-  const resposta = await entregarNoWebhook(requisicao);
-  return (await resposta.json().catch(() => ({}))) as { status?: string };
+  const resposta = await entregarNoWebhook(requisicao, ENTREGA_INTERNA);
+  const corpoDaResposta = (await resposta.json().catch(() => ({}))) as { status?: string };
+  // O `ok` separa "a esteira olhou e decidiu" de "a esteira nem viu": so o
+  // primeiro caso pode andar o marcador.
+  return { ...corpoDaResposta, ok: resposta.ok };
 }
 
 /** Le os canais ativos e entrega o que for novo. */
@@ -131,15 +153,26 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
       const novas = novasPublicacoes(publicacoes, marcador);
       linha.novas = novas.length;
 
+      // O marcador anda ate a ultima que a esteira ATENDEU. Publicacao
+      // ignorada por ela conta (senao o proximo giro paga IA de novo pelo
+      // mesmo anuncio); publicacao que ela recusou, nao -- essa volta no giro
+      // seguinte em vez de se perder.
+      const entregas: Array<{ publicacao: PublicacaoDeCanal; atendida: boolean }> = [];
       for (const publicacao of novas) {
         const r = await entregar(publicacao, canal, segredo);
+        entregas.push({ publicacao, atendida: r.ok });
+        if (!r.ok) {
+          linha.erro = `esteira recusou a publicacao ${publicacao.messageId}`;
+          console.warn(`[Canais] ${canal.name}: esteira recusou ${publicacao.messageId}, o marcador fica onde esta`);
+          break;
+        }
         if (r.status === "captured") linha.capturadas++;
       }
 
-      // Anda o marcador mesmo quando a publicacao foi ignorada: senao o
-      // proximo giro paga IA de novo pelo mesmo anuncio.
-      const ultima = novas.at(-1);
-      if (ultima) await gravarConfiguracao(CHAVE_DO_MARCADOR(canal.groupId), ultima.quando.toISOString());
+      const ultima = ateOndeMarcar(entregas);
+      if (ultima) {
+        await gravarConfiguracao(CHAVE_DO_MARCADOR(canal.groupId), ultima.quando.toISOString());
+      }
     } catch (e) {
       linha.erro = e instanceof Error ? e.message : String(e);
       console.error(`[Canais] ${canal.name} (${canal.groupId}):`, e);

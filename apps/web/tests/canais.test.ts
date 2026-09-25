@@ -22,7 +22,8 @@ process.env.UAZAPI_BASE_URL = `http://127.0.0.1:${PORTA}`;
 process.env.UAZAPI_TOKEN = "token-de-teste";
 
 import { uazapi } from "../src/lib/uazapi";
-import { novasPublicacoes } from "../src/lib/canais/publicacoes";
+import { ateOndeMarcar, novasPublicacoes } from "../src/lib/canais/publicacoes";
+import { normalizarPayload } from "../src/lib/webhook/normalizar";
 import { tipoDaImagem } from "../src/lib/media-storage";
 
 let resposta: unknown = [];
@@ -171,6 +172,90 @@ async function main() {
     limitadas.every((p, i) => i === 0 || p.quando >= limitadas[i - 1].quando),
     "entrega na ordem em que foram publicadas",
   );
+
+  // -------------------------------------------------------------------
+  // A FOTO do canal.
+  //
+  // A publicacao de canal entra pelo formato aninhado do webhook. Ate
+  // 25/09/2026 esse formato pegava `imageMessage.url` e pronto -- e o que
+  // esta naquela url e o blob CIFRADO do CDN do WhatsApp, nao um JPEG. A foto
+  // do canal nunca aparecia no card. Quem decifra e a UAZAPI.
+  // -------------------------------------------------------------------
+  const doCanal = (id: string) => ({
+    event: "messages",
+    data: {
+      key: { remoteJid: "120363314667002720@newsletter", id, fromMe: false },
+      pushName: "TOME REPASSES",
+      message: {
+        imageMessage: {
+          url: "https://mmg.whatsapp.net/o1/v/cifrado.enc",
+          caption: "GOL 2020 40.000KM R$ 45.000",
+        },
+      },
+    },
+  });
+
+  devolvendo({ base64Data: "R0lGODlhAQABAA==", mimetype: "application/octet-stream" });
+  const comFoto = await normalizarPayload(doCanal("POST_1"));
+  assert.ok(comFoto.ok, "publicacao de canal e reconhecida");
+  assert.ok(
+    comFoto.msg.imageUrl?.startsWith("data:image/jpeg;base64,"),
+    `a foto vem decifrada da UAZAPI, veio: ${comFoto.msg.imageUrl}`,
+  );
+  assert.ok(
+    !comFoto.msg.imageUrl?.includes("mmg.whatsapp.net"),
+    "a url cifrada do CDN nao vira a foto do anuncio",
+  );
+
+  // Se a UAZAPI nao entregar, a url do payload ainda serve de reserva -- e o
+  // comportamento antigo, que ao menos deixa o anuncio entrar.
+  devolvendo({}, 500);
+  const semDownload = await normalizarPayload(doCanal("POST_2"));
+  assert.ok(semDownload.ok, "sem download a publicacao ainda e reconhecida");
+  assert.equal(
+    semDownload.msg.imageUrl,
+    "https://mmg.whatsapp.net/o1/v/cifrado.enc",
+    "a url do payload fica de reserva quando a UAZAPI nao entrega",
+  );
+
+  // Publicacao so de texto nao chama download nenhum.
+  devolvendo({}, 500);
+  const soTexto = await normalizarPayload({
+    event: "messages",
+    data: {
+      key: { remoteJid: "120363314667002720@newsletter", id: "POST_3", fromMe: false },
+      message: { conversation: "GOL 2020" },
+    },
+  });
+  assert.ok(soTexto.ok && soTexto.msg.imageUrl === null, "post sem imagem nao tem foto");
+  assert.equal(soTexto.ok && soTexto.msg.textContent, "GOL 2020");
+
+  // -------------------------------------------------------------------
+  // O MARCADOR.
+  //
+  // Com 3 canais a 10 publicacoes, o giro batia no teto de 30/min do webhook
+  // e o terceiro canal levava 429 -- mas o marcador andava por cima assim
+  // mesmo, e aquele anuncio nunca mais voltava. Era por isso que so um canal
+  // chegava (25/09/2026).
+  // -------------------------------------------------------------------
+  const p1 = post(3, "p1"), p2 = post(2, "p2"), p3 = post(1, "p3");
+
+  assert.equal(
+    ateOndeMarcar([{ publicacao: p1, atendida: true }, { publicacao: p2, atendida: true }])?.messageId,
+    "p2",
+    "todas atendidas: o marcador vai ate a ultima",
+  );
+  assert.equal(
+    ateOndeMarcar([{ publicacao: p1, atendida: true }, { publicacao: p2, atendida: false }, { publicacao: p3, atendida: true }])?.messageId,
+    "p1",
+    "o marcador para ANTES da que a esteira recusou",
+  );
+  assert.equal(
+    ateOndeMarcar([{ publicacao: p1, atendida: false }]),
+    null,
+    "primeira recusada: o marcador nao anda",
+  );
+  assert.equal(ateOndeMarcar([]), null, "sem publicacao, o marcador nao anda");
 
   servidor.close();
   console.log("OK — leitura de canais travada.");
