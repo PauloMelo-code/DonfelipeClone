@@ -91,7 +91,10 @@ export async function precificar(v: {
   if (v.fipePrice && v.rawDescription) {
     const desconto = 1 - v.price / v.fipePrice;
     const texto = v.rawDescription.toLowerCase();
-    const bomCarro = v.km < KM_BAIXA || BONS_SINAIS.test(texto);
+    // `v.km > 0`: km desconhecida nao faz do carro um "bom carro". Sem isso,
+    // um km=0 mal lido zerava a margem e o carro era publicado pelo preco de
+    // compra.
+    const bomCarro = (v.km > 0 && v.km < KM_BAIXA) || BONS_SINAIS.test(texto);
     const semAlerta = !ALERTAS.test(texto);
 
     if (desconto <= DESCONTO_LIMITE && bomCarro && semAlerta) {

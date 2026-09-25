@@ -138,6 +138,36 @@ const CASOS: Caso[] = [
     texto: "bom dia pessoal, alguem tem interesse?",
     esperado: null,
   },
+  {
+    // O "0km" fala dos PNEUS, e o extrator pega a PRIMEIRA ocorrencia de km
+    // no texto. Isso mandava pro grupo "2019 | 0km" -- um Corolla usado
+    // anunciado como zero-quilometro -- alem de zerar a margem e dar dois
+    // pontos de bonus por "km muito baixa" (25/09/2026).
+    nome: "pneus 0km nao sao a quilometragem do carro",
+    texto: `COROLLA XEI 2.0 FLEX
+ANO 2019
+4 pneus 0km
+Revisado na concessionaria
+FIPE R$ 105.000,00
+PEDIDA R$ 92.000,00`,
+    esperado: null,
+  },
+  {
+    // A km de verdade continua sendo lida, mesmo vindo DEPOIS do "0km".
+    nome: "km de verdade depois de um 0km de pneu",
+    texto: `COROLLA XEI 2.0 FLEX
+ANO 2019
+4 pneus 0km
+85.000 km
+PEDIDA R$ 92.000,00`,
+    esperado: {
+      model: "COROLLA XEI 2.0 FLEX",
+      year: 2019,
+      km: 85000,
+      price: 92000,
+      fuel: "FLEX",
+    },
+  },
 ];
 
 /** Campos cobertos pela trava. Os demais ficam de fora de proposito. */

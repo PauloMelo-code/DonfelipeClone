@@ -100,8 +100,11 @@ export function calculateQualityScore(
   let score = 5; // base
   const reasons: string[] = [];
 
-  // KM (peso 3)
-  if (v.km < criterios.kmMuitoBaixa) { score += 2; reasons.push("Km muito baixa"); }
+  // KM (peso 3). Sem km conhecida nao soma nem subtrai: dar o bonus de "km
+  // muito baixa" a um carro cuja km ninguem leu inflava a nota e escrevia na
+  // tela um motivo falso.
+  if (!v.km || v.km <= 0) { reasons.push("Km nao informada"); }
+  else if (v.km < criterios.kmMuitoBaixa) { score += 2; reasons.push("Km muito baixa"); }
   else if (v.km < criterios.kmBaixa) { score += 1; reasons.push("Km baixa"); }
   else if (v.km > criterios.kmMuitoAlta) { score -= 2; reasons.push("Km muito alta"); }
   else if (v.km > criterios.kmAlta) { score -= 1; reasons.push("Km alta"); }

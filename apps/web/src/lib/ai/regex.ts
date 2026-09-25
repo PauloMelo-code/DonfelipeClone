@@ -91,8 +91,12 @@ export function extractWithRegex(text: string): VehicleData | null {
     /\b([\d.,]+)[ \t]*km\b/i,
   ];
   for (const p of kmPatterns) {
-    const m = clean.match(p);
-    if (m) {
+    // TODAS as ocorrencias do padrao, e nao so a primeira: o primeiro "km" do
+    // texto costuma ser de pneu ("4 pneus 0km") e a quilometragem de verdade
+    // vem na linha seguinte. Com `match`, rejeitar o zero fazia o extrator
+    // desistir do padrao inteiro e perder o "85.000 km" logo abaixo.
+    const global = new RegExp(p.source, p.flags.includes("g") ? p.flags : p.flags + "g");
+    for (const m of clean.matchAll(global)) {
       let n: number | null;
       if (/mil/i.test(m[0])) {
         n = parseInt(m[1]) * 1000;
@@ -102,12 +106,20 @@ export function extractWithRegex(text: string): VehicleData | null {
       // Rejeita valores que parecem ano (1900-2099 com exatamente 4 digitos sem ponto)
       const raw = m[1].replace(/[.,\s]/g, "");
       if (n !== null && raw.length === 4 && /^(19|20)\d{2}$/.test(raw)) continue;
-      // KM razoavel: 0 a 999.999
-      if (n !== null && n >= 0 && n <= 999999) {
+      // KM razoavel: acima de zero, ate 999.999.
+      //
+      // O piso e ZERO, e nao mil: a Hilux do cliente anuncia "97km" querendo
+      // dizer 97 mil, e quem conserta isso e o `validateAndFix`. Mas o zero
+      // nunca e quilometragem -- ele vem de "4 pneus 0km", onde fala dos
+      // PNEUS. Sem este corte, um Corolla 2019 saia no grupo como
+      // "2019 | 0km", com a margem zerada e a nota inflada em dois pontos
+      // (25/09/2026).
+      if (n !== null && n > 0 && n <= 999999) {
         km = n;
         break;
       }
     }
+    if (km !== null) break;
   }
 
   // --- FIPE (extrai PRIMEIRO pra poder excluir essa linha do preco) ---

@@ -377,9 +377,11 @@ export function formatVehicleAd(
   // then Fipe + selling price. Features from AI are NOT used — the rawDescription
   // already contains the human-written description which reads better.
 
+  // Sem km conhecida a linha leva so o ano. Melhor calar do que anunciar um
+  // usado como zero-quilometro.
   const lines: string[] = [
     modelLine,
-    `${yearDisplay} | ${kmFmt}km`,
+    vehicle.km > 0 ? `${yearDisplay} | ${kmFmt}km` : yearDisplay,
   ];
 
   if (vehicle.rawDescription?.trim()) {

@@ -139,7 +139,7 @@ export async function GET(
     if (discountPct !== null && discountPct >= 15) saleProbability += 25;
     else if (discountPct !== null && discountPct >= 10) saleProbability += 15;
     else if (discountPct !== null && discountPct < 5) saleProbability -= 20;
-    if (vehicle.km < 50000) saleProbability += 10;
+    if (vehicle.km > 0 && vehicle.km < 50000) saleProbability += 10;
     else if (vehicle.km > 150000) saleProbability -= 10;
     if (photoScore >= 8) saleProbability += 5;
     else if (photoScore < 5) saleProbability -= 10;
@@ -152,7 +152,7 @@ export async function GET(
 
     if (discountPct !== null && discountPct >= 15) strengths.push(`Preço ${discountPct}% abaixo da FIPE`);
     else if (discountPct !== null && discountPct >= 10) strengths.push(`Bom desconto (${discountPct}% FIPE)`);
-    if (vehicle.km < 50000) strengths.push("KM baixa (< 50.000)");
+    if (vehicle.km > 0 && vehicle.km < 50000) strengths.push("KM baixa (< 50.000)");
     if (heroCategory === "exterior") strengths.push("Foto destaque correta (exterior)");
     if (photos.length >= 5) strengths.push(`${photos.length} fotos do veículo`);
     if (vehicle.isVip) strengths.push("Modelo VIP");
