@@ -273,6 +273,92 @@ async function entregarAnuncio(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Simulacao: o que a busca VE e o que ela decidiria.
+//
+// Nasceu de um caso real (25/09/2026): dois canais voltavam com
+// "novas: 3, capturadas: 0" e nenhum motivo, giro apos giro. Sem enxergar as
+// publicacoes nao dava pra saber se era foto esperando texto (comportamento
+// certo) ou defeito do agrupamento -- e adivinhar em cima de producao nao e
+// diagnostico.
+//
+// Nao entrega nada e nao move o marcador.
+// ---------------------------------------------------------------------------
+
+export interface PublicacaoVista {
+  id: string;
+  quando: string;
+  temFoto: boolean;
+  temTexto: boolean;
+  /** O comeco do texto -- o bastante pra reconhecer, sem despejar o anuncio. */
+  inicio: string | null;
+}
+
+export interface SimulacaoDoCanal {
+  jid: string;
+  nome: string;
+  marcador: string | null;
+  lidas: number;
+  publicacoes: PublicacaoVista[];
+  anuncios: Array<{ fotos: number; texto: string }>;
+  aguardando: number;
+  perdidas: number;
+  erro?: string;
+}
+
+const verPublicacao = (p: PublicacaoDeCanal): PublicacaoVista => ({
+  id: p.messageId,
+  quando: p.quando.toISOString(),
+  temFoto: !!p.imagemUrl,
+  temTexto: !!p.texto,
+  inicio: p.texto ? p.texto.replace(/\s+/g, " ").trim().slice(0, 80) : null,
+});
+
+export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
+  const canais = await db
+    .select({ groupId: gruposWhatsapp.groupId, name: gruposWhatsapp.name })
+    .from(gruposWhatsapp)
+    .where(
+      and(
+        vivos(gruposWhatsapp),
+        eq(gruposWhatsapp.role, "SOURCE"),
+        eq(gruposWhatsapp.active, true),
+        like(gruposWhatsapp.groupId, "%@newsletter")
+      )
+    );
+
+  const saida: SimulacaoDoCanal[] = [];
+  for (const canal of canais) {
+    const linha: SimulacaoDoCanal = {
+      jid: canal.groupId, nome: canal.name, marcador: null,
+      lidas: 0, publicacoes: [], anuncios: [], aguardando: 0, perdidas: 0,
+    };
+    saida.push(linha);
+    try {
+      const publicacoes = await uazapi.newsletterMessages(canal.groupId, 20);
+      linha.lidas = publicacoes.length;
+      linha.marcador = await lerConfiguracao(CHAVE_DO_MARCADOR(canal.groupId));
+      // TODAS as lidas, e nao so as novas: e olhando o que ficou ANTES do
+      // marcador que se ve se o texto do anuncio ja passou.
+      linha.publicacoes = [...publicacoes]
+        .sort((a, b) => a.quando.getTime() - b.quando.getTime())
+        .map(verPublicacao);
+
+      const novas = novasPublicacoes(publicacoes, linha.marcador);
+      const leitura = agruparPublicacoes(novas);
+      linha.anuncios = leitura.anuncios.map((a) => ({
+        fotos: a.fotos.length,
+        texto: a.texto.replace(/\s+/g, " ").trim().slice(0, 80),
+      }));
+      linha.aguardando = leitura.aguardando.length;
+      linha.perdidas = leitura.perdidas.length;
+    } catch (e) {
+      linha.erro = e instanceof Error ? e.message : String(e);
+    }
+  }
+  return saida;
+}
+
 /** Le os canais ativos e entrega o que for novo. */
 export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
   const segredo = process.env.WEBHOOK_SECRET;
