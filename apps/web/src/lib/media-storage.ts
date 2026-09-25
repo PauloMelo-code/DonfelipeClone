@@ -198,7 +198,12 @@ async function downloadImage(
           mimeType,
         });
       });
-      res.on("error", () => resolve(null));
+      // Conexao derrubada no meio do corpo, TLS reset, resposta truncada: sem
+      // esta linha a foto sumia sem deixar nada no log.
+      res.on("error", (e) => {
+        console.warn(`[MediaStorage] Erro ao ler a resposta (${e.message}): ${url.substring(0, 80)}`);
+        resolve(null);
+      });
       }
     );
 

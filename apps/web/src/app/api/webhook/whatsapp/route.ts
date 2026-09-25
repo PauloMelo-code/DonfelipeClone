@@ -126,6 +126,14 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       return NextResponse.json({ status: "ignored", reason: "not_supported_chat" });
     }
 
+    // Status/Stories do WhatsApp tambem moram em @broadcast. Chat novo entra
+    // sozinho como fonte ATIVA (lib/webhook/grupo.ts), entao sem esta linha o
+    // Status de qualquer contato viraria uma fonte chamada "Lista: status" e
+    // a fila encheria de recado que nao e anuncio de carro.
+    if (groupJid === "status@broadcast") {
+      return NextResponse.json({ status: "ignored", reason: "status_do_whatsapp" });
+    }
+
     if (isFromMe) {
       return NextResponse.json({ status: "ignored", reason: "own_message" });
     }
