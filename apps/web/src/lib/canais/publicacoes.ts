@@ -70,6 +70,64 @@ export function ateOndeMarcar(
   return ultima;
 }
 
+/** Quanto tempo depois da foto o texto ainda pertence ao mesmo anuncio. */
+const JANELA_DO_ANUNCIO_MS = 5 * 60 * 1000;
+/** Teto de fotos por anuncio, igual ao do pareamento do webhook. */
+const MAXIMO_DE_FOTOS = 12;
+
+/** Um anuncio montado a partir de uma ou mais publicacoes do canal. */
+export interface AnuncioDoCanal {
+  /** Publicacoes com foto, na ordem. A primeira vira a capa. */
+  fotos: PublicacaoDeCanal[];
+  /** O texto do anuncio. */
+  texto: string;
+  /** A ultima publicacao que compoe o anuncio -- e ate onde o marcador anda. */
+  ultima: PublicacaoDeCanal;
+}
+
+/**
+ * Junta as publicacoes que formam UM anuncio.
+ *
+ * O canal publica de tres jeitos, e o cliente confirmou os tres (25/09/2026):
+ * foto com a legenda junto, foto num post e o texto no seguinte, ou varias
+ * fotos e depois o texto. So o primeiro virava carro -- nos outros a foto era
+ * descartada por "sem legenda" e o texto por "sem foto".
+ *
+ * Aqui da pra agrupar com certeza, e nao por janela de tempo como o webhook
+ * faz: a busca le as 20 publicacoes de uma vez e em ordem, entao sabe o que
+ * veio antes do que. O que segura foto de um anuncio pra ela nao colar no
+ * texto do seguinte e a JANELA: passou dela, a foto orfa fica pra tras.
+ *
+ * Publicacao de foto sem texto nenhum depois nao vira anuncio -- entrar so a
+ * foto daria um carro sem dado nenhum.
+ */
+export function agruparPublicacoes(publicacoes: PublicacaoDeCanal[]): AnuncioDoCanal[] {
+  const anuncios: AnuncioDoCanal[] = [];
+  let pendentes: PublicacaoDeCanal[] = [];
+
+  const naJanela = (p: PublicacaoDeCanal) =>
+    pendentes.length > 0 &&
+    p.quando.getTime() - pendentes[pendentes.length - 1].quando.getTime() <= JANELA_DO_ANUNCIO_MS;
+
+  for (const p of [...publicacoes].sort((a, b) => a.quando.getTime() - b.quando.getTime())) {
+    const temFoto = !!p.imagemUrl;
+    const temTexto = !!p.texto;
+
+    // Foto orfa que ficou velha demais nao entra no proximo anuncio.
+    if (pendentes.length > 0 && !naJanela(p)) pendentes = [];
+
+    if (temTexto) {
+      const fotos = temFoto ? [...pendentes, p] : pendentes;
+      anuncios.push({ fotos: fotos.slice(0, MAXIMO_DE_FOTOS), texto: p.texto as string, ultima: p });
+      pendentes = [];
+    } else if (temFoto) {
+      pendentes.push(p);
+    }
+  }
+
+  return anuncios;
+}
+
 export interface ResumoDoCanal {
   jid: string;
   nome: string;
@@ -94,14 +152,26 @@ export interface ResumoDaBusca {
   erro?: string;
 }
 
-async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string; name: string }, segredo: string) {
+/**
+ * Entrega UMA publicacao na esteira.
+ *
+ * `pareamento` e o remetente que a esteira usa pra juntar foto e texto que
+ * vieram em posts separados. Ja tentaram usar o JID do canal ali, e o
+ * resultado foi a legenda de um anuncio colando na foto sem legenda do
+ * seguinte. Por isso aqui a chave e UNICA POR ANUNCIO (`<canal>#<id da
+ * primeira foto>`): as pecas do mesmo anuncio se encontram e nenhuma outra
+ * alcanca aquele balde.
+ */
+async function entregar(
+  publicacao: PublicacaoDeCanal,
+  canal: { groupId: string; name: string },
+  segredo: string,
+  opcoes: { texto?: string | null; comFoto?: boolean; pareamento?: string } = {}
+) {
+  const texto = opcoes.texto !== undefined ? opcoes.texto : publicacao.texto;
+  const foto = opcoes.comFoto === false ? null : publicacao.imagemUrl;
   // Formato aninhado do webhook. A foto vai como URL: quem persiste e a
   // esteira, do mesmo jeito que faz com a foto que chega de grupo.
-  //
-  // Sem `participant`: publicacao de canal chega inteira, foto e legenda
-  // juntas. Com remetente, a esteira guardava a legenda de um post esperando
-  // foto e colava na foto sem legenda do post seguinte -- carro de um com a
-  // foto de outro.
   const corpo = {
     event: "messages",
     data: {
@@ -109,11 +179,12 @@ async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string;
         remoteJid: canal.groupId,
         id: publicacao.messageId,
         fromMe: false,
+        ...(opcoes.pareamento ? { participant: opcoes.pareamento } : {}),
       },
       pushName: canal.name,
-      message: publicacao.imagemUrl
-        ? { imageMessage: { url: publicacao.imagemUrl, caption: publicacao.texto } }
-        : { conversation: publicacao.texto },
+      message: foto
+        ? { imageMessage: { url: foto, caption: texto } }
+        : { conversation: texto },
     },
   };
 
@@ -127,6 +198,37 @@ async function entregar(publicacao: PublicacaoDeCanal, canal: { groupId: string;
   // O `ok` separa "a esteira olhou e decidiu" de "a esteira nem viu": so o
   // primeiro caso pode andar o marcador.
   return { ...corpoDaResposta, ok: resposta.ok };
+}
+
+/**
+ * Entrega um anuncio inteiro e devolve o que a esteira disse do FINAL dele.
+ *
+ * Foto com a legenda junto vai como uma mensagem so, do jeito que sempre foi.
+ * Quando o texto veio num post separado, as fotos vao primeiro (a esteira as
+ * guarda) e o texto por ultimo, que e o que fecha o anuncio.
+ */
+async function entregarAnuncio(
+  anuncio: AnuncioDoCanal,
+  canal: { groupId: string; name: string },
+  segredo: string
+) {
+  const legendaJunto = anuncio.fotos.length === 1 && anuncio.fotos[0].messageId === anuncio.ultima.messageId;
+  if (legendaJunto || anuncio.fotos.length === 0) {
+    return entregar(anuncio.ultima, canal, segredo, { texto: anuncio.texto });
+  }
+
+  const pareamento = `${canal.groupId}#${anuncio.fotos[0].messageId}`;
+  for (const foto of anuncio.fotos) {
+    const r = await entregar(foto, canal, segredo, { texto: null, pareamento });
+    // Esteira fora do ar no meio do anuncio: para aqui, o marcador nao anda e
+    // o giro seguinte remonta o anuncio inteiro.
+    if (!r.ok) return r;
+  }
+  return entregar(anuncio.ultima, canal, segredo, {
+    texto: anuncio.texto,
+    comFoto: false,
+    pareamento,
+  });
 }
 
 /** Le os canais ativos e entrega o que for novo. */
@@ -166,12 +268,12 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
       // mesmo anuncio); publicacao que ela recusou, nao -- essa volta no giro
       // seguinte em vez de se perder.
       const entregas: Array<{ publicacao: PublicacaoDeCanal; atendida: boolean }> = [];
-      for (const publicacao of novas) {
-        const r = await entregar(publicacao, canal, segredo);
-        entregas.push({ publicacao, atendida: r.ok });
+      for (const anuncio of agruparPublicacoes(novas)) {
+        const r = await entregarAnuncio(anuncio, canal, segredo);
+        entregas.push({ publicacao: anuncio.ultima, atendida: r.ok });
         if (!r.ok) {
-          linha.erro = `esteira recusou a publicacao ${publicacao.messageId}`;
-          console.warn(`[Canais] ${canal.name}: esteira recusou ${publicacao.messageId}, o marcador fica onde esta`);
+          linha.erro = `esteira recusou a publicacao ${anuncio.ultima.messageId}`;
+          console.warn(`[Canais] ${canal.name}: esteira recusou ${anuncio.ultima.messageId}, o marcador fica onde esta`);
           break;
         }
         if (r.status === "captured") {

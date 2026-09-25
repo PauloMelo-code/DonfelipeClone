@@ -22,7 +22,7 @@ process.env.UAZAPI_BASE_URL = `http://127.0.0.1:${PORTA}`;
 process.env.UAZAPI_TOKEN = "token-de-teste";
 
 import { uazapi } from "../src/lib/uazapi";
-import { ateOndeMarcar, novasPublicacoes } from "../src/lib/canais/publicacoes";
+import { agruparPublicacoes, ateOndeMarcar, novasPublicacoes } from "../src/lib/canais/publicacoes";
 import { normalizarPayload } from "../src/lib/webhook/normalizar";
 import { tipoDaImagem } from "../src/lib/media-storage";
 
@@ -256,6 +256,78 @@ async function main() {
     "primeira recusada: o marcador nao anda",
   );
   assert.equal(ateOndeMarcar([]), null, "sem publicacao, o marcador nao anda");
+
+  // -------------------------------------------------------------------
+  // COMO O CANAL PUBLICA.
+  //
+  // O cliente confirmou os tres jeitos (25/09/2026): foto com a legenda
+  // junto, foto num post e o texto no seguinte, e varias fotos e depois o
+  // texto. So o primeiro virava carro -- nos outros a foto era descartada
+  // por "sem legenda" e o texto por "sem foto".
+  // -------------------------------------------------------------------
+  const pub = (minutosAtras: number, id: string, texto: string | null, foto: string | null) => ({
+    messageId: id,
+    quando: new Date(agora.getTime() - minutosAtras * 60 * 1000),
+    texto,
+    imagemUrl: foto,
+  });
+
+  // 1. Foto com legenda: um anuncio, uma publicacao.
+  const juntos = agruparPublicacoes([pub(10, "a1", "GOL 2020 R$ 45.000", "f1.jpg")]);
+  assert.equal(juntos.length, 1, "foto com legenda vira um anuncio");
+  assert.equal(juntos[0].fotos.length, 1);
+  assert.equal(juntos[0].texto, "GOL 2020 R$ 45.000");
+
+  // 2. Foto num post, texto no seguinte.
+  const separados = agruparPublicacoes([
+    pub(10, "b1", null, "f1.jpg"),
+    pub(9, "b2", "ONIX 2021 R$ 60.000", null),
+  ]);
+  assert.equal(separados.length, 1, "foto + texto seguinte viram UM anuncio");
+  assert.deepEqual(separados[0].fotos.map((f) => f.messageId), ["b1"]);
+  assert.equal(separados[0].texto, "ONIX 2021 R$ 60.000");
+  assert.equal(separados[0].ultima.messageId, "b2", "o marcador anda ate o texto");
+
+  // 3. Varias fotos e depois o texto: album, a primeira e a capa.
+  const album = agruparPublicacoes([
+    pub(10, "c1", null, "f1.jpg"),
+    pub(10, "c2", null, "f2.jpg"),
+    pub(9, "c3", null, "f3.jpg"),
+    pub(9, "c4", "STRADA 2022 R$ 90.000", null),
+  ]);
+  assert.equal(album.length, 1, "varias fotos + texto viram UM anuncio");
+  assert.deepEqual(album[0].fotos.map((f) => f.messageId), ["c1", "c2", "c3"], "na ordem, a primeira e a capa");
+  assert.equal(album[0].texto, "STRADA 2022 R$ 90.000");
+
+  // 4. O erro que ja aconteceu: a foto de um anuncio NAO pode ir no texto do
+  //    seguinte. Aqui os dois anuncios estao longe um do outro no tempo.
+  const doisAnuncios = agruparPublicacoes([
+    pub(60, "d1", null, "foto-do-primeiro.jpg"),
+    pub(10, "d2", "SAVEIRO 2019 R$ 55.000", null),
+  ]);
+  assert.equal(doisAnuncios.length, 1, "so o texto vira anuncio");
+  assert.equal(doisAnuncios[0].fotos.length, 0, "a foto velha NAO cola no texto de 50 min depois");
+
+  // 5. Dois anuncios completos em seguida nao se misturam.
+  const emSequencia = agruparPublicacoes([
+    pub(10, "e1", null, "f1.jpg"),
+    pub(10, "e2", "GOL 2020", null),
+    pub(9, "e3", null, "f2.jpg"),
+    pub(9, "e4", "ONIX 2021", null),
+  ]);
+  assert.equal(emSequencia.length, 2, "dois anuncios");
+  assert.deepEqual(emSequencia[0].fotos.map((f) => f.messageId), ["e1"]);
+  assert.equal(emSequencia[0].texto, "GOL 2020");
+  assert.deepEqual(emSequencia[1].fotos.map((f) => f.messageId), ["e3"], "o segundo leva SO a foto dele");
+  assert.equal(emSequencia[1].texto, "ONIX 2021");
+
+  // 6. Foto sem texto nenhum depois nao vira carro: entraria sem dado algum.
+  assert.equal(agruparPublicacoes([pub(5, "g1", null, "f1.jpg")]).length, 0, "foto orfa nao vira anuncio");
+
+  // 7. Texto sozinho continua valendo -- e como o canal sem foto sempre entrou.
+  const soTextoNoCanal = agruparPublicacoes([pub(5, "h1", "PALIO 2015 R$ 25.000", null)]);
+  assert.equal(soTextoNoCanal.length, 1);
+  assert.equal(soTextoNoCanal[0].fotos.length, 0);
 
   servidor.close();
   console.log("OK — leitura de canais travada.");
