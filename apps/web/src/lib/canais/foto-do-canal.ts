@@ -56,15 +56,32 @@ export function decifrarImagem(arquivo: Buffer, mediaKeyBase64: string): Buffer 
   }
 }
 
-/** O endereco do arquivo, do jeito que o cliente do WhatsApp o pede. */
-function enderecoDoArquivo(midia: MidiaDaPublicacao): string | null {
-  if (midia.url) return midia.url;
-  if (!midia.directPath) return null;
-  const u = new URL(`https://mmg.whatsapp.net${midia.directPath}`);
-  // O cliente do WhatsApp sempre acrescenta isto; sem o parametro o CDN
-  // costuma responder 404.
-  u.searchParams.set("mms3", "true");
-  return u.toString();
+/**
+ * Os enderecos possiveis do arquivo, em ordem de tentativa.
+ *
+ * O `URL` que a UAZAPI manda nem sempre serve; o caminho montado a partir do
+ * `directPath` leva `mms3=true`, que e o que o cliente do WhatsApp sempre
+ * acrescenta -- sem ele o CDN costuma responder 404.
+ */
+function enderecosDoArquivo(midia: MidiaDaPublicacao): string[] {
+  const enderecos: string[] = [];
+  if (midia.url) enderecos.push(midia.url);
+  if (midia.directPath) {
+    const u = new URL(`https://mmg.whatsapp.net${midia.directPath}`);
+    u.searchParams.set("mms3", "true");
+    const comParametro = u.toString();
+    if (!enderecos.includes(comParametro)) enderecos.push(comParametro);
+  }
+  return enderecos;
+}
+
+/** Onde a tentativa do arquivo cheio parou -- aparece no diagnostico do giro. */
+export interface TentativaDoArquivo {
+  enderecos: number;
+  /** Bytes baixados na melhor tentativa; 0 = nenhum endereco respondeu. */
+  bytes: number;
+  /** Baixou mas a decifragem nao deu imagem. */
+  decifrou: boolean;
 }
 
 export interface FotoResolvida {
@@ -72,6 +89,8 @@ export interface FotoResolvida {
   dataUri: string;
   /** Como ela foi obtida -- aparece no diagnostico do giro. */
   origem: "decifrada" | "miniatura";
+  /** So quando caiu na miniatura: por que o arquivo cheio nao veio. */
+  tentativa?: TentativaDoArquivo;
 }
 
 /**
@@ -85,16 +104,28 @@ export async function fotoDaPublicacao(
 ): Promise<FotoResolvida | null> {
   if (!midia) return null;
 
-  const endereco = enderecoDoArquivo(midia);
-  if (midia.mediaKey && endereco) {
-    const arquivo = await baixarBytes(endereco);
-    if (arquivo) {
+  const enderecos = enderecosDoArquivo(midia);
+  const tentativa: TentativaDoArquivo = { enderecos: enderecos.length, bytes: 0, decifrou: false };
+
+  if (midia.mediaKey) {
+    for (const endereco of enderecos) {
+      const arquivo = await baixarBytes(endereco);
+      if (!arquivo) continue;
+      tentativa.bytes = Math.max(tentativa.bytes, arquivo.length);
       const aberta = decifrarImagem(arquivo, midia.mediaKey);
       if (aberta) {
+        tentativa.decifrou = true;
         const tipo = tipoDaImagem(aberta) ?? "image/jpeg";
-        return { dataUri: `data:${tipo};base64,${aberta.toString("base64")}`, origem: "decifrada" };
+        return {
+          dataUri: `data:${tipo};base64,${aberta.toString("base64")}`,
+          origem: "decifrada",
+        };
       }
-      console.warn(`[Canais] nao consegui decifrar a foto (${arquivo.length} bytes)`);
+    }
+    if (tentativa.bytes > 0) {
+      console.warn(`[Canais] baixei ${tentativa.bytes} bytes mas nao decifrei a foto`);
+    } else {
+      console.warn(`[Canais] nenhum dos ${enderecos.length} endereco(s) da foto respondeu`);
     }
   }
 
@@ -102,7 +133,11 @@ export async function fotoDaPublicacao(
     const bytes = Buffer.from(midia.miniatura, "base64");
     const tipo = tipoDaImagem(bytes);
     if (tipo) {
-      return { dataUri: `data:${tipo};base64,${midia.miniatura}`, origem: "miniatura" };
+      return {
+        dataUri: `data:${tipo};base64,${midia.miniatura}`,
+        origem: "miniatura",
+        tentativa,
+      };
     }
   }
 

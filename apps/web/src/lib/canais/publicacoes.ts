@@ -337,6 +337,8 @@ export interface TesteDeFoto {
   /** "decifrada" = o arquivo cheio; "miniatura" = so o que vem no payload. */
   origem?: FotoResolvida["origem"];
   bytes?: number;
+  /** Quando caiu na miniatura: onde a tentativa do arquivo cheio parou. */
+  tentativa?: FotoResolvida["tentativa"];
   erro?: string;
 }
 
@@ -420,6 +422,7 @@ export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
           if (resolvida) {
             teste.temFoto = true;
             teste.origem = resolvida.origem;
+            teste.tentativa = resolvida.tentativa;
             teste.bytes = Math.round(((resolvida.dataUri.split(",")[1] ?? "").length * 3) / 4);
           } else {
             teste.erro = "nem o arquivo cifrado nem a miniatura deram imagem";
