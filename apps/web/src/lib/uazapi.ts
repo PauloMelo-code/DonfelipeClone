@@ -55,6 +55,15 @@ export interface PublicacaoDeCanal {
   imagemUrl: string | null;
   /** Os campos que a publicacao trazia. So pra diagnostico. */
   tipo?: string | null;
+  /**
+   * Os campos da imagem, pra diagnostico.
+   *
+   * O que decide se a foto do canal tem conserto: se a UAZAPI ja manda a
+   * imagem pronta (`fileURL`/`base64`), usamos ela; se manda so o caminho do
+   * CDN, aquilo e blob cifrado e precisa da `mediaKey` -- e ai o unico jeito
+   * e pedir o download pra ela.
+   */
+  midia?: { campos: string[] } | null;
 }
 
 /**
@@ -455,6 +464,7 @@ class UazapiClient {
           // So pra diagnostico: quando uma publicacao chega vazia, e isto que
           // diz QUAL formato o canal usou.
           tipo: Object.keys(msg ?? {}).join(",") || null,
+          midia: Object.keys(img).length > 0 ? { campos: Object.keys(img) } : null,
         };
       })
       .filter((p) => p.messageId && !Number.isNaN(p.quando.getTime()));

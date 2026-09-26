@@ -323,6 +323,18 @@ export interface PublicacaoVista {
   inicio: string | null;
 }
 
+/** O teste de download da foto mais recente do canal. */
+export interface TesteDeFoto {
+  publicacao: string;
+  /** Os campos que a UAZAPI mandou na imagem. */
+  campos: string[];
+  /** A UAZAPI aceitou baixar a midia pelo id da publicacao? */
+  baixou: boolean;
+  formato?: string;
+  bytes?: number;
+  erro?: string;
+}
+
 export interface SimulacaoDoCanal {
   jid: string;
   nome: string;
@@ -332,6 +344,8 @@ export interface SimulacaoDoCanal {
   anuncios: Array<{ fotos: number; texto: string }>;
   aguardando: number;
   perdidas: number;
+  /** A prova de que a foto do canal baixa (ou nao). */
+  foto?: TesteDeFoto;
   erro?: string;
 }
 
@@ -382,6 +396,34 @@ export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
       }));
       linha.aguardando = leitura.aguardando.length;
       linha.perdidas = leitura.perdidas.length;
+
+      // A pergunta que decide a foto do canal: a UAZAPI entrega a imagem
+      // decifrada pelo id da publicacao? O que vem no payload e o caminho do
+      // CDN, e la mora o blob CIFRADO -- sem a mediaKey nao vira JPEG.
+      const comFoto = [...publicacoes]
+        .filter((x) => x.imagemUrl)
+        .sort((a, b) => b.quando.getTime() - a.quando.getTime())[0];
+      if (comFoto) {
+        const teste: TesteDeFoto = {
+          publicacao: comFoto.messageId,
+          campos: comFoto.midia?.campos ?? [],
+          baixou: false,
+        };
+        linha.foto = teste;
+        try {
+          const midia = await uazapi.downloadMedia(comFoto.messageId);
+          if (midia) {
+            teste.baixou = true;
+            teste.formato = midia.mimetype;
+            teste.bytes = midia.base64Data ? Math.round((midia.base64Data.length * 3) / 4) : 0;
+            if (!midia.base64Data && midia.fileURL) teste.formato = `${midia.mimetype} (por URL)`;
+          } else {
+            teste.erro = "a UAZAPI nao devolveu a midia";
+          }
+        } catch (e) {
+          teste.erro = e instanceof Error ? e.message : String(e);
+        }
+      }
     } catch (e) {
       linha.erro = e instanceof Error ? e.message : String(e);
     }
