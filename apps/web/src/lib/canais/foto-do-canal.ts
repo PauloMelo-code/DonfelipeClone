@@ -80,15 +80,19 @@ export interface TentativaDoArquivo {
   enderecos: number;
   /** Bytes baixados na melhor tentativa; 0 = nenhum endereco respondeu. */
   bytes: number;
-  /** Baixou mas a decifragem nao deu imagem. */
+  /** O arquivo baixado ja era imagem, sem precisar decifrar. */
+  jaEraImagem: boolean;
+  /** Tinha chave e a decifragem abriu a imagem. */
   decifrou: boolean;
+  /** Havia `mediaKey` pra tentar decifrar. */
+  temChave: boolean;
 }
 
 export interface FotoResolvida {
   /** A imagem pronta pra guardar, como data URI. */
   dataUri: string;
   /** Como ela foi obtida -- aparece no diagnostico do giro. */
-  origem: "decifrada" | "miniatura";
+  origem: "arquivo" | "decifrada" | "miniatura";
   /** So quando caiu na miniatura: por que o arquivo cheio nao veio. */
   tentativa?: TentativaDoArquivo;
 }
@@ -96,8 +100,9 @@ export interface FotoResolvida {
 /**
  * A foto da publicacao, pronta pra entrar no anuncio.
  *
- * Tenta o arquivo cheio primeiro; sem chave ou sem sucesso, cai na miniatura.
- * Devolve `null` quando nao ha nenhuma das duas.
+ * Na ordem: o arquivo como veio (a UAZAPI as vezes ja entrega em claro), o
+ * arquivo decifrado com a chave da publicacao, e por fim a miniatura do
+ * payload. Devolve `null` quando nao ha nenhuma das tres.
  */
 export async function fotoDaPublicacao(
   midia: MidiaDaPublicacao | null | undefined
@@ -105,13 +110,33 @@ export async function fotoDaPublicacao(
   if (!midia) return null;
 
   const enderecos = enderecosDoArquivo(midia);
-  const tentativa: TentativaDoArquivo = { enderecos: enderecos.length, bytes: 0, decifrou: false };
+  const tentativa: TentativaDoArquivo = {
+    enderecos: enderecos.length,
+    bytes: 0,
+    jaEraImagem: false,
+    decifrou: false,
+    temChave: !!midia.mediaKey,
+  };
 
-  if (midia.mediaKey) {
-    for (const endereco of enderecos) {
-      const arquivo = await baixarBytes(endereco);
-      if (!arquivo) continue;
-      tentativa.bytes = Math.max(tentativa.bytes, arquivo.length);
+  for (const endereco of enderecos) {
+    const arquivo = await baixarBytes(endereco);
+    if (!arquivo) continue;
+    tentativa.bytes = Math.max(tentativa.bytes, arquivo.length);
+
+    // 1. Ja veio em claro? Foi o caso medido em 26/09/2026: o arquivo baixava
+    //    inteiro (285 KB) e a decifragem falhava -- porque nao havia nada pra
+    //    decifrar. Conferir isto ANTES custa uma leitura de 12 bytes.
+    const tipoDireto = tipoDaImagem(arquivo);
+    if (tipoDireto) {
+      tentativa.jaEraImagem = true;
+      return {
+        dataUri: `data:${tipoDireto};base64,${arquivo.toString("base64")}`,
+        origem: "arquivo",
+      };
+    }
+
+    // 2. Cifrado: abre com a chave da publicacao.
+    if (midia.mediaKey) {
       const aberta = decifrarImagem(arquivo, midia.mediaKey);
       if (aberta) {
         tentativa.decifrou = true;
@@ -122,11 +147,15 @@ export async function fotoDaPublicacao(
         };
       }
     }
-    if (tentativa.bytes > 0) {
-      console.warn(`[Canais] baixei ${tentativa.bytes} bytes mas nao decifrei a foto`);
-    } else {
-      console.warn(`[Canais] nenhum dos ${enderecos.length} endereco(s) da foto respondeu`);
-    }
+  }
+
+  if (tentativa.bytes > 0) {
+    console.warn(
+      `[Canais] baixei ${tentativa.bytes} bytes e nao virou imagem` +
+        (midia.mediaKey ? " (nem em claro, nem decifrando)" : " (e nao havia chave pra decifrar)")
+    );
+  } else if (enderecos.length > 0) {
+    console.warn(`[Canais] nenhum dos ${enderecos.length} endereco(s) da foto respondeu`);
   }
 
   if (midia.miniatura) {

@@ -423,6 +423,19 @@ async function main() {
     "arquivo que nao e o esperado devolve null, nao uma foto quebrada",
   );
 
+  // E o caso que a producao mostrou em 26/09/2026: o arquivo baixava inteiro
+  // (285 KB) e a decifragem falhava -- porque ele JA VINHA EM CLARO. Decifrar
+  // uma imagem que nao esta cifrada da lixo, e o sistema caia na miniatura.
+  assert.equal(
+    decifrarImagem(jpegOriginal, mediaKey.toString("base64")),
+    null,
+    "decifrar uma imagem ja em claro nao produz imagem -- por isso se confere ANTES",
+  );
+  assert.ok(
+    tipoDaImagem(jpegOriginal),
+    "e a conferencia que vem antes reconhece o JPEG em claro",
+  );
+
   servidor.close();
   console.log("OK — leitura de canais travada.");
 }
