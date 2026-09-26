@@ -153,6 +153,47 @@ PEDIDA R$ 92.000,00`,
     esperado: null,
   },
   {
+    // O "Faco" la embaixo e o que o vendedor aceita -- vale mais que o "Por"
+    // do alto do anuncio. Pego num fornecedor do cliente (26/09/2026): o
+    // carro entrava com o preco errado e perdia a deduplicacao pro anuncio
+    // mais caro de outro fornecedor.
+    nome: "oferta final (Faco) ganha do Por que veio antes",
+    texto: `HAVAL H6 PHEV 2025
+Apenas 26.000 Km
+Ano 2025
+
+FIPE: R$ 217.000,00
+Por: R$ 189.990,00
+
+
+
+Faço 175.000`,
+    esperado: {
+      model: "HAVAL H6 PHEV 2025",
+      year: 2025,
+      km: 26000,
+      price: 175000,
+      fipePrice: 217000,
+    },
+  },
+  {
+    // Sem a oferta final, o rotulo generico continua valendo.
+    nome: "sem Faco, o Por continua sendo o preco",
+    texto: `HAVAL H6 PHEV 2025
+Apenas 26.000 Km
+Ano 2025
+
+FIPE: R$ 217.000,00
+Por: R$ 189.990,00`,
+    esperado: {
+      model: "HAVAL H6 PHEV 2025",
+      year: 2025,
+      km: 26000,
+      price: 189990,
+      fipePrice: 217000,
+    },
+  },
+  {
     // A km de verdade continua sendo lida, mesmo vindo DEPOIS do "0km".
     nome: "km de verdade depois de um 0km de pneu",
     texto: `COROLLA XEI 2.0 FLEX

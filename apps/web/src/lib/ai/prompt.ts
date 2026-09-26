@@ -66,7 +66,15 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    usado" (do usado). Como o carro de repasse eh USADO, fipePrice deve ser
    a "Fipe usado". Ignore a "Fipe 0km". E cuidado: "Fipe 0km" tem o "0"
    que NAO eh o valor -- o valor vem depois do R$.
-6. Exemplos:
+6. OFERTA FINAL: quando o anuncio traz um valor e, MAIS ABAIXO, uma
+   expressao como "Faco 175.000", "Saio por 90 mil", "Deixo por X" ou
+   "Levo por X", esse ultimo e o preco de venda -- e o que o vendedor
+   realmente aceita. Vale mesmo que ele esteja no fim do texto, separado
+   por varias linhas em branco, e mesmo que exista um "Por:" mais em cima.
+   - "Fipe 217.000 / Por 189.990 ... Faco 175.000"
+        -> fipePrice=217000, price=175000  (NAO 189990)
+
+7. Exemplos:
    - "Fipe R$ 169.302" (so isso)        -> fipePrice=169302, price=null
    - "Fipe 80mil / Por 72mil"           -> fipePrice=80000, price=72000
    - "Valor 65.000 - Fipe da 71.000"    -> price=65000, fipePrice=71000
@@ -74,7 +82,7 @@ Extraia os seguintes campos do texto ou imagem fornecida:
    - "Fipe 0km R$180.000 / Fipe usado R$159.000 / Por R$149.000"
         -> fipePrice=159000 (a do usado), price=149000
 
-7. DOIS VALORES SEM ROTULO 'FIPE' (caso comum):
+8. DOIS VALORES SEM ROTULO 'FIPE' (caso comum):
    Vendedor escreve 2 valores no final, o de cima maior e o de baixo
    menor (geralmente em negrito *...*). Sem palavra 'Fipe' explicita:
      R\$ 94.673,00

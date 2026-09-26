@@ -37,6 +37,24 @@ const ROTULO_FIPE = /\b(fipe|fifa|tabela)\b/i;
  * pede por ele: o anuncio saia com uma FIPE que nao existe e, pior, com o
  * preco do concorrente no lugar da pedida.
  */
+/**
+ * A OFERTA FINAL do vendedor: "Faco 175.000", "Saio por 90 mil".
+ *
+ * Vale mais que qualquer outro rotulo do anuncio, esteja onde estiver no
+ * texto -- e o numero que ele realmente aceita. Um fornecedor do cliente
+ * anuncia a Fipe e um valor no alto, deixa varias linhas em branco e so la
+ * embaixo escreve o "Faco" (26/09/2026).
+ */
+const OFERTA_FINAL =
+  /(?:fa[cç]o|sa[ií]o?\s*por|deixo\s*por|levo\s*por)\s*:?\s*(?:por\s*)?r?\$?\s*([\d.,]+\s*(?:mil)?)/i;
+/** O que ele PEDE -- forte, mas menos que a oferta final. */
+const RE_PEDIDA = /(?:pedid[ao]|preciso(?:\s+de)?|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i;
+/** Rotulo generico de valor. */
+const RE_ROTULO =
+  /(?:valor|vendo|venda|preço|preco|por)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i;
+const RE_REAIS = /r\$\s*([\d.,]+\s*(?:mil)?)/i;
+const RE_LINHA_SO_NUMERO = /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m;
+
 const DE_CONCORRENTE =
   /\b(mais\s*barat[ao]|menor\s*(valor|pre[çc]o)|anunciad[ao]|webmotors|olx|mercado\s*livre|icarros|usadosbr)\b/i;
 
@@ -168,10 +186,23 @@ export function extractWithRegex(text: string): VehicleData | null {
   // CRITICAL: nunca usar uma linha que menciona "fipe" como preco de venda.
   let price: number | null = null;
   const priceText = lines.filter((l) => !ROTULO_FIPE.test(l) && !DE_CONCORRENTE.test(l)).join("\n");
+  // Os rotulos vao em ORDEM DE FORCA, e nao todos na mesma alternativa.
+  //
+  // `match` pega a PRIMEIRA ocorrencia do texto. Com tudo junto, um "Por:
+  // 189.990" no alto do anuncio ganhava do "Faco 175.000" la embaixo -- e o
+  // "Faco" e o que o vendedor realmente aceita. O cliente pegou isso num
+  // fornecedor que anuncia assim (26/09/2026): o carro entrava com o preco
+  // errado e, pior, perdia a deduplicacao pro anuncio mais caro de outro
+  // fornecedor.
   const pricePatterns = [
-    /(?:pedid[ao]|preciso(?:\s+de)?|faço|faco|valor|vendo|venda|preço|preco|por|repasse)\s*:?\s*r?\$?\s*([\d.,]+\s*(?:mil)?)/i,
-    /r\$\s*([\d.,]+\s*(?:mil)?)/i,
-    /(?:^|\n)\s*([\d]{2,3}[.\s]?\d{3}(?:,\d{2})?)\s*$/m,
+    // 1. A oferta final, onde quer que ela esteja no texto.
+    OFERTA_FINAL,
+    // 2. O que ele pede.
+    RE_PEDIDA,
+    // 3. Rotulo generico.
+    RE_ROTULO,
+    RE_REAIS,
+    RE_LINHA_SO_NUMERO,
   ];
   for (const p of pricePatterns) {
     const m = priceText.match(p);
