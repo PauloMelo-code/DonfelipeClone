@@ -15,7 +15,7 @@
  * Uso: DATABASE_URL=... pnpm --filter web exec tsx tests/dedup-anuncio.test.ts
  */
 import assert from "node:assert/strict";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 process.env.WEBHOOK_SECRET ||= "segredo-de-teste";
 // Sem chave de IA: o anuncio refeito roda solto e cai no texto original --
@@ -77,7 +77,7 @@ async function main() {
     rota: await import("../src/app/api/webhook/whatsapp/route"),
     next: await import("next/server"),
   };
-  const { db, veiculos } = M.db;
+  const { db, veiculos, arquivosMidia } = M.db;
   const POST = M.rota.POST;
   await limpar();
 
@@ -103,9 +103,21 @@ async function main() {
   assert.equal(v.sourceMessageId, "msg-b", "a mensagem de origem e a do anuncio que ficou");
   assert.equal(v.adEditedAt, null, "o anuncio refeito do texto que perdeu foi zerado");
   // A foto e a do anuncio que ficou: foi ela que o cliente viu desencontrada.
+  //
+  // A foto nao fica mais inteira na coluna: ela e guardada e o veiculo aponta
+  // pra `/api/media/<id>`. Entao a conferencia vai buscar os bytes guardados.
   const fotos: string[] = JSON.parse(v.photos ?? "[]");
   assert.equal(fotos.length, 1, "uma foto so");
-  assert.ok(fotos[0].includes(FOTO_B), `a foto tem que ser a do anuncio que ficou, veio ${fotos[0]}`);
+  assert.ok(fotos[0].startsWith("/api/media/"), `a foto tem que ser guardada, veio ${fotos[0]}`);
+  const [guardada] = await db
+    .select({ data: arquivosMidia.data })
+    .from(arquivosMidia)
+    .where(eq(arquivosMidia.id, fotos[0].replace("/api/media/", "")));
+  assert.ok(guardada, "a foto guardada tem que existir");
+  assert.ok(
+    guardada.data.includes(FOTO_B),
+    "a foto guardada tem que ser a do anuncio que ficou",
+  );
 
   await limpar();
   console.log("\nOK — a dedup deixa um anuncio inteiro, nunca a mistura de dois.");

@@ -104,7 +104,10 @@ export async function POST(request: NextRequest, contexto?: unknown) {
 
     try {
     // ── Persist image immediately (CDN URLs expire in minutes) ──
-    if (imageUrl && imageUrl.startsWith("http")) {
+    // `data:` tambem: a foto que ja chega pronta (canal decifrado, download da
+    // UAZAPI) ia inteira pra coluna `photos` como base64 -- megabytes por
+    // carro, em toda resposta da API. Guardada vira `/api/media/<id>`.
+    if (imageUrl && (imageUrl.startsWith("http") || imageUrl.startsWith("data:"))) {
       const persistedUrl = await persistImage(imageUrl);
       if (persistedUrl !== imageUrl) {
         console.log("[Webhook] Image persisted:", persistedUrl);

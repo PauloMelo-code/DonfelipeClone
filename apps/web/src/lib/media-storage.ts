@@ -113,11 +113,19 @@ export function tipoDaImagem(b: Buffer): string | null {
 }
 const MAX_REDIRECTS = 5;
 
-async function downloadImage(
+/**
+ * Os bytes crus de uma URL externa, com a guarda de SSRF revalidada a cada
+ * redirecionamento.
+ *
+ * Separada de `downloadImage` porque a foto de CANAL chega cifrada: ela
+ * precisa dos bytes ANTES de qualquer conferencia de que e imagem -- a
+ * conferencia vale depois de decifrar.
+ */
+export async function baixarBytes(
   url: string,
   timeout = 15000,
   redirectCount = 0
-): Promise<ImageData | null> {
+): Promise<Buffer | null> {
   if (redirectCount >= MAX_REDIRECTS) {
     console.warn(`[MediaStorage] Too many redirects (${MAX_REDIRECTS}) for ${url.substring(0, 80)}`);
     return null;
@@ -151,7 +159,7 @@ async function downloadImage(
           return;
         }
         res.destroy();
-        downloadImage(proxima, timeout, redirectCount + 1).then(resolve);
+        baixarBytes(proxima, timeout, redirectCount + 1).then(resolve);
         return;
       }
 
@@ -184,19 +192,7 @@ async function downloadImage(
       });
       res.on("end", () => {
         if (totalSize > MAX_IMAGE_SIZE) return; // already resolved null
-        const buffer = Buffer.concat(chunks);
-        const mimeType = tipoDaImagem(buffer);
-        if (!mimeType) {
-          console.warn(
-            `[MediaStorage] Resposta nao e imagem (${buffer.length} bytes, ${res.headers["content-type"] ?? "sem tipo"}): ${url.substring(0, 80)}`
-          );
-          resolve(null);
-          return;
-        }
-        resolve({
-          base64: buffer.toString("base64"),
-          mimeType,
-        });
+        resolve(Buffer.concat(chunks));
       });
       // Conexao derrubada no meio do corpo, TLS reset, resposta truncada: sem
       // esta linha a foto sumia sem deixar nada no log.
@@ -219,4 +215,18 @@ async function downloadImage(
       resolve(null);
     });
   });
+}
+
+/** Os bytes, ja conferidos como imagem de verdade. */
+async function downloadImage(url: string, timeout = 15000): Promise<ImageData | null> {
+  const buffer = await baixarBytes(url, timeout);
+  if (!buffer) return null;
+  const mimeType = tipoDaImagem(buffer);
+  if (!mimeType) {
+    console.warn(
+      `[MediaStorage] Resposta nao e imagem (${buffer.length} bytes): ${url.substring(0, 80)}`
+    );
+    return null;
+  }
+  return { base64: buffer.toString("base64"), mimeType };
 }

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { db, gruposWhatsapp, vivos } from "@/lib/db";
 import { gravarConfiguracao, lerConfiguracao } from "@/lib/settings";
 import { uazapi, type PublicacaoDeCanal } from "@/lib/uazapi";
+import { fotoDaPublicacao, type FotoResolvida } from "./foto-do-canal";
 import { ENTREGA_INTERNA, POST as entregarNoWebhook } from "@/app/api/webhook/whatsapp/route";
 
 // ---------------------------------------------------------------------------
@@ -234,7 +235,10 @@ async function entregar(
   opcoes: { texto?: string | null; comFoto?: boolean; pareamento?: string } = {}
 ) {
   const texto = opcoes.texto !== undefined ? opcoes.texto : publicacao.texto;
-  const foto = opcoes.comFoto === false ? null : publicacao.imagemUrl;
+  // A foto vai como data URI, ja decifrada. Mandar o endereco do CDN nao
+  // adianta: o arquivo de la e cifrado e a esteira so guardaria lixo.
+  const foto =
+    opcoes.comFoto === false ? null : (await fotoDaPublicacao(publicacao.midia))?.dataUri ?? null;
   // Formato aninhado do webhook. A foto vai como URL: quem persiste e a
   // esteira, do mesmo jeito que faz com a foto que chega de grupo.
   const corpo = {
@@ -328,9 +332,10 @@ export interface TesteDeFoto {
   publicacao: string;
   /** Os campos que a UAZAPI mandou na imagem. */
   campos: string[];
-  /** A UAZAPI aceitou baixar a midia pelo id da publicacao? */
-  baixou: boolean;
-  formato?: string;
+  /** Conseguimos uma foto? */
+  temFoto: boolean;
+  /** "decifrada" = o arquivo cheio; "miniatura" = so o que vem no payload. */
+  origem?: FotoResolvida["origem"];
   bytes?: number;
   erro?: string;
 }
@@ -397,9 +402,9 @@ export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
       linha.aguardando = leitura.aguardando.length;
       linha.perdidas = leitura.perdidas.length;
 
-      // A pergunta que decide a foto do canal: a UAZAPI entrega a imagem
-      // decifrada pelo id da publicacao? O que vem no payload e o caminho do
-      // CDN, e la mora o blob CIFRADO -- sem a mediaKey nao vira JPEG.
+      // A foto de verdade: baixa do CDN e decifra com a chave da publicacao,
+      // ou cai na miniatura do payload. E o mesmo caminho da entrega, entao o
+      // que aparecer aqui e o que o card vai mostrar.
       const comFoto = [...publicacoes]
         .filter((x) => x.imagemUrl)
         .sort((a, b) => b.quando.getTime() - a.quando.getTime())[0];
@@ -407,18 +412,17 @@ export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
         const teste: TesteDeFoto = {
           publicacao: comFoto.messageId,
           campos: comFoto.midia?.campos ?? [],
-          baixou: false,
+          temFoto: false,
         };
         linha.foto = teste;
         try {
-          const midia = await uazapi.downloadMedia(comFoto.messageId);
-          if (midia) {
-            teste.baixou = true;
-            teste.formato = midia.mimetype;
-            teste.bytes = midia.base64Data ? Math.round((midia.base64Data.length * 3) / 4) : 0;
-            if (!midia.base64Data && midia.fileURL) teste.formato = `${midia.mimetype} (por URL)`;
+          const resolvida = await fotoDaPublicacao(comFoto.midia);
+          if (resolvida) {
+            teste.temFoto = true;
+            teste.origem = resolvida.origem;
+            teste.bytes = Math.round(((resolvida.dataUri.split(",")[1] ?? "").length * 3) / 4);
           } else {
-            teste.erro = "a UAZAPI nao devolveu a midia";
+            teste.erro = "nem o arquivo cifrado nem a miniatura deram imagem";
           }
         } catch (e) {
           teste.erro = e instanceof Error ? e.message : String(e);

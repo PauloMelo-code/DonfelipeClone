@@ -205,9 +205,13 @@ async function doFormatoPadrao(raw: any): Promise<ResultadoNormalizacao> {
   // ou seja, o blob cifrado -- e a foto do canal nunca aparecia no card.
   let imageUrl: string | null = null;
   if (message.imageMessage) {
-    imageUrl = (key.id ? await midiaDaUazapi(String(key.id)) : null)
-      || message.imageMessage.url
-      || null;
+    const url = message.imageMessage.url;
+    // Quem manda a imagem ja pronta (a busca de canais decifra antes de
+    // entregar) nao precisa que a esteira peca download nenhum.
+    imageUrl =
+      typeof url === "string" && url.startsWith("data:")
+        ? url
+        : (key.id ? await midiaDaUazapi(String(key.id)) : null) || url || null;
   }
 
   return {

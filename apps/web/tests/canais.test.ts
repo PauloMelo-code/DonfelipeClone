@@ -23,6 +23,8 @@ process.env.UAZAPI_TOKEN = "token-de-teste";
 
 import { uazapi } from "../src/lib/uazapi";
 import { agruparPublicacoes, ateOndeMarcar, novasPublicacoes } from "../src/lib/canais/publicacoes";
+import { decifrarImagem } from "../src/lib/canais/foto-do-canal";
+import { createCipheriv, hkdfSync, randomBytes } from "node:crypto";
 import { normalizarPayload } from "../src/lib/webhook/normalizar";
 import { tipoDaImagem } from "../src/lib/media-storage";
 
@@ -382,6 +384,44 @@ async function main() {
   const soTextoNoCanal = agrupar([pub(5, "h1", "PALIO 2015 R$ 25.000", null)]);
   assert.equal(soTextoNoCanal.length, 1);
   assert.equal(soTextoNoCanal[0].fotos.length, 0);
+
+  // -------------------------------------------------------------------
+  // A FOTO DE CANAL VEM CIFRADA.
+  //
+  // A UAZAPI nao entrega midia de canal pelo id da publicacao -- os quatro
+  // canais do cliente responderam vazio em 26/09/2026. O que ela manda e o
+  // endereco no CDN do WhatsApp, e o arquivo de la e cifrado com a
+  // `mediaKey` da publicacao. Sem decifrar, guardavamos lixo e o card ficava
+  // sem foto.
+  // -------------------------------------------------------------------
+  const jpegOriginal = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]),
+    randomBytes(200),
+  ]);
+  const mediaKey = randomBytes(32);
+  const derivada = Buffer.from(hkdfSync("sha256", mediaKey, Buffer.alloc(32), "WhatsApp Image Keys", 112));
+  const cifrador = createCipheriv("aes-256-cbc", derivada.subarray(16, 48), derivada.subarray(0, 16));
+  const arquivoDoCdn = Buffer.concat([
+    cifrador.update(jpegOriginal),
+    cifrador.final(),
+    randomBytes(10), // a assinatura no fim, que nao faz parte da imagem
+  ]);
+
+  const aberta = decifrarImagem(arquivoDoCdn, mediaKey.toString("base64"));
+  assert.ok(aberta, "com a mediaKey certa a imagem abre");
+  assert.ok(aberta.equals(jpegOriginal), "e sai byte a byte igual a original");
+
+  assert.equal(
+    decifrarImagem(arquivoDoCdn, randomBytes(32).toString("base64")),
+    null,
+    "chave errada devolve null em vez de lixo",
+  );
+  assert.equal(decifrarImagem(arquivoDoCdn, ""), null, "sem chave, null");
+  assert.equal(
+    decifrarImagem(randomBytes(64), mediaKey.toString("base64")),
+    null,
+    "arquivo que nao e o esperado devolve null, nao uma foto quebrada",
+  );
 
   servidor.close();
   console.log("OK — leitura de canais travada.");
