@@ -52,14 +52,6 @@ export interface Vehicle {
   } | null;
   state?: string | null;
   location?: string | null;
-  /**
-   * O lugar deste anuncio entre os do MESMO carro.
-   *
-   * Vem so quando ha par: varios fornecedores postaram o mesmo veiculo e a
-   * fila os colocou lado a lado, do mais barato pro mais caro. `posicao: 1` e
-   * a melhor oferta. Ausente = nao ha repetido.
-   */
-  repetido?: { chave: string; total: number; posicao: number } | null;
   qualityScore?: number | null;
   isVip?: boolean;
   autoRejectedReason?: string | null;

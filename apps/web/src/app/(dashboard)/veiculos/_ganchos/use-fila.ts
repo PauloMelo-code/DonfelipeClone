@@ -60,10 +60,6 @@ export function useFila() {
       } else {
         params.set("status", activeTab);
       }
-      // Repetidos lado a lado, so na fila de triagem: e ali que o operador
-      // escolhe entre fornecedores do mesmo carro. Nas outras abas a decisao
-      // ja foi tomada e agrupar so embaralharia a ordem conhecida.
-      if (activeTab === "PENDING") params.set("agrupar", "1");
       // Busca no servidor -- procura em model/brand/plate/rawDescription no
       // banco inteiro, nao so na pagina atual.
       if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
