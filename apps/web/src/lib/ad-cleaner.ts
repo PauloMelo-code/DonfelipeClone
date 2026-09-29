@@ -55,7 +55,10 @@ function getProvedor(): { cliente: OpenAI; modelo: string; schemaEstrito: boolea
     });
     return {
       cliente: _deepseek,
-      modelo: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+      // O topo de linha deles. A limpeza segue 150 linhas de regra de escrita
+      // do cliente, e foi justamente por isso que o modelo pequeno da OpenAI
+      // nao servia aqui -- nao e tarefa pra modelo fraco.
+      modelo: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-pro",
       schemaEstrito: false,
     };
   }
