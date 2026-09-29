@@ -119,6 +119,30 @@ async function main() {
     "a foto guardada tem que ser a do anuncio que ficou",
   );
 
+  // -------------------------------------------------------------------
+  // A MESMA FOTO nao paga IA duas vezes.
+  //
+  // O webhook guarda a imagem e troca a URL por `/api/media/<uuid>`. O uuid e
+  // novo a cada captura, entao calcular a impressao digital DEPOIS de guardar
+  // faz ela nunca casar -- a dedup por foto morre calada e todo repost do
+  // mesmo carro paga extracao e limpeza de novo. Foi o que aconteceu entre
+  // 26 e 29/09/2026.
+  // -------------------------------------------------------------------
+  await limpar();
+  const mesmaFoto = PNG("Zm90by1yZXBldGlkYQ");
+
+  const original = await POST(envio(GRUPO_A, "rep-1", anuncio("109.990", "Teto solar"), mesmaFoto));
+  assert.equal((await original.json()).status, "captured", "o primeiro entra normal");
+
+  const repost = await POST(envio(GRUPO_B, "rep-2", anuncio("120.000", "Outro texto"), mesmaFoto));
+  const r2 = await repost.json();
+  assert.equal(r2.status, "duplicate", `foto repetida tem que ser barrada ANTES da IA, veio ${JSON.stringify(r2)}`);
+  assert.equal(r2.photoMatch, true, "e barrada justamente por causa da foto");
+
+  const depois = await db.select().from(veiculos)
+    .where(inArray(veiculos.sourceGroupId, [GRUPO_A, GRUPO_B]));
+  assert.equal(depois.length, 1, "o repost nao cria um segundo registro");
+
   await limpar();
   console.log("\nOK — a dedup deixa um anuncio inteiro, nunca a mistura de dois.");
   process.exit(0);

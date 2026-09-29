@@ -104,6 +104,14 @@ export async function POST(request: NextRequest, contexto?: unknown) {
 
     try {
     // ── Persist image immediately (CDN URLs expire in minutes) ──
+    // A impressao digital da foto sai ANTES de guardar.
+    //
+    // Guardar troca a foto por `/api/media/<uuid>`, e o uuid e novo a cada
+    // captura: o hash do endereco nunca casaria com o de antes e a dedup por
+    // foto morria calada, fazendo todo repost do mesmo carro pagar IA de
+    // novo. Aqui o hash ainda ve os bytes.
+    const photoHash = imageUrl ? hashPhoto(imageUrl) : null;
+
     // `data:` tambem: a foto que ja chega pronta (canal decifrado, download da
     // UAZAPI) ia inteira pra coluna `photos` como base64 -- megabytes por
     // carro, em toda resposta da API. Guardada vira `/api/media/<id>`.
@@ -225,8 +233,6 @@ export async function POST(request: NextRequest, contexto?: unknown) {
     }
 
     // Calculate photo hash for duplicate detection
-    const photoHash = imageUrl ? hashPhoto(imageUrl) : null;
-
     // Check if exact same photo was already captured (in last 30 days)
     if (photoHash) {
       const [duplicate] = await db
