@@ -95,6 +95,33 @@ async function main() {
     assert.ok(canal.ok);
     if (canal.ok) assert.equal(canal.msg.senderJid, null, "canal nao pareia");
 
+    // O remetente DESTA mensagem vale mais que o da ultima do chat.
+    //
+    // `wa_lastMessageSender` e o remetente da ultima mensagem do CHAT. Num
+    // grupo movimentado ele muda entre a foto e a legenda -- basta alguem
+    // mais postar no meio -- e as duas pecas caem em gavetas diferentes: a
+    // foto morre "sem legenda", o texto "sem foto", e o anuncio se perde
+    // (cliente, 29/09/2026: "grupos que postam a foto primeiro nao chegam").
+    const grupoMovimentado = await normalizarPayload({
+      EventType: "messages",
+      chat: {
+        wa_chatid: "120363000000000201@g.us",
+        // Outra pessoa postou entre a foto e a legenda.
+        wa_lastMessageSender: "5551900000000@s.whatsapp.net",
+        participant: "5551999998888@s.whatsapp.net",
+        wa_lastMessageType: "Conversation",
+        content: "Onix 2021 50.000km",
+      },
+    });
+    assert.ok(grupoMovimentado.ok);
+    if (grupoMovimentado.ok) {
+      assert.equal(
+        grupoMovimentado.msg.senderJid,
+        "5551999998888@s.whatsapp.net",
+        "vale quem postou ESTA mensagem, nao quem postou a ultima do grupo",
+      );
+    }
+
     // Grupo sem participant continua sem remetente -- ali a conversa e o grupo
     // inteiro, e parear foto com legenda de gente diferente seria pior.
     const grupoSemParticipant = await normalizarPayload({

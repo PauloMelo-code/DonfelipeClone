@@ -127,7 +127,18 @@ async function doFormatoUazapi(raw: any): Promise<ResultadoNormalizacao> {
   // veio na mensagem seguinte: o anuncio morria como "sem foto". Na conversa
   // 1-1, quem manda e a propria conversa.
   const daConversa = ehConversaDeUmPraUm(groupJid) ? groupJid : null;
-  const senderJid = chat.wa_lastMessageSender || chat.senderJid || chat.participant || daConversa;
+  // A ordem importa, e `wa_lastMessageSender` vem por ULTIMO de proposito.
+  //
+  // Ele e o remetente da ultima mensagem DO CHAT, nao desta mensagem. Num
+  // grupo movimentado isso quebra o pareamento: o vendedor posta a foto,
+  // alguem mais posta qualquer coisa, e quando o texto chega o campo ja aponta
+  // pra outra pessoa. As duas pecas caem em gavetas diferentes, a foto morre
+  // como "sem legenda" e o texto como "sem foto" -- o anuncio inteiro se perde
+  // (cliente, 29/09/2026: "grupos que postam a foto primeiro nao chegam").
+  //
+  // `senderJid` e `participant` descrevem ESTA mensagem, e em conversa 1-1
+  // quem manda e a propria conversa. Qualquer um dos tres vale mais.
+  const senderJid = daConversa || chat.senderJid || chat.participant || chat.wa_lastMessageSender;
 
   const msgType = chat.wa_lastMessageType || chat.messageType || "";
   const content = chat.content || "";
