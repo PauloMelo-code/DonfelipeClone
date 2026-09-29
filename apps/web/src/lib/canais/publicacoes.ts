@@ -365,6 +365,64 @@ const verPublicacao = (p: PublicacaoDeCanal): PublicacaoVista => ({
   tipo: p.tipo ?? null,
 });
 
+/**
+ * Joga o marcador de TODOS os canais para a publicacao mais recente, sem
+ * capturar nada.
+ *
+ * Serve pra religar um canal que ficou desativado sem herdar o atraso: o
+ * marcador dele parou onde estava, e ao voltar a busca traria tudo que foi
+ * publicado no meio tempo -- carro de dois dias atras, boa parte ja vendida,
+ * entrando na fila de uma vez.
+ *
+ * Roda com o canal AINDA DESLIGADO, de proposito. A sequencia e: zerar o
+ * atraso, depois ligar. Ao contrario, a busca automatica captura o atraso
+ * antes de dar tempo.
+ */
+export async function comecarCanaisDeAgora(): Promise<
+  Array<{ jid: string; nome: string; marcadorAntes: string | null; marcadorAgora: string | null; erro?: string }>
+> {
+  const canais = await db
+    .select({ groupId: gruposWhatsapp.groupId, name: gruposWhatsapp.name })
+    .from(gruposWhatsapp)
+    .where(
+      and(
+        vivos(gruposWhatsapp),
+        eq(gruposWhatsapp.role, "SOURCE"),
+        // Sem filtrar por `active`: o ponto e justamente preparar canal que
+        // esta desligado pra voltar limpo.
+        like(gruposWhatsapp.groupId, "%@newsletter")
+      )
+    );
+
+  const saida = [];
+  for (const canal of canais) {
+    const linha: { jid: string; nome: string; marcadorAntes: string | null; marcadorAgora: string | null; erro?: string } = {
+      jid: canal.groupId,
+      nome: canal.name,
+      marcadorAntes: null,
+      marcadorAgora: null,
+    };
+    saida.push(linha);
+    try {
+      linha.marcadorAntes = await lerConfiguracao(CHAVE_DO_MARCADOR(canal.groupId));
+      const publicacoes = await uazapi.newsletterMessages(canal.groupId, 20);
+      const maisRecente = publicacoes
+        .map((p) => p.quando)
+        .filter((d) => !Number.isNaN(d.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime())
+        .at(-1);
+      // Sem publicacao lida nao ha o que marcar: melhor deixar como esta do
+      // que carimbar a hora do servidor e perder o que vier a seguir.
+      if (!maisRecente) continue;
+      linha.marcadorAgora = maisRecente.toISOString();
+      await gravarConfiguracao(CHAVE_DO_MARCADOR(canal.groupId), linha.marcadorAgora);
+    } catch (e) {
+      linha.erro = e instanceof Error ? e.message : String(e);
+    }
+  }
+  return saida;
+}
+
 export async function simularBuscaDosCanais(): Promise<SimulacaoDoCanal[]> {
   const canais = await db
     .select({ groupId: gruposWhatsapp.groupId, name: gruposWhatsapp.name })
