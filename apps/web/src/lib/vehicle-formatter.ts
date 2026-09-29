@@ -90,7 +90,14 @@ function getTransmissionLabel(
 // SIGLAS -- achou uma saindo "Xli", e aqui que ela entra.
 // ---------------------------------------------------------------------------
 
-const MARCAS = [
+/**
+ * As marcas que o sistema reconhece.
+ *
+ * Exportada porque o agrupamento de repetidos precisa tirar a marca do modelo
+ * pra comparar ("Jeep Compass Longitude" e "Compass Longitude" sao o mesmo
+ * carro), e duas listas divergiriam com o tempo.
+ */
+export const MARCAS = [
   "MERCEDES-BENZ", "MERCEDES BENZ", "MERCEDES", "LAND ROVER", "RANGE ROVER", "CAOA CHERY", "CHERY",
   "VOLKSWAGEN", "VW", "CHEVROLET", "GM", "TOYOTA", "HONDA", "HYUNDAI", "FIAT", "FORD",
   "NISSAN", "JEEP", "MITSUBISHI", "KIA", "RENAULT", "PEUGEOT", "CITROEN", "CITROËN", "BMW",

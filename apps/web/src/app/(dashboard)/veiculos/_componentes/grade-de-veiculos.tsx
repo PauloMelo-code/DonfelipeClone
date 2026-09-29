@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, Check, CheckSquare, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
+import { AlertTriangle, Check, CheckSquare, Copy, Eye, Loader2, Pencil, Send, Square, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -169,6 +169,26 @@ function CardDeVeiculo({
       </div>
 
       <div className="flex flex-col gap-3 p-5">
+        {/* Varios fornecedores postaram este mesmo carro. Os cards vem lado a
+            lado, do mais barato pro mais caro -- o primeiro e a melhor
+            oferta. */}
+        {veiculo.repetido && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium",
+              veiculo.repetido.posicao === 1
+                ? "border-success/40 bg-success/10 text-success"
+                : "border-border bg-accent/40 text-muted-foreground"
+            )}
+            title={`${veiculo.repetido.total} fornecedores anunciaram este mesmo carro. Os cards estao lado a lado, do mais barato para o mais caro.`}
+          >
+            <Copy className="h-3.5 w-3.5 shrink-0" />
+            {veiculo.repetido.posicao === 1
+              ? `Mais barato dos ${veiculo.repetido.total}`
+              : `${veiculo.repetido.posicao}º de ${veiculo.repetido.total} iguais`}
+          </div>
+        )}
+
         <DadosDoCard
           vehicle={veiculo}
           onUpdateField={editavel}

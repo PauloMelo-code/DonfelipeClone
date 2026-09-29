@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, or, eq, ilike, isNull, isNotNull, asc, desc, count, sql, getTableColumns, type SQL } from "drizzle-orm";
+import { and, or, eq, ilike, inArray, isNull, isNotNull, asc, desc, count, sql, getTableColumns, type SQL } from "drizzle-orm";
 import { db, veiculos, gruposWhatsapp, historicoPublicacao, vivos } from "@/lib/db";
 import { comoTermoLike } from "@/lib/db/like";
 import { generateVehicleHash } from "@/lib/deduplication";
+import { ordenarComRepetidosJuntos, type LugarNoGrupo } from "@/lib/repetidos";
 import { requireAuth } from "@/lib/auth";
 import { validateBody } from "@/lib/validate";
 import { createVehicleSchema } from "@/lib/validations";
@@ -76,6 +77,38 @@ export async function GET(request: NextRequest) {
       preparedAt: veiculos.preparedAt,
     }[sortBy] ?? veiculos.capturedAt;
 
+    // ── Repetidos lado a lado ────────────────────────────────────────────
+    //
+    // Pedido do cliente (26/09/2026): quando varios fornecedores postam o
+    // MESMO carro, os cards tem que aparecer juntos, do mais barato pro mais
+    // caro, pra ele bater o olho e ver quem esta oferecendo melhor.
+    //
+    // O agrupamento roda sobre a fila INTEIRA e so depois a pagina e cortada.
+    // Agrupar so dentro da pagina deixaria o par do outro lado da virada e a
+    // tela mentiria dizendo que nao ha repetido.
+    let ordemAgrupada: string[] | null = null;
+    const grupos = new Map<string, LugarNoGrupo>();
+    if (searchParams.get("agrupar")) {
+      const leves = await db
+        .select({
+          id: veiculos.id,
+          model: veiculos.model,
+          km: veiculos.km,
+          price: veiculos.price,
+          fipePrice: veiculos.fipePrice,
+          capturedAt: veiculos.capturedAt,
+        })
+        .from(veiculos)
+        .where(filtro);
+      const r = ordenarComRepetidosJuntos(
+        leves.map((v) => ({ ...v, capturedAt: v.capturedAt.toISOString() }))
+      );
+      ordemAgrupada = r.ordenados.map((v) => v.id);
+      for (const [id, lugar] of r.grupos) grupos.set(id, lugar);
+    }
+
+    const idsDaPagina = ordemAgrupada?.slice((page - 1) * limit, page * limit) ?? null;
+
     const [linhas, [totalizador]] = await Promise.all([
       db
         .select({
@@ -92,14 +125,26 @@ export async function GET(request: NextRequest) {
         })
         .from(veiculos)
         .leftJoin(gruposWhatsapp, eq(gruposWhatsapp.groupId, veiculos.sourceGroupId))
-        .where(filtro)
+        // Agrupado: a pagina ja foi escolhida acima, entao busca por id. A
+        // ordem do banco nao vale aqui -- ela e reposta logo abaixo.
+        .where(idsDaPagina ? and(filtro, inArray(veiculos.id, idsDaPagina)) : filtro)
         .orderBy(sortOrder === "asc" ? asc(colunaOrdem) : desc(colunaOrdem))
-        .offset((page - 1) * limit)
+        .offset(idsDaPagina ? 0 : (page - 1) * limit)
         .limit(limit),
       db.select({ n: count() }).from(veiculos).where(filtro),
     ]);
 
     const total = totalizador?.n ?? 0;
+
+    // `inArray` volta na ordem do banco; a ordem que importa e a do agrupamento.
+    if (idsDaPagina) {
+      const porId = new Map(linhas.map((l) => [l.id, l]));
+      linhas.length = 0;
+      for (const id of idsDaPagina) {
+        const l = porId.get(id);
+        if (l) linhas.push(l);
+      }
+    }
 
     // Mesma forma que a tela ja consome: sourceGroup e _count aninhados.
     const vehicles = linhas.map(
@@ -118,6 +163,8 @@ export async function GET(request: NextRequest) {
             }
           : null,
         _count: { postHistory: totalPublicacoes },
+        // Presente so nos que TEM par. Card sem isto nao e repetido.
+        repetido: grupos.get(v.id) ?? null,
       })
     );
 
