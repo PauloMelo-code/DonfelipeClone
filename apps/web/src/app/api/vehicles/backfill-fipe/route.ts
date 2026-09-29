@@ -51,6 +51,10 @@ export async function POST() {
     for (const v of approved) {
       // Texto editado pelo operador fica como esta, preco da linha "Por:" incluso.
       if (v.adEditedAt && v.formattedAd?.trim()) continue;
+      // Quem JA tem anuncio pronto tambem fica: re-limpar custa uma chamada de
+      // IA por veiculo, e um clique nesta rota varre a base inteira. Com dois
+      // mil aprovados isso e uma fatura de tres digitos sem nada em troca.
+      if (v.formattedAd?.trim()) continue;
 
       const sellingPrice = v.price * (1 + margin / 100);
       const cleanedDesc = v.rawDescription

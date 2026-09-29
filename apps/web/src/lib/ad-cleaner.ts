@@ -28,11 +28,39 @@ import { LIMPEZA_SCHEMA, PROMPT_VERSION, SYSTEM_PROMPT } from "./ad-cleaner-prom
 import { NADA_PARA_FAZER, eAFazer, eObrigatoria, padronizar, padronizarLinha } from "./corpo-do-anuncio";
 
 let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI {
-  if (!_openai) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _deepseek: OpenAI | null = null;
+
+/**
+ * Quem limpa o anuncio -- e de onde vem a conta.
+ *
+ * Esta e a chamada mais cara do sistema: roda em toda captura, com o maior
+ * prompt que existe aqui (as regras de escrita do cliente) e, ate 29/09/2026,
+ * no modelo mais caro. Era a maior parte da fatura sozinha.
+ *
+ * O DeepSeek fala a mesma API (mesma biblioteca, outro `baseURL`), e a tarefa
+ * e de texto puro -- nao precisa de visao. Com `DEEPSEEK_API_KEY` no ambiente
+ * a limpeza passa a rodar nele; sem ela, nada muda e segue na OpenAI.
+ *
+ * A diferenca que importa: o DeepSeek nao tem JSON com schema estrito, so
+ * `json_object`. Aqui isso quase nao pesa, porque a conferencia de verdade
+ * nunca esteve no schema e sim em `lerEConferir` -- cada item so entra se a
+ * `fonte` existir LITERALMENTE no texto do vendedor.
+ */
+function getProvedor(): { cliente: OpenAI; modelo: string; schemaEstrito: boolean } {
+  const chave = process.env.DEEPSEEK_API_KEY;
+  if (chave) {
+    _deepseek ??= new OpenAI({
+      apiKey: chave,
+      baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+    });
+    return {
+      cliente: _deepseek,
+      modelo: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+      schemaEstrito: false,
+    };
   }
-  return _openai;
+  _openai ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return { cliente: _openai, modelo: MODELO, schemaEstrito: true };
 }
 
 // Cache em memoria: hash do texto -> texto limpo.
@@ -42,7 +70,12 @@ const cleanerCache = new Map<string, CacheEntry>();
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
-/** Modelo grande de proposito: um anuncio sao ~400 tokens, e o pequeno seguia mal 150 linhas de regra. */
+/**
+ * O modelo da OpenAI, usado quando nao ha DeepSeek configurado.
+ *
+ * Grande de proposito: um anuncio sao ~400 tokens, e o pequeno seguia mal as
+ * 150 linhas de regra do cliente.
+ */
 const MODELO = "gpt-4.1";
 
 function hashText(s: string): string {
@@ -248,13 +281,16 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
   const cached = cacheGet(key);
   if (cached !== null) return cached;
 
-  // 1) GPT (primario)
+  // 1) O provedor de texto (primario)
+  const provedor = getProvedor();
   try {
-    const completion = await getOpenAI().chat.completions.create({
-      model: MODELO,
+    const completion = await provedor.cliente.chat.completions.create({
+      model: provedor.modelo,
       temperature: 0,
       max_tokens: 1000,
-      response_format: { type: "json_schema", json_schema: LIMPEZA_SCHEMA },
+      response_format: provedor.schemaEstrito
+        ? { type: "json_schema", json_schema: LIMPEZA_SCHEMA }
+        : { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: text.slice(0, 3000) },

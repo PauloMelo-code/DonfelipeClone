@@ -13,7 +13,10 @@
 // ---------------------------------------------------------------------------
 
 /** Mudou o prompt? Muda aqui: o cache de 24 h guarda resposta do prompt antigo. */
-export const PROMPT_VERSION = "v13";
+// v14: a limpeza pode rodar em outro modelo (DeepSeek). O cache e por texto,
+// entao sem virar a versao um anuncio ja limpo pelo modelo antigo voltaria do
+// cache e a troca pareceria nao ter efeito.
+export const PROMPT_VERSION = "v14";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
