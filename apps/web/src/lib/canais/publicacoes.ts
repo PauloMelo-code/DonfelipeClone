@@ -573,6 +573,16 @@ export async function buscarPublicacoesDosCanais(): Promise<ResumoDaBusca> {
       linha.erro = e instanceof Error ? e.message : String(e);
       console.error(`[Canais] ${canal.name} (${canal.groupId}):`, e);
     }
+    // O motivo de cada descarte, por canal. Sem isto a busca automatica so
+    // dizia o total, e "o canal X nao entrega" virava adivinhacao: filtro de
+    // desconto sobre a FIPE, duplicado e anuncio sem carro somem igual
+    // (cliente, 30/09/2026: "unico que estou recebendo e Rafa").
+    if (linha.motivos) {
+      console.log(
+        `[Canais] ${canal.name}: descartadas ${JSON.stringify(linha.motivos)}`,
+        linha.amostras?.length ? `ex.: ${linha.amostras.join(" | ")}` : ""
+      );
+    }
     resumo.novas += linha.novas;
     resumo.capturadas += linha.capturadas;
   }
