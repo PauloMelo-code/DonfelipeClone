@@ -466,6 +466,30 @@ caso("entrada com fonte no texto e saida fiel entra; trecho, emoji e negrito nao
   ] });
   assert.equal(lerItens(raw, SPORTAGE)?.linhas.join("\n"), "IPVA 26 pago\nPneus novos\nCom manual e chave reserva\nRevisões na concessionária\nFazer 1 retoque");
 });
+// Cliente, 30/09/2026: "separar esse bolo de informacoes na mesma linha". A IA
+// separou certo (resposta real do deepseek-v4-pro); era a conferencia que
+// devolvia a linha INTEIRA do vendedor no lugar.
+caso("linha com varias informacoes: cada item da IA vale, a linha inteira nao volta", () => {
+  const avaliacao = "Avaliação: Motor e câmbio bom. veículo bom de andar. 2 retoques e reparar 1 tira de banco (Obs: teto-solar panorâmico, interno marrom escuro, IPVA 26 pago, suspensão e freios ok)";
+  const santaFe = `SANTA FE GLS 3.3 V6 4X4 2014\n7 lugares\n${avaliacao}`;
+  const raw = JSON.stringify({ itens: [
+    { fonte: "7 lugares", saida: "7 lugares" },
+    ...["Motor e câmbio bons", "Bom de andar", "Fazer 2 retoques", "Reparar 1 tira de banco",
+      "Teto-solar panorâmico", "Interno marrom escuro", "IPVA 26 pago", "Suspensão e freios bons"]
+      .map((saida) => ({ fonte: avaliacao, saida })),
+  ] });
+  const linhas = lerItens(raw, santaFe)?.linhas ?? [];
+  assert.ok(!linhas.some((l) => l.startsWith("Avaliação")), linhas.join(" | "));
+  for (const l of ["Motor e câmbio bons", "Fazer 2 retoques", "Reparar 1 tira de banco", "Interno marrom escuro"]) {
+    assert.ok(linhas.includes(l), `falta "${l}" em: ${linhas.join(" | ")}`);
+  }
+});
+caso("opcional basico que a regra tira sai sozinho, sem trazer a linha do vendedor de volta", () => {
+  const opcionais = "Rodas de liga + multimídia + volante multi + retrovisores elétricos com seta + faróis de milha";
+  const raw = JSON.stringify({ itens: ["Rodas de liga", "Multimídia", "Volante multifuncional", "Faróis de milha"]
+    .map((saida) => ({ fonte: opcionais, saida })) });
+  assert.deepEqual(lerItens(raw, `GOL 1.6 MSI 2022\n${opcionais}`)?.linhas, ["Multimídia", "Volante multifuncional"]);
+});
 caso("fonte que nao esta no texto cai, mesmo parecendo item de carro", () => {
   const raw = JSON.stringify({ itens: [
     { fonte: "Único dono", saida: "Único dono" },

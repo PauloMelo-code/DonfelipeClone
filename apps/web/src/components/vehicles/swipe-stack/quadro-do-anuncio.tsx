@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, FileText, Loader2 } from "lucide-react";
+import { Check, Copy, Eye, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { anuncioParaExibir } from "@/lib/vehicle-formatter";
 
 
@@ -63,6 +64,7 @@ function ComNegrito({ texto }: { texto: string }) {
 export function QuadroDoAnuncio({ vehicle, edicao }: Props) {
   const anuncio = anuncioParaExibir(vehicle);
   const [verOriginal, setVerOriginal] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   // Sem anuncio gerado ainda, a caixa parte do texto do vendedor.
   const base = anuncio ?? vehicle.rawDescription ?? "";
@@ -71,6 +73,20 @@ export function QuadroDoAnuncio({ vehicle, edicao }: Props) {
   const podeComparar = !!anuncio && !!vehicle.rawDescription;
   const mostrandoOriginal = verOriginal && podeComparar;
   const valor = edicao?.rascunho ?? base;
+  const exibido = mostrandoOriginal ? vehicle.rawDescription ?? "" : valor;
+
+  // O texto mora dentro do card que se arrasta: selecionar com o mouse
+  // comecava o arrasto. O cliente precisa do original pra montar a lista de
+  // exemplos (30/09/2026) -- digitar tudo era inviavel.
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(exibido);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {
+      toast.error("Não deu pra copiar");
+    }
+  };
 
   const rotulo = mostrandoOriginal
     ? "Texto original do vendedor"
@@ -89,6 +105,17 @@ export function QuadroDoAnuncio({ vehicle, edicao }: Props) {
             <span className="shrink-0 text-brand-gold/80">· editado</span>
           ) : null}
         </span>
+        <span className="flex shrink-0 items-center">
+        {exibido && (
+          <button
+            type="button"
+            onClick={copiar}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          >
+            {copiado ? <Check className="h-3 w-3 text-brand-gold" /> : <Copy className="h-3 w-3" />}
+            {copiado ? "Copiado" : "Copiar"}
+          </button>
+        )}
         {podeComparar && (
           <button
             type="button"
@@ -99,6 +126,7 @@ export function QuadroDoAnuncio({ vehicle, edicao }: Props) {
             {mostrandoOriginal ? "Ver anúncio" : "Ver original"}
           </button>
         )}
+        </span>
       </div>
 
       {edicao && !mostrandoOriginal ? (

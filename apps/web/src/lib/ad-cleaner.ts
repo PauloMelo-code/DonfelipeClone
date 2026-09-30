@@ -244,6 +244,16 @@ export function lerItens(raw: string, original: string): Lido | null {
   const linhas: string[] = [];
   const cobertas = new Set<number>();
   const recusadas: string[] = [];
+  // Quantas saidas cada linha do vendedor gerou. Linha com mais de uma
+  // informacao ("Avaliação: motor bom... 2 retoques... IPVA 26 pago") tem
+  // bom e a fazer misturados: a fonte inteira nao serve de gabarito pra
+  // polaridade de nenhum item dela.
+  const saidasDaFonte = new Map<string, number>();
+  for (const item of itens) {
+    const f = normalizar(String(item.fonte ?? ""));
+    const n = String(item.saida ?? "").split("\n").filter((x) => x.trim()).length;
+    saidasDaFonte.set(f, (saidasDaFonte.get(f) ?? 0) + n);
+  }
   for (const item of itens) {
     const fonte = String(item.fonte ?? "");
     const f = normalizar(fonte);
@@ -258,7 +268,15 @@ export function lerItens(raw: string, original: string): Lido | null {
         continue;
       }
       const daIa = padronizarLinha(saida);
-      const valem = daFonte.canonica || polaridade(daFonte.linhas) !== polaridade(daIa) ? daFonte.linhas : daIa;
+      // Saida que a regra do cliente descarta (opcional basico, "ar gelando")
+      // sai -- antes a linha inteira do vendedor voltava no lugar dela.
+      const valem = daFonte.canonica
+        ? daFonte.linhas
+        : !daIa.length
+          ? []
+          : (saidasDaFonte.get(f) ?? 0) < 2 && polaridade(daFonte.linhas) !== polaridade(daIa)
+            ? daFonte.linhas
+            : daIa;
       for (const l of valem) if (!linhas.includes(l)) linhas.push(l);
       onde.forEach((i) => cobertas.add(i));
     }

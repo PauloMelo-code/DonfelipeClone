@@ -16,7 +16,7 @@
 // v14: a limpeza pode rodar em outro modelo (DeepSeek). O cache e por texto,
 // entao sem virar a versao um anuncio ja limpo pelo modelo antigo voltaria do
 // cache e a troca pareceria nao ter efeito.
-export const PROMPT_VERSION = "v14";
+export const PROMPT_VERSION = "v15";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
@@ -168,12 +168,14 @@ EXEMPLO (texto do vendedor -> resposta):
   Chama no whats 51 9999-9999
 
   {"itens":[
-    {"fonte":"ar cond, dir hidr","saida":"Ar condicionado, direção hidráulica"},
+    {"fonte":"ar cond, dir hidr","saida":"Ar-condicionado"},
+    {"fonte":"ar cond, dir hidr","saida":"Direção hidráulica"},
     {"fonte":"ipva 26 pg","saida":"IPVA 26 pago"},
     {"fonte":"manual, sem chave copia","saida":"Com manual"},
     {"fonte":"manual, sem chave copia","saida":"Sem chave reserva"},
     {"fonte":"motor susp caixa ok","saida":"Motor, suspensão e caixa bons"},
-    {"fonte":"rev na css, 1 dono","saida":"Revisado na concessionária, único dono"},
+    {"fonte":"rev na css, 1 dono","saida":"Revisado na concessionária"},
+    {"fonte":"rev na css, 1 dono","saida":"Único dono"},
     {"fonte":"polido","saida":"Recém polido"},
     {"fonte":"Faz 1 retoque","saida":"Fazer 1 retoque"}
   ]}
@@ -189,7 +191,8 @@ ano, km e preco, a resposta e {"itens":[]}.
   informacao nao esta escrita, a entrada nao existe.
 - "saida": a mesma informacao no padrao acima. Nao diz nada que a fonte
   nao diga.
-- Uma entrada por linha do anuncio. A ordem nao importa. Maximo 12.
+- Uma entrada por INFORMACAO: a mesma linha do vendedor gera quantas
+  entradas tiver de informacao (regra 7). A ordem nao importa. Maximo 20.
 - Sem markdown na saida (sem *, _, ~, #). Portugues brasileiro.
 - Nada util alem do cabecalho/rodape: {"itens":[]}
 Responda SO o JSON.`;
