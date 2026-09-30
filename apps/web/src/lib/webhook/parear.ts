@@ -21,6 +21,12 @@ interface MensagemBufferizada {
   messageId: string;
   senderJid: string;
   timestamp: number;
+  /**
+   * Album aberto: o texto veio ANTES e ja casou com a primeira foto. As fotos
+   * seguintes sao desse carro, nao do proximo anuncio. `veiculoId` fica nulo
+   * enquanto o carro ainda esta sendo gravado; ate la as fotos esperam aqui.
+   */
+  album?: { fotos: string[]; veiculoId: string | null };
 }
 
 const _buffer = new Map<string, MensagemBufferizada>();
@@ -75,10 +81,27 @@ export function parear(entrada: EntradaPareamento): ResultadoPareamento {
   const guardado = chave ? _buffer.get(chave) : null;
 
   if (imageUrl && !textContent && chave) {
+    if (guardado?.album) {
+      // Mais uma foto do carro cujo texto veio antes. Antes disto ela ficava
+      // esperando legenda e ia parar no PROXIMO anuncio do vendedor: HB20S
+      // com as fotos do HR-V postado antes (cliente, 30/09/2026).
+      guardado.timestamp = Date.now();
+      if (guardado.album.veiculoId) return { tipo: "segue", textContent: null, imageUrl, fotosExtras };
+      if (!guardado.album.fotos.includes(imageUrl) && guardado.album.fotos.length < MAX_FOTOS) {
+        guardado.album.fotos.push(imageUrl);
+      }
+      return { tipo: "bufferado", resposta: { status: "buffered", reason: "awaiting_vehicle" } };
+    }
     if (guardado?.textContent && (!guardado.imageUrls || guardado.imageUrls.length === 0)) {
       // Texto ja estava esperando esta foto: pareia.
       textContent = guardado.textContent;
-      _buffer.delete(chave);
+      _buffer.set(chave, {
+        imageUrls: [],
+        messageId,
+        senderJid: senderJid as string,
+        timestamp: Date.now(),
+        album: { fotos: [], veiculoId: null },
+      });
       console.log("[Webhook] PAIRED: imagem + texto do buffer de", senderJid);
     } else {
       // Sem texto casando: entra na fila e aguarda.
@@ -140,4 +163,15 @@ export function parear(entrada: EntradaPareamento): ResultadoPareamento {
   }
 
   return { tipo: "segue", textContent, imageUrl, fotosExtras };
+}
+
+/**
+ * O carro do album aberto foi gravado: devolve as fotos que chegaram enquanto
+ * isso, e as proximas vao direto pro album dele.
+ */
+export function fotosQueChegaramDepois(groupJid: string, senderJid: string | null, veiculoId: string): string[] {
+  const guardado = _buffer.get(chaveDoBuffer(groupJid, senderJid));
+  if (!guardado?.album || guardado.album.veiculoId) return [];
+  guardado.album.veiculoId = veiculoId;
+  return guardado.album.fotos.splice(0);
 }

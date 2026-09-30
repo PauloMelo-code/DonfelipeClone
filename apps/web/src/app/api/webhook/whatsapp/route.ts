@@ -12,7 +12,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { extractRequestMeta } from "@/lib/request-meta";
 import { checkMachineSecret } from "@/lib/machine-auth";
 import { normalizarPayload } from "@/lib/webhook/normalizar";
-import { parear } from "@/lib/webhook/parear";
+import { parear, fotosQueChegaramDepois } from "@/lib/webhook/parear";
 import { aplicarFiltros } from "@/lib/webhook/filtros";
 import { resolverGrupo } from "@/lib/webhook/grupo";
 import { anexarFotoExtra } from "@/lib/webhook/album";
@@ -474,7 +474,8 @@ export async function POST(request: NextRequest, contexto?: unknown) {
             transmission, fuel, features,
           });
         }
-        if (atualizado && photos.length > 1) analisarFotosEmBackground(atualizado.id, photos);
+        const fotosDoCarro = atualizado ? await juntarAoAlbum(groupJid, senderJid, atualizado.id, photos) : photos;
+        if (atualizado && fotosDoCarro.length > 1) analisarFotosEmBackground(atualizado.id, fotosDoCarro);
         return NextResponse.json({
           status: "updated_lower_price",
           existingId: existingByIdentity.id,
@@ -512,8 +513,9 @@ export async function POST(request: NextRequest, contexto?: unknown) {
         transmission, fuel, features,
       });
     }
-    if (photos.length > 1 && !autoRejectedReason) {
-      analisarFotosEmBackground(vehicle.id, photos);
+    const fotosDoCarro = await juntarAoAlbum(groupJid, senderJid, vehicle.id, photos);
+    if (fotosDoCarro.length > 1 && !autoRejectedReason) {
+      analisarFotosEmBackground(vehicle.id, fotosDoCarro);
     }
 
     await registrarAuditoria({
@@ -549,4 +551,22 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * O vendedor que manda o texto primeiro continua mandando fotos enquanto o
+ * carro e gravado. Elas esperaram no pareamento e entram agora, neste carro.
+ */
+async function juntarAoAlbum(
+  groupJid: string,
+  senderJid: string | null,
+  veiculoId: string,
+  photos: string[],
+): Promise<string[]> {
+  const tardias = fotosQueChegaramDepois(groupJid, senderJid, veiculoId);
+  if (!tardias.length) return photos;
+  const todas = [...photos, ...tardias].filter((p, i, arr) => arr.indexOf(p) === i).slice(0, 12);
+  await db.update(veiculos).set({ photos: JSON.stringify(todas) }).where(eq(veiculos.id, veiculoId));
+  console.log(`[Webhook] Multi-photo: ${tardias.length} foto(s) que chegaram durante a gravacao -> ${veiculoId}`);
+  return todas;
 }
