@@ -434,6 +434,18 @@ export function formatVehicleAd(
         lower.includes(modelFirstWord) && (bodyLines.length === 0 || lower.length < 60 && bodyLines.length < 3) ||
         // Year line: "Ano 2025", "ANO/MOD: 2023/2024", "2025" ou "2024/2025"
         /^(ano\s*(?:\/\s*mod(?:elo)?)?\s*:?\s*)?\d{4}\s*([\/|]\s*\d{2,4})?\s*$/i.test(l) ||
+        // Linha que so repete ano e km, em qualquer grafia: "23/24",
+        // "60.081KM", "2024 I 60.000km", "Ano 2014 / 127.000 km". Tirando os
+        // numeros, os separadores e as palavras de ano e km, nao sobra nada.
+        /\d/.test(l) && !l.replace(/ano|mod(?:elo)?|kms?|mil|quil[ôo]metros?|\bI\b/gi, "").replace(/[\d\s.,\/|\-–•:°º]/g, "") ||
+        // Preco com rotulo do vendedor no meio: "Preço caarpix: R$ 66.990",
+        // "Tabela fipe: R$ 78.792,00". O Fipe/Por do rodape e do sistema.
+        /^(pre[çc]o|valor|tabela|fipe|pedida)\b.*\d/i.test(l) ||
+        // Divisoria ("━━━━", "-----"): nenhuma letra, nenhum numero.
+        !!l.trim() && !/[\p{L}\p{N}]/u.test(l) ||
+        // Cabecalho sem conteudo: "Opcionais (Benefícios do veículo)".
+        /^(opcionais|itens|acess[óo]rios)\b\s*(\([^)]*\))?\s*:?\s*$/i.test(l) ||
+        /\bfotos?\b.*\b(solicita[çc][ãa]o|mediante|pedido|privado)/i.test(l) ||
         // KM line: "KM 35.000", "Km: 46 mil", "35.000 km" (linha inteira)
         /^(km\s*:?\s*)?[\d.,]+\s*(mil\s*)?(km)?\s*$/i.test(l) ||
         // Ano e km juntos: "2022 | 55.000km", "2019/2020 - 80 mil km"
@@ -471,7 +483,7 @@ export function formatVehicleAd(
         // "Combustivel: FLEX", "Cambio: AUTOMATICA", "Modelo: ..." -- ja no titulo.
         /^(combust[ií]vel|c[aâ]mbio|cambio|marca|modelo)\s*:/i.test(l) ||
         // Remove location lines
-        !dePlaca && /\b(em\s+estoque|carro\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
+        !dePlaca && /\b(em\s+estoque|carro\s+em|comigo\s+em|localiza[çc][ãa]o|disponível\s+em|disponivel\s+em)\b/i.test(l) ||
         !dePlaca && /\b(florian[oó]polis|porto\s+alegre|curitiba|blumenau|joinville|itaja[ií]|canoas|caxias|maring[aá]|pelotas|navegantes|s[ãa]o\s+paulo|belo\s+horizonte|londrina)\b/i.test(l) ||
         // Remove phone numbers
         /\(?\d{2}\)?\s*9?\s*\d{4}[-.\s]?\d{4}/.test(l) ||

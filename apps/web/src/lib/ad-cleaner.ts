@@ -46,7 +46,7 @@ let _deepseek: OpenAI | null = null;
  * nunca esteve no schema e sim em `lerEConferir` -- cada item so entra se a
  * `fonte` existir LITERALMENTE no texto do vendedor.
  */
-function getProvedor(): { cliente: OpenAI; modelo: string; schemaEstrito: boolean } {
+function getProvedor(): { cliente: OpenAI; modelo: string; schemaEstrito: boolean; extra?: object } {
   const chave = process.env.DEEPSEEK_API_KEY;
   if (chave) {
     _deepseek ??= new OpenAI({
@@ -60,6 +60,13 @@ function getProvedor(): { cliente: OpenAI; modelo: string; schemaEstrito: boolea
       // nao servia aqui -- nao e tarefa pra modelo fraco.
       modelo: process.env.DEEPSEEK_MODEL ?? "deepseek-v4-pro",
       schemaEstrito: false,
+      // O DeepSeek PENSA por padrao, em esforco alto, e o raciocinio sai do
+      // mesmo `max_tokens` da resposta. Os 1000 tokens acabavam antes do JSON,
+      // a limpeza caia no ultimo recurso -- o texto CRU do vendedor -- e o
+      // anuncio ia pro card com ano e km repetidos, "Preço caarpix: R$...",
+      // tudo numa linha so (cliente, 30/09/2026). Citar linha nao precisa de
+      // raciocinio.
+      extra: { thinking: { type: "disabled" } },
     };
   }
   _openai ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -288,9 +295,10 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
   const provedor = getProvedor();
   try {
     const completion = await provedor.cliente.chat.completions.create({
+      ...provedor.extra,
       model: provedor.modelo,
       temperature: 0,
-      max_tokens: 1000,
+      max_tokens: 2000,
       response_format: provedor.schemaEstrito
         ? { type: "json_schema", json_schema: LIMPEZA_SCHEMA }
         : { type: "json_object" },
@@ -305,9 +313,11 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
       cacheSet(key, fiel);
       return fiel;
     }
-    console.warn("[ad-cleaner] GPT nao devolveu JSON, tentando Gemini");
+    console.warn(
+      `[ad-cleaner] ${provedor.modelo} nao devolveu JSON (fim: ${completion.choices[0]?.finish_reason}), tentando Gemini`,
+    );
   } catch (err) {
-    console.error("[ad-cleaner] GPT failed:", err);
+    console.error(`[ad-cleaner] ${provedor.modelo} falhou:`, err);
   }
 
   // 2) Fallback: Gemini (se configurado)
@@ -326,6 +336,7 @@ export async function cleanAdDescription(rawDescription: string): Promise<string
   }
 
   // 3) Ultimo fallback: texto original truncado (regex do formatter limpa o resto)
+  console.warn("[ad-cleaner] nenhum modelo limpou -- vai o texto do vendedor");
   return text.slice(0, 2000);
 }
 

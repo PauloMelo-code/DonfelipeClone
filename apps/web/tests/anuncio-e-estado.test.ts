@@ -547,6 +547,27 @@ caso("sem IA (regex), o defeito tambem vai pro fim da lista", () => {
   assert.match(anuncio, /\nTeto-solar\nSem retoques\n\nFazer polimento\n\nPor/);
 });
 
+// Cliente, 30/09/2026: "ainda repetindo informacao na descricao". Ano, km e
+// preco ja estao no cabecalho e no rodape -- no corpo, em qualquer grafia, sai.
+caso("corpo nao repete ano, km nem preco, em nenhuma grafia", () => {
+  const corpo = (rawDescription: string) =>
+    formatVehicleAd(
+      { model: "Corolla XEI 2.0", year: 2023, yearModel: 2024, km: 60081, price: 124500, fipePrice: 138639, rawDescription },
+      { profitMarginPercent: 0 },
+    ).split("\n").slice(3, -3);
+  for (const repetida of [
+    "23/24", "60.081KM", "2024 I 60.000km", "Ano 2014 / 127.000 km",
+    "Preço caarpix: R$ 66.990", "Tabela fipe: R$ 78.792,00",
+    "━━━━━━━━", "Opcionais (Benefícios do veículo)", "Fotos disponíveis mediante solicitação",
+    "Veiculo comigo em SC",
+  ]) {
+    assert.deepEqual(corpo(`IPVA pago\n${repetida}\nCautelar aprovada`), ["IPVA pago", "Cautelar aprovada"], repetida);
+  }
+  // O que so PARECE ano e km continua: e informacao do carro.
+  assert.ok(corpo("IPVA 2024 pago\nRevisão aos 60.000km\nCautelar aprovada").includes("IPVA 24 pago"));
+  assert.ok(corpo("IPVA 2024 pago\nRevisão aos 60.000km\nCautelar aprovada").some((l) => /60\.000km/.test(l)));
+});
+
 async function casosAssincronos() {
   // A regra do km abreviado vive na validacao comum ao regex e ao GPT.
   const { extractVehicleFromText } = await import("../src/lib/ai");
