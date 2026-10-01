@@ -42,7 +42,10 @@ caso("texto primeiro: as fotos seguintes sao do mesmo carro, nao do proximo", ()
   // Depois de gravado, a foto vai direto pro album do HR-V.
   const tardia = msg(G, null, "hrv-4");
   assert.equal(tardia.tipo, "segue");
-  if (tardia.tipo === "segue") assert.equal(tardia.textContent, null, "sem texto: a rota anexa ao album");
+  if (tardia.tipo === "segue") {
+    assert.equal(tardia.textContent, null, "sem texto: a rota anexa ao album");
+    assert.equal(tardia.veiculoDoAlbum, "v-hrv", "e ao carro CERTO, sem procurar");
+  }
 
   // O proximo anuncio comeca do zero -- com a SUA foto.
   assert.equal(msg(G, "HB20S Premium 1.6 2018", null).tipo, "bufferado");
@@ -78,6 +81,70 @@ caso("carro que nao foi gravado: as fotos dele nao passam pro proximo", () => {
   const c = msg(G, null, "corolla-1");
   if (c.tipo === "segue") assert.equal(c.imageUrl, "corolla-1");
   else assert.fail("o Corolla devia sair com a foto dele");
+});
+
+// ── Cliente, 01/10/2026: "puxou um Corolla e trouxe a imagem de uma SW4" ──
+const relogio = Date.now;
+const daquiA = (min: number) => { const real = relogio(); Date.now = () => real + min * 60_000; };
+const SW = "5547988887777@s.whatsapp.net";
+const de = (grupo: string, texto: string | null, foto: string | null) =>
+  parear({ groupJid: grupo, senderJid: SW, messageId: `s${++n}`, textContent: texto, imageUrl: foto });
+
+caso("foto COM legenda e depois fotos sem legenda: tudo do mesmo carro", () => {
+  const G = "g4@g.us";
+  const sw4 = de(G, "SW4 SRX 2.8 2021 80.000km", "sw4-1");
+  assert.equal(sw4.tipo, "segue");
+  assert.equal(de(G, null, "sw4-2").tipo, "bufferado", "espera o carro ser gravado");
+  assert.deepEqual(fotosQueChegaramDepois(G, SW, "v-sw4"), ["sw4-2"]);
+  const extra = de(G, null, "sw4-3");
+  if (extra.tipo === "segue") assert.equal(extra.veiculoDoAlbum, "v-sw4");
+  else assert.fail("a foto extra devia ir pro album da SW4");
+
+  // O Corolla do mesmo vendedor, texto antes da foto: sai com a foto DELE.
+  assert.equal(de(G, "Corolla XEI 2.0 2022 50.000km", null).tipo, "bufferado");
+  const corolla = de(G, null, "corolla-1");
+  if (corolla.tipo === "segue") {
+    assert.equal(corolla.imageUrl, "corolla-1");
+    assert.deepEqual(corolla.fotosExtras, []);
+  } else assert.fail("o Corolla devia sair com a foto dele");
+});
+
+caso("legenda na ULTIMA foto do album: as de antes vao junto", () => {
+  const G = "g5@g.us";
+  de(G, null, "a-1");
+  de(G, null, "a-2");
+  const r = de(G, "Hilux SRV 2019 90.000km", "a-3");
+  if (r.tipo === "segue") assert.deepEqual([r.imageUrl, ...r.fotosExtras], ["a-3", "a-1", "a-2"]);
+  else assert.fail("o anuncio devia sair");
+});
+
+caso("album vence em 2 min: foto depois disso e do proximo carro", () => {
+  const G = "g6@g.us";
+  try {
+    de(G, "Compass 2020 60.000km", "c-1");
+    fotosQueChegaramDepois(G, SW, "v-compass");
+    daquiA(3);
+    assert.equal(de(G, null, "proximo-1").tipo, "bufferado", "nao entra no Compass");
+    const prox = de(G, "Renegade 2019 70.000km", null);
+    if (prox.tipo === "segue") assert.equal(prox.imageUrl, "proximo-1");
+    else assert.fail("o Renegade devia sair com a foto dele");
+  } finally {
+    Date.now = relogio;
+  }
+});
+
+caso("foto velha nao se renova: nao chega num carro de muito depois", () => {
+  const G = "g7@g.us";
+  try {
+    de(G, null, "velha-sw4");
+    daquiA(4);
+    de(G, null, "outra");
+    daquiA(6);
+    // A primeira foto tem 6 min: venceu, mesmo com o vendedor postando no meio.
+    assert.equal(de(G, "Corolla GLi 2020 60.000km", null).tipo, "bufferado", "texto espera a foto dele");
+  } finally {
+    Date.now = relogio;
+  }
 });
 
 if (falhas > 0) {

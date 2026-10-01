@@ -201,13 +201,12 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       return NextResponse.json({ status: "ignored", reason: "no_photo" });
     }
 
-    // Foto sem legenda pode ser a segunda foto de um anuncio ja capturado.
-    if (!textContent && imageUrl && senderJid) {
-      const album = await anexarFotoExtra({
-        groupId: group.groupId,
-        senderJid,
-        imageUrl,
-      });
+    // Foto sem legenda de um album aberto: o pareamento ja sabe de QUAL carro
+    // ela e. Antes a foto ia pro carro do mesmo vendedor dos ultimos 5 min --
+    // ou, sem achar, pro unico carro recente do GRUPO, de qualquer vendedor:
+    // um Corolla recebeu a foto de uma SW4 (cliente, 01/10/2026).
+    if (!textContent && imageUrl && pareado.veiculoDoAlbum) {
+      const album = await anexarFotoExtra(pareado.veiculoDoAlbum, imageUrl);
       if (album.anexou) {
         return NextResponse.json({
           status: "multi_photo_appended",
@@ -218,7 +217,6 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       if (album.motivo === "limite_atingido") {
         return NextResponse.json({ status: "ignored", reason: "multi_photo_limit" });
       }
-      // Sem anuncio recente para anexar: descarta como antes.
       return NextResponse.json({ status: "ignored", reason: "image_no_caption" });
     }
 
