@@ -244,6 +244,8 @@ export function lerItens(raw: string, original: string): Lido | null {
   const linhas: string[] = [];
   const cobertas = new Set<number>();
   const recusadas: string[] = [];
+  /** De qual linha do vendedor saiu cada linha aceita. */
+  const daFonteDe = new Map<string, string>();
   // Quantas saidas cada linha do vendedor gerou. Linha com mais de uma
   // informacao ("Avaliação: motor bom... 2 retoques... IPVA 26 pago") tem
   // bom e a fazer misturados: a fonte inteira nao serve de gabarito pra
@@ -280,8 +282,15 @@ export function lerItens(raw: string, original: string): Lido | null {
       // higienização" na IA, e o cliente quer a frase fechada, numa linha so
       // (C4 Cactus, 01/10/2026). "Motor e câmbio bons" nao cabe em "Fazer 2
       // pincéis", e fica como a IA escreveu.
-      const pistasFixas = daFonte.linhas.flatMap(pistas);
-      const cobre = daFonte.canonica && p.length > 0 && p.every((x) => pistasFixas.includes(x));
+      // E cobrir sem sobrar quase nada: "Obs: 1 peça, infiltração farol,
+      // polir, higienizar, leve barulho" tem traducao fixa da linha INTEIRA, que
+      // "cobre" qualquer item -- e voltava inteira no lugar de cada um (BMW,
+      // 01/10/2026). Uma pista a mais e o "e higienização" do C4.
+      const pistasFixas = new Set(daFonte.linhas.flatMap(pistas));
+      const doItem = new Set(p);
+      const cobre =
+        daFonte.canonica && doItem.size > 0 && [...doItem].every((x) => pistasFixas.has(x)) &&
+        pistasFixas.size <= doItem.size + 1;
       const valem = (unica || cobre) && daFonte.canonica
         ? daFonte.linhas
         : !daIa.length
@@ -289,11 +298,22 @@ export function lerItens(raw: string, original: string): Lido | null {
           : unica && polaridade(daFonte.linhas) !== polaridade(daIa)
             ? daFonte.linhas
             : daIa;
-      for (const l of valem) if (!linhas.includes(l)) linhas.push(l);
+      for (const l of valem) {
+        if (!linhas.includes(l)) linhas.push(l);
+        daFonteDe.set(l, f);
+      }
       onde.forEach((i) => cobertas.add(i));
     }
   }
   if (recusadas.length) console.warn(`[ad-cleaner] sem fonte no anuncio: ${recusadas.join(" | ")}`);
+  // "Polir, higienizar" na MESMA frase do vendedor e uma tarefa so, como o
+  // cliente escreve: "Fazer polimento e higienização" (C4 e BMW, 01/10/2026).
+  // Em linhas separadas do vendedor, ficam separadas.
+  const polir = daFonteDe.get("Fazer polimento");
+  if (polir !== undefined && polir === daFonteDe.get("Fazer higienização")) {
+    linhas.splice(linhas.indexOf("Fazer polimento"), 1, "Fazer polimento e higienização");
+    linhas.splice(linhas.indexOf("Fazer higienização"), 1);
+  }
   return { linhas, cobertas };
 }
 

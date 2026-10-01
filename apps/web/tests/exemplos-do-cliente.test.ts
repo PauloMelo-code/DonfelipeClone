@@ -134,6 +134,37 @@ caso("Nivus: FIPE em milhares ('R$135,41') e 135.410", () => {
   assert.ok((1 - v.price / v.fipePrice!) * 100 < 10, "7,7% de desconto: o filtro de 10% barra");
 });
 
+// ── BMW 328ia: "Obs:" com seis informacoes ──────────────────────────────
+const BMW = J(
+  "📌Bmw 328ia Sport", "", "📌Ano 2017", "", "📌97 mil km", "", "📌ipva 26 pago", "", "📌Teto solar", "",
+  "📌Obs: 1 peça, infiltração farol, polir, higienizar, leve barulho, suspensão dianteira", "",
+  "📌Fipe R$134.500", "", "📌Venda R$101.990",
+);
+caso("BMW: o 'Obs:' vira um item por linha, e defeito vai pro bloco de baixo", () => {
+  const obs = "Obs: 1 peça, infiltração farol, polir, higienizar, leve barulho, suspensão dianteira";
+  const raw = JSON.stringify({ itens: [
+    { fonte: "ipva 26 pago", saida: "IPVA 26 pago" },
+    { fonte: "Teto solar", saida: "Teto-solar" },
+    ...["Pintar 1 peça", "Infiltração no farol", "Fazer polimento", "Fazer higienização", "Leve barulho na suspensão dianteira"]
+      .map((saida) => ({ fonte: obs, saida })),
+  ] });
+  const lido = lerItens(raw, BMW)!;
+  const v = extractWithRegex(BMW)!;
+  const anuncio = formatVehicleAd(
+    { ...v, rawDescription: conferirComOVendedor(lido.linhas.join("\n"), BMW, lido.cobertas) },
+    { profitMarginPercent: 0 },
+  );
+  assert.deepEqual(corpo(anuncio), [
+    "Teto-solar",
+    "IPVA 26 pago",
+    "",
+    "Leve barulho na suspensão dianteira",
+    "Fazer polimento e higienização",
+    "Infiltração no farol",
+    "Pintar 1 peça",
+  ]);
+});
+
 // ── Compass da Mascote: anuncio sem km ──────────────────────────────────
 // O prompt manda km null quando o anuncio nao diz; o leitor da resposta
 // exigia km e derrubava o carro inteiro ("JSON invalido" no log).

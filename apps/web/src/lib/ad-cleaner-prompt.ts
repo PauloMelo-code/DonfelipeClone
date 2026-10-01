@@ -16,7 +16,7 @@
 // v14: a limpeza pode rodar em outro modelo (DeepSeek). O cache e por texto,
 // entao sem virar a versao um anuncio ja limpo pelo modelo antigo voltaria do
 // cache e a troca pareceria nao ter efeito.
-export const PROMPT_VERSION = "v16";
+export const PROMPT_VERSION = "v17";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
@@ -145,7 +145,9 @@ vendedor disse: "para choque e capo" -> "para-choque e capô".
    "Boa de andar e boa de pneus" -> "Boa de andar" e "Pneus bons".
    "Teto solar, couro, multimídia" -> tres entradas.
    O que e uma expressao so fica junto ("Com manual e chave reserva",
-   "Motor, caixa e suspensão bons").
+   "Motor, caixa e suspensão bons"). Defeito seguido da peca onde ele esta
+   e UM item: "leve barulho, suspensão dianteira" -> "Leve barulho na
+   suspensão dianteira" -- nunca "Suspensão dianteira" sozinha.
 
 8. Nao repita informacao. Se o vendedor disse a mesma coisa duas vezes, de
    jeitos diferentes, mande so uma entrada.
