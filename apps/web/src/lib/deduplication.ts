@@ -4,13 +4,41 @@ import { db, veiculos, historicoPublicacao, vivosE } from "@/lib/db";
 import { countBusinessDays } from "@/lib/business-days";
 
 /**
+ * Quanto o km pode variar e ainda ser o MESMO carro.
+ *
+ * O mesmo carro repostado em outro grupo traz o mesmo km, no maximo escrito
+ * de outro jeito ("55 mil", "55.000", "54.870"). Ate 01/10/2026 a tolerancia
+ * era 20% (minimo 5 mil): um HB20 Comfort 2024 com 55.000km foi descartado
+ * como "duplicado" de OUTRO HB20, de outro fornecedor, com 48.000km -- e
+ * carro popular sumia em massa ("muitos carros nao estao chegando").
+ */
+export function faixaDoMesmoKm(km: number): { min: number; max: number } {
+  const folga = Math.max(1000, km * 0.03);
+  return { min: Math.max(0, Math.floor(km - folga)), max: Math.ceil(km + folga) };
+}
+
+/**
+ * Os dois modelos descrevem o mesmo carro? Igual depois de normalizar, ou um
+ * contido no outro ("hb20 comfort" em "hyundai hb20 comfort"). Conter so vale
+ * com DUAS palavras ou mais: "hb20" sozinho estava dentro de qualquer HB20.
+ */
+export function modelosCasam(a: string, b: string): boolean {
+  const ka = normalizeModelKey(a);
+  const kb = normalizeModelKey(b);
+  if (!ka || !kb) return false;
+  if (ka === kb) return true;
+  const [menor, maior] = ka.length <= kb.length ? [ka, kb] : [kb, ka];
+  return menor.split(" ").length >= 2 && maior.includes(menor);
+}
+
+/**
  * Busca duplicata FUZZY na janela de 30 dias.
  * Usa quando o identityHash exato nao acha mas pode existir o "mesmo carro"
- * com variacao leve no modelo, ano ±1 ou km dentro de tolerancia.
+ * com variacao leve no modelo, ano ±1 ou km escrito de outro jeito.
  *
  * Estrategia:
- * 1. Filtra candidatos por year ±1 + km dentro de ±20%
- * 2. Compara normalizedModelKey dos candidatos com o atual
+ * 1. Filtra candidatos por year ±1 + km na faixa do mesmo km (±3%)
+ * 2. Compara os modelos (modelosCasam)
  * 3. Retorna o de menor preco que casar
  */
 export async function findFuzzyDuplicate(vehicle: {
@@ -22,8 +50,7 @@ export async function findFuzzyDuplicate(vehicle: {
   if (!targetKey) return null;
 
   const since = new Date(Date.now() - daysWindow * 24 * 60 * 60 * 1000);
-  const kmMin = Math.max(0, vehicle.km - Math.max(5000, vehicle.km * 0.2));
-  const kmMax = vehicle.km + Math.max(5000, vehicle.km * 0.2);
+  const { min: kmMin, max: kmMax } = faixaDoMesmoKm(vehicle.km);
 
   const candidates = await db
     .select({
@@ -39,21 +66,15 @@ export async function findFuzzyDuplicate(vehicle: {
         gte(veiculos.capturedAt, since),
         gte(veiculos.year, vehicle.year - 1),
         lte(veiculos.year, vehicle.year + 1),
-        gte(veiculos.km, Math.floor(kmMin)),
-        lte(veiculos.km, Math.ceil(kmMax))
+        gte(veiculos.km, kmMin),
+        lte(veiculos.km, kmMax)
       )
     )
     .orderBy(asc(veiculos.price)) // pega o mais barato que casar
     .limit(50);
 
   for (const c of candidates) {
-    const cKey = normalizeModelKey(c.model);
-    // Match exato da chave normalizada OU uma chave contem a outra
-    // (ex: "onix lt" vs "onix lt 1.0" depois de normalizar viram iguais,
-    //  mas se um for so "onix" e outro "onix lt", aceita tambem)
-    if (cKey === targetKey ||
-        (cKey.length >= 4 && targetKey.includes(cKey)) ||
-        (targetKey.length >= 4 && cKey.includes(targetKey))) {
+    if (modelosCasam(c.model, vehicle.model)) {
       return { id: c.id, price: c.price, status: c.status };
     }
   }
@@ -140,7 +161,9 @@ export function normalizeModelKey(model: string): string {
  *
  * Tolerancia:
  * - Modelo: normalizado via normalizeModelKey (remove FLEX/TURBO/cilindrada)
- * - KM: arredondado pra 10.000 mais proximo (60500 -> 60000, 65500 -> 70000)
+ * - KM: arredondado pro MIL mais proximo ("55 mil", "55.000" e "54.870" se
+ *   encontram). Ate 01/10/2026 era a dezena de mil: 55.000 e 64.000 viravam o
+ *   mesmo "60.000", e carros diferentes caiam como duplicados.
  * - Year: agrupado em pares (2022/2023 viram mesmo bucket)
  *
  * @returns 16-char hex MD5 digest.
@@ -151,8 +174,7 @@ export function generateVehicleIdentityHash(vehicle: {
   km: number;
 }): string {
   const modelKey = normalizeModelKey(vehicle.model);
-  // KM em bucket de 10k (mais permissivo que antes)
-  const kmBucket = Math.round(vehicle.km / 10000) * 10000;
+  const kmBucket = Math.round(vehicle.km / 1000) * 1000;
   // Year exato ainda (year ±1 fica pra busca fuzzy)
   const normalised = [modelKey, String(vehicle.year), String(kmBucket)].join("|");
   return createHash("md5").update(normalised).digest("hex").slice(0, 16);

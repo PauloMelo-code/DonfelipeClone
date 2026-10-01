@@ -55,8 +55,9 @@ Auditoria: skill `/audit-auth-security`.
 
 ## Regras de Negocio
 1. Deduplicacao: janela de **30 dias**, com match exato por `identityHash` e **fuzzy** (ano +-1,
-   km +-20%, modelo normalizado). Entre duplicatas, **fica a de menor preco**. Ver
-   `lib/deduplication.ts`
+   km +-3%, modelo normalizado). Entre duplicatas, **fica a de menor preco**. Ver
+   `lib/deduplication.ts`. A tolerancia e de MESMO carro repostado: com 20% (ate
+   01/10/2026), carros populares diferentes caiam como duplicados
 2. Hibrido: se fuel=HIBRIDO, transmissao vira "HIBRIDO" no anuncio
 3. Anti-ban: presenca "composing" + delay aleatorio configuravel (`delay_min_seconds` /
    `delay_max_seconds`, padrao 1-3s). A publicacao rapida do admin usa 0,3-1s e pula o composing
