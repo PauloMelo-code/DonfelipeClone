@@ -173,6 +173,11 @@ export function extractWithRegex(text: string): VehicleData | null {
         const n = parseFloat(milM[1].replace(",", ".")) * 1000;
         if (!isNaN(n) && n >= 1000) return n;
       }
+      // "Fipe R$135,41" e 135.410, em milhares. Sem isto a FIPE sumia, e o
+      // desconto minimo deixava passar um Nivus a 7,7% da tabela (cliente,
+      // 01/10/2026).
+      const curto = parseBrazilianNumber((afterRS?.[1] ?? nums[0] ?? "").replace(/[.,]$/, ""));
+      if (curto !== null && curto >= 10 && curto < 1000) return Math.round(curto * 1000);
       return null;
     };
     let fipeUsado: number | null = null;

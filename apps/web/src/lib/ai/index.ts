@@ -151,6 +151,12 @@ function validateAndFix(parsed: VehicleData, text: string): VehicleData {
     console.warn(`[ai] km=${parsed.km} num carro de ${parsed.year}: lendo como ${parsed.km * 1000}`);
     parsed.km *= 1000;
   }
+  // FIPE em milhares ("Fipe R$135,41" = 135.410): nenhum carro de repasse
+  // tem tabela de R$ 135.
+  if (parsed.fipePrice != null && parsed.fipePrice >= 10 && parsed.fipePrice < 1000) {
+    console.warn(`[ai] fipe=${parsed.fipePrice}: lendo como ${Math.round(parsed.fipePrice * 1000)}`);
+    parsed.fipePrice = Math.round(parsed.fipePrice * 1000);
+  }
   // Ano de modelo impossivel: a IA ja devolveu 97 (pedaco do km) num carro
   // 2019, e o anuncio saiu "2019/97 | 97.000km".
   if (parsed.yearModel != null && parsed.year != null) {

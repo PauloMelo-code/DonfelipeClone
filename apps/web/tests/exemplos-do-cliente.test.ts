@@ -119,6 +119,20 @@ caso("CLA e Macan: so ficha tecnica e contato -> corpo vazio", () => {
   ));
 });
 
+// ── Nivus: "Fipe R$135,41" e 135.410 ────────────────────────────────────
+// Lida como R$ 135,41, a FIPE sumia; sem FIPE, o desconto minimo de 10%
+// deixava passar um carro a 7,7% da tabela.
+const NIVUS = J(
+  "Nivus Highline 1.0 Tsi 2026", "Único dono", "Sem retoques", "Manual chave reserva", "Revisões na agência",
+  "Estepe sem uso", "Toda original", "Somente 18mil km", "", "Fipe R$135,41", "VENDA 125.000,00",
+);
+caso("Nivus: FIPE em milhares ('R$135,41') e 135.410", () => {
+  const v = extractWithRegex(NIVUS)!;
+  assert.equal(v.fipePrice, 135410);
+  assert.equal(v.price, 125000);
+  assert.ok((1 - v.price / v.fipePrice!) * 100 < 10, "7,7% de desconto: o filtro de 10% barra");
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} caso(s) falharam`);
   process.exit(1);
