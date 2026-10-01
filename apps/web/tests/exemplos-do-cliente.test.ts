@@ -11,6 +11,7 @@
  */
 import assert from "node:assert/strict";
 import { extractWithRegex } from "../src/lib/ai/regex";
+import { parseGptResponse } from "../src/lib/ai/prompt";
 import { conferirComOVendedor, lerItens } from "../src/lib/ad-cleaner";
 import { padronizarLinha } from "../src/lib/corpo-do-anuncio";
 import { formatVehicleAd } from "../src/lib/vehicle-formatter";
@@ -131,6 +132,22 @@ caso("Nivus: FIPE em milhares ('R$135,41') e 135.410", () => {
   assert.equal(v.fipePrice, 135410);
   assert.equal(v.price, 125000);
   assert.ok((1 - v.price / v.fipePrice!) * 100 < 10, "7,7% de desconto: o filtro de 10% barra");
+});
+
+// ── Compass da Mascote: anuncio sem km ──────────────────────────────────
+// O prompt manda km null quando o anuncio nao diz; o leitor da resposta
+// exigia km e derrubava o carro inteiro ("JSON invalido" no log).
+caso("Compass sem km: a extracao vale, com km 0 (nao informada)", () => {
+  const raw = JSON.stringify({
+    model: "COMPASS LONGITUDE 2.0", brand: "JEEP", year: 2021, yearModel: null, km: null,
+    price: 93800, fipePrice: 98113, transmission: "AUTOMATICO", fuel: "FLEX", color: null,
+    plate: null, location: null, state: null, features: [], sellerPhone: null,
+  });
+  const v = parseGptResponse(raw);
+  assert.ok(v, "o carro nao pode sumir por falta de km");
+  assert.equal(v!.km, 0);
+  // E o anuncio nao inventa "0km": sai so o ano.
+  assert.equal(formatVehicleAd({ ...v!, rawDescription: "" }, { profitMarginPercent: 0 }).split("\n")[1], "2021");
 });
 
 if (falhas > 0) {

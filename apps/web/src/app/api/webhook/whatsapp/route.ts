@@ -257,7 +257,11 @@ export async function POST(request: NextRequest, contexto?: unknown) {
     // Pre-filter: must contain at least one vehicle-related keyword
     if (textContent) {
       const lower = textContent.toLowerCase();
-      const hasVehicleKeyword = /\b(km|mil|ano|preco|valor|fipe|cambio|automatico|manual|flex|diesel|hibrido|\d{4}\/\d{2,4}|\d{2,3}\s*mil)\b/i.test(lower);
+      // "gasolina", "mecânico", "repasse" e "R$": o canal Mascote anuncia sem
+      // km, sem FIPE e sem "flex" ("TIGRA 1999 GASOLINA MECÂNICO REPASSE:
+      // 38.800") e caia aqui antes de a IA ver (01/10/2026).
+      const hasVehicleKeyword =
+        /\b(km|mil|ano|preco|valor|fipe|cambio|automatico|manual|flex|diesel|hibrido|gasolina|etanol|mec[aâ]nico|repasse|\d{4}\/\d{2,4}|\d{2,3}\s*mil)\b|r\$\s*\d/i.test(lower);
       if (!hasVehicleKeyword) {
         console.log("[Webhook] IGNORED: no_vehicle_keywords for", textContent.substring(0, 80));
         return NextResponse.json({ status: "ignored", reason: "no_vehicle_keywords" });
@@ -352,23 +356,29 @@ export async function POST(request: NextRequest, contexto?: unknown) {
 
     // Dedup de 30 DIAS por identidade (sem preco no hash) -- regra do cliente:
     // mesmo carro reposto = fica o mais barato, descarta os outros.
+    //
+    // Sem km o "mesmo carro" vira "mesmo modelo e ano": dois Compass 2021 de
+    // um canal que nunca informa km seriam um so. Ai so a foto identica (mais
+    // acima) barra o repost.
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    let [existingByIdentity] = await db
-      .select()
-      .from(veiculos)
-      .where(
-        vivosE(
-          veiculos,
-          eq(veiculos.identityHash, identityHash),
-          gte(veiculos.capturedAt, thirtyDaysAgo)
-        )
-      )
-      .orderBy(asc(veiculos.price)) // o mais barato existente (ja persistido)
-      .limit(1);
+    let [existingByIdentity] = km > 0
+      ? await db
+          .select()
+          .from(veiculos)
+          .where(
+            vivosE(
+              veiculos,
+              eq(veiculos.identityHash, identityHash),
+              gte(veiculos.capturedAt, thirtyDaysAgo)
+            )
+          )
+          .orderBy(asc(veiculos.price)) // o mais barato existente (ja persistido)
+          .limit(1)
+      : [];
 
     // Fallback FUZZY: se hash exato nao achou, tenta similaridade
-    // (modelo normalizado parcial, year +/-1, km +/-20%)
-    if (!existingByIdentity) {
+    // (modelo normalizado, year +/-1, km +/-3%)
+    if (!existingByIdentity && km > 0) {
       const fuzzy = await findFuzzyDuplicate({ model, year, km }, 30);
       if (fuzzy) {
         [existingByIdentity] = await db
