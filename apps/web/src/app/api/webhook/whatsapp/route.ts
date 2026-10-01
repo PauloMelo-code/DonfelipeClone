@@ -13,6 +13,7 @@ import { extractRequestMeta } from "@/lib/request-meta";
 import { checkMachineSecret } from "@/lib/machine-auth";
 import { normalizarPayload } from "@/lib/webhook/normalizar";
 import { parear, fotosQueChegaramDepois } from "@/lib/webhook/parear";
+import { entrarNaFila } from "@/lib/webhook/fila";
 import { aplicarFiltros } from "@/lib/webhook/filtros";
 import { resolverGrupo } from "@/lib/webhook/grupo";
 import { anexarFotoExtra } from "@/lib/webhook/album";
@@ -44,6 +45,7 @@ export const ENTREGA_INTERNA = Symbol("entrega-interna");
 
 export async function POST(request: NextRequest, contexto?: unknown) {
   const interna = contexto === ENTREGA_INTERNA;
+  let liberarFila = () => {};
   try {
     // Credencial de maquina: cabecalho, tempo constante, fail-closed em
     // QUALQUER ambiente. Antes, a ausencia de WEBHOOK_SECRET deixava a rota
@@ -87,7 +89,11 @@ export async function POST(request: NextRequest, contexto?: unknown) {
 
     const raw = await request.json();
     const msgType = raw.chat?.wa_lastMessageType || raw.event || "unknown";
-    console.log("[Webhook]", raw.chat?.wa_chatid || raw.data?.key?.remoteJid || "?", raw.chat?.stanzaID || raw.data?.key?.id || "?", msgType);
+    const conversa = raw.chat?.wa_chatid || raw.chat?.chatid || raw.data?.key?.remoteJid || "?";
+    console.log("[Webhook]", conversa, raw.chat?.stanzaID || raw.data?.key?.id || "?", msgType);
+
+    // A vez desta conversa ANTES de baixar a foto: ver lib/webhook/fila.ts.
+    liberarFila = await entrarNaFila(conversa);
 
     const norm = await normalizarPayload(raw);
     if (!norm.ok) {
@@ -188,6 +194,8 @@ export async function POST(request: NextRequest, contexto?: unknown) {
 
     // Foto e legenda podem chegar em mensagens separadas, em qualquer ordem.
     const pareado = parear({ groupJid, senderJid, messageId, textContent, imageUrl });
+    // Pareado: a proxima mensagem da conversa ja pode entrar.
+    liberarFila();
     if (pareado.tipo === "bufferado") {
       return NextResponse.json(pareado.resposta);
     }
@@ -558,6 +566,9 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       { error: "Erro ao processar webhook" },
       { status: 500 }
     );
+  } finally {
+    // Toda saida antes do pareamento (ignorada, duplicada, erro) libera a vez.
+    liberarFila();
   }
 }
 
