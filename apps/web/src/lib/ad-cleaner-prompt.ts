@@ -16,7 +16,7 @@
 // v14: a limpeza pode rodar em outro modelo (DeepSeek). O cache e por texto,
 // entao sem virar a versao um anuncio ja limpo pelo modelo antigo voltaria do
 // cache e a troca pareceria nao ter efeito.
-export const PROMPT_VERSION = "v15";
+export const PROMPT_VERSION = "v16";
 
 export const SYSTEM_PROMPT = `Voce e o editor dos anuncios da Don Felipe Repasses (repasse de carros entre lojistas).
 
@@ -62,7 +62,8 @@ vendedor disse: "para choque e capo" -> "para-choque e capô".
 - Leilao, sinistro, media/pequena monta, recuperado -- QUANDO EXISTEM.
 - Carro sem nada a fazer: "Nada para fazer", "Não gasta nada", "sem custos"
   -> "Nada para fazer". "Pronto", "Pronta só vender" -> "Veículo pronto
-  para venda".
+  para venda". "Praticamente pronto" -> "Veículo praticamente pronto" (e o
+  que falta fazer entra a parte).
 - Elogio do vendedor ao carro: Nova, Bem nova, Impecável, Revisada, Carro
   de Showroom. "Filé", "filezão", "bem pronto", "super inteira", "bem
   bonito" -> "Veículo conservado acima da média".

@@ -121,6 +121,14 @@ export function extractWithRegex(text: string): VehicleData | null {
       } else {
         n = parseBrazilianNumber(m[1]);
       }
+      // Km de revisao, troca ou garantia nao e o do carro: "Última com 70 mil
+      // km" vinha antes de "147.498Km" e o Tiguan saia com 70.000 (cliente,
+      // 01/10/2026).
+      // So o que vem ANTES do numero: em "27 mil km Todas revisões na
+      // concessionária" o km e do carro.
+      const antes = clean.slice(clean.lastIndexOf("\n", m.index ?? 0) + 1, m.index ?? 0);
+      // Sem \b: "Última" comeca com letra acentuada, que o \b nao ve como letra.
+      if (/([úu]ltima|revis|troca|[óo]leo|garantia|correia)/i.test(antes)) continue;
       // Rejeita valores que parecem ano (1900-2099 com exatamente 4 digitos sem ponto)
       const raw = m[1].replace(/[.,\s]/g, "");
       if (n !== null && raw.length === 4 && /^(19|20)\d{2}$/.test(raw)) continue;
@@ -348,7 +356,7 @@ export function extractWithRegex(text: string): VehicleData | null {
    * boa e com margem"), e o titulo saia com a frase no lugar do carro.
    */
   const FRASE_DE_LOJA =
-    /\b(esse|este|esta|essa|nosso|nossa|voc[eê]|agendar?|agende|enviamos|entregamos|entrega|estamos|atendemos|aceitamos|consulte|whats|pagamento|visita|financia|parcel|cr[ée]dito|troca|dispon[ií]vel|mercadoria|margem|lucro|barat[oa]|oferta|neg[oó]cio|pre[çc]o|valor|bom|boa|[óo]tim[oa]|excelente)\b/i;
+    /\b(esse|este|esta|essa|nosso|nossa|voc[eê]|agendar?|agende|enviamos|entregamos|entrega|estamos|atendemos|aceitamos|consulte|whats|pagamento|visita|financia|parcel|cr[ée]dito|troca|dispon[ií]vel|mercadoria|marge+m+|lucro|barat[oa]+|oferta|neg[oó]cio|pre[çc]o|valor|bom|boa|[óo]tim[oa]|excelente)\b/i;
   /**
    * Linha de campo do anuncio: "Ano: 2025", "Km: 46 mil", "Cambio: ...".
    * A palavra tem que ser inteira -- sem isso "COROLLA" casava com "cor".

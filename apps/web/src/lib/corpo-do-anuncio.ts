@@ -452,7 +452,16 @@ const DESCARTAR: RegExp[] = [
   /^(?:leil[ãa]o|sinistr\w*|monta)\s*:?\s*(?:n[ãa]o|nunca|zero|nenhum[a]?|sem|limpo)\b/i,
   // 35. Ar-condicionado funcionando nao e informacao de anuncio.
   /^ar(?:\s*-?\s*condicionad[oa])?\s*[:,-]?\s*(?:gelando|gela|gelad[oa]|funcionando|funciona|ok|em\s+dia|top|perfeito|[óo]tim[oa]|bom|novo|100\s*%?)\s*$/i,
+  // Cliente, 01/10/2026 (C4 Cactus e Territory): "Completo" nao entra, e
+  // "Não é o motor THP" so explica a versao, que ja esta no titulo.
+  /^(?:complet[oa]s?(?:\s+de\s+tudo)?|complet[ãa]o)$/i,
+  /^n[ãa]o\s+[ée]\s+(?:o\s+|a\s+)?(?:motor|vers[ãa]o)\b/i,
 ];
+
+// Cliente, 01/10/2026 (Tiguan): "Última com 70 mil km" e a ultima revisao,
+// feita na concessionaria.
+const ULTIMA_REVISAO =
+  /^[úu]ltima(?:\s+revis[ãa]o)?(?:\s+na\s+(?:concession[áa]ria|css|conce))?\s+(?:com|aos|em|a|c\/)\s+(\d{1,3}(?:\.\d{3})?)\s*(mil)?\s*km$/i;
 // 31. Opcional basico, que o cliente nao quer ver listado.
 const OPCIONAL_BASICO =
   /^(?:rodas?\s+(?:de\s+)?liga(?:\s+leve)?|rodas?\s+esportivas?|rodas?\s+de\s+f[áa]brica|airbags?(?:\s+(?:duplos?|frontais?|laterais?|\d+))?|freios?\s+abs|abs|far[oó](?:l|is)\s+de\s+milha|milha)$/i;
@@ -491,6 +500,12 @@ export function padronizar(bruta: string): { linhas: string[]; canonica: boolean
   if (DESCARTAR.some((p) => p.test(l)) || soOpcionalBasico(l)) return fechada([]);
 
   l = carroParaVeiculo(semDiminutivo(glossario(frasear(l))));
+
+  const revisao = ULTIMA_REVISAO.exec(l);
+  if (revisao) {
+    const km = parseInt(revisao[1].replace(".", ""), 10) * (revisao[2] ? 1000 : 1);
+    return fechada([`Última revisão na concessionária ${km.toLocaleString("pt-BR")}km`]);
+  }
 
   // 13, 15, 16, 17 e 5 (lista 1): as frases fechadas.
   if (DIZ_ACIMA_DA_MEDIA.test(l) || DIZ_MUITO_BOA.test(l)) return fechada([ACIMA_DA_MEDIA]);

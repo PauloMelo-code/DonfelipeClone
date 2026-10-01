@@ -270,11 +270,23 @@ export function lerItens(raw: string, original: string): Lido | null {
       const daIa = padronizarLinha(saida);
       // Saida que a regra do cliente descarta (opcional basico, "ar gelando")
       // sai -- antes a linha inteira do vendedor voltava no lugar dela.
-      const valem = daFonte.canonica
+      // A fonte so vira gabarito quando gerou UM item. Linha com varios
+      // ("Avaliação: motor ok, bom de andar, faz 2 pincéis, trocar
+      // pára-brisa") trocava cada item pela traducao fixa de um pedaco dela
+      // e sobrava so "Fazer 2 pincéis" (cliente, 01/10/2026, Tiguan).
+      const unica = (saidasDaFonte.get(f) ?? 0) < 2;
+      // Com varios itens, a traducao fixa ainda vale quando COBRE o item:
+      // "Só polir e higienizar" virou "Fazer polimento" + "Fazer
+      // higienização" na IA, e o cliente quer a frase fechada, numa linha so
+      // (C4 Cactus, 01/10/2026). "Motor e câmbio bons" nao cabe em "Fazer 2
+      // pincéis", e fica como a IA escreveu.
+      const pistasFixas = daFonte.linhas.flatMap(pistas);
+      const cobre = daFonte.canonica && p.length > 0 && p.every((x) => pistasFixas.includes(x));
+      const valem = (unica || cobre) && daFonte.canonica
         ? daFonte.linhas
         : !daIa.length
           ? []
-          : (saidasDaFonte.get(f) ?? 0) < 2 && polaridade(daFonte.linhas) !== polaridade(daIa)
+          : unica && polaridade(daFonte.linhas) !== polaridade(daIa)
             ? daFonte.linhas
             : daIa;
       for (const l of valem) if (!linhas.includes(l)) linhas.push(l);
