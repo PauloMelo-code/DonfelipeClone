@@ -165,20 +165,19 @@ caso("BMW: o 'Obs:' vira um item por linha, e defeito vai pro bloco de baixo", (
   ]);
 });
 
-// ── Compass da Mascote: anuncio sem km ──────────────────────────────────
-// O prompt manda km null quando o anuncio nao diz; o leitor da resposta
-// exigia km e derrubava o carro inteiro ("JSON invalido" no log).
-caso("Compass sem km: a extracao vale, com km 0 (nao informada)", () => {
-  const raw = JSON.stringify({
-    model: "COMPASS LONGITUDE 2.0", brand: "JEEP", year: 2021, yearModel: null, km: null,
+// ── Regra do cliente: anuncio sem km e descartado ───────────────────────
+// Em 01/10/2026 a regra foi afrouxada pra o canal Mascote (que nunca
+// informa km) entregar, e o cliente desfez no mesmo dia: "a regra inicial
+// sempre era descartar veiculos que nao tem km no anuncio".
+caso("Compass sem km: descartado, como manda a regra do cliente", () => {
+  const sem = (km: number | null) => parseGptResponse(JSON.stringify({
+    model: "COMPASS LONGITUDE 2.0", brand: "JEEP", year: 2021, yearModel: null, km,
     price: 93800, fipePrice: 98113, transmission: "AUTOMATICO", fuel: "FLEX", color: null,
     plate: null, location: null, state: null, features: [], sellerPhone: null,
-  });
-  const v = parseGptResponse(raw);
-  assert.ok(v, "o carro nao pode sumir por falta de km");
-  assert.equal(v!.km, 0);
-  // E o anuncio nao inventa "0km": sai so o ano.
-  assert.equal(formatVehicleAd({ ...v!, rawDescription: "" }, { profitMarginPercent: 0 }).split("\n")[1], "2021");
+  }));
+  assert.equal(sem(null), null, "sem km");
+  assert.equal(sem(0), null, "km zero tambem e sem km");
+  assert.equal(sem(45000)?.km, 45000);
 });
 
 if (falhas > 0) {

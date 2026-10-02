@@ -178,20 +178,25 @@ export function parseGptResponse(raw: string): VehicleData | null {
       console.log("[ai] GPT: price == fipePrice, descartando price");
       parsed.price = null;
     }
-    // Km NAO e obrigatorio: o prompt manda null quando o anuncio nao diz, e
-    // exigir derrubava o anuncio inteiro -- logado como "JSON invalido".
-    // Canal que nunca informa km (Mascote) nao entregava carro nenhum
-    // (cliente, 01/10/2026). Km 0 e "nao informada": o anuncio sai so com o
-    // ano e a nota nao ganha ponto por ela.
-    const falta = [!parsed.model && "model", parsed.year == null && "year", !parsed.price && "price"].filter(Boolean);
+    // Km e OBRIGATORIO -- regra do cliente: anuncio sem km e descartado. Em
+    // 01/10/2026 isto foi afrouxado pra o canal Mascote (que nunca informa
+    // km) entregar, e o cliente desfez no mesmo dia: "a regra inicial sempre
+    // era descartar veiculos que nao tem km no anuncio". O log diz o campo que
+    // faltou -- antes dizia "JSON invalido" e escondia o motivo.
+    const falta = [
+      !parsed.model && "model",
+      parsed.year == null && "year",
+      !(parsed.km > 0) && "km",
+      !parsed.price && "price",
+    ].filter(Boolean);
     if (falta.length) {
-      console.warn(`[ai] extracao sem ${falta.join(", ")}`);
+      console.warn(`[ai] extracao sem ${falta.join(", ")} -- descartado`);
       return null;
     }
     return {
       model: parsed.model, brand: parsed.brand ?? undefined,
       year: parsed.year, yearModel: parsed.yearModel ?? undefined,
-      km: parsed.km ?? 0, price: parsed.price, fipePrice: parsed.fipePrice ?? undefined,
+      km: parsed.km, price: parsed.price, fipePrice: parsed.fipePrice ?? undefined,
       transmission: parsed.transmission ?? undefined, fuel: parsed.fuel ?? undefined,
       color: parsed.color ?? undefined, plate: parsed.plate ?? undefined,
       location: parsed.location ?? undefined, state: normalizarEstado(parsed.state) ?? undefined,
