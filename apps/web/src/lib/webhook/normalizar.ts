@@ -250,6 +250,24 @@ async function doFormatoPadrao(raw: any): Promise<ResultadoNormalizacao> {
   };
 }
 
+/**
+ * Ha quanto tempo a mensagem foi POSTADA no WhatsApp, em ms. `null` quando o
+ * payload nao traz a hora.
+ *
+ * Cliente, 03/10/2026: carro postado ontem de manha apareceu "capturado ha
+ * menos de uma hora". Sem a hora do post no log nao da pra saber se a
+ * mensagem chegou atrasada ou se foi o sistema que demorou.
+ *
+ * A UAZAPI manda em milissegundos; o formato padrao, em segundos.
+ */
+export function idadeDaMensagemMs(raw: any, agora = Date.now()): number | null {
+  const bruto = raw?.message?.messageTimestamp ?? raw?.data?.messageTimestamp ?? null;
+  const n = typeof bruto === "string" ? Number(bruto) : bruto;
+  if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) return null;
+  const ms = n < 1e12 ? n * 1000 : n;
+  return agora - ms;
+}
+
 export async function normalizarPayload(raw: any): Promise<ResultadoNormalizacao> {
   const chat = raw.chat || {};
   const ehUazapi = !!raw.EventType || !!chat.wa_chatid;

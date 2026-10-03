@@ -11,7 +11,7 @@ import {
 import { rateLimit } from "@/lib/rate-limit";
 import { extractRequestMeta } from "@/lib/request-meta";
 import { checkMachineSecret } from "@/lib/machine-auth";
-import { normalizarPayload } from "@/lib/webhook/normalizar";
+import { normalizarPayload, idadeDaMensagemMs } from "@/lib/webhook/normalizar";
 import { parear, fotosQueChegaramDepois } from "@/lib/webhook/parear";
 import { entrarNaFila } from "@/lib/webhook/fila";
 import { aplicarFiltros } from "@/lib/webhook/filtros";
@@ -29,7 +29,17 @@ import { isVipVehicle } from "@/lib/vip-detection";
 import { hashPhoto } from "@/lib/photo-hash";
 import { normalizarEstado } from "@/lib/estados";
 
-const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 30, windowSeconds: 60 };
+// Teto por IP. A UAZAPI entrega TUDO de um IP so: toda mensagem de todo grupo
+// (conversa, figurinha, audio), mais os eventos que nao sao mensagem. Com 30
+// por minuto, um cliente com 100+ grupos estourava o teto em segundos, o
+// resto do minuto levava 429 calado e o anuncio se perdia -- "muitos carros
+// nao estao vindo" (cliente, 03/10/2026). E o mesmo 429 que derrubava os
+// canais em 25/09. A credencial ja e conferida antes: o teto so protege de um
+// segredo vazado, e para isso 20 por segundo basta.
+const WEBHOOK_LIMITER = { name: "webhook", maxRequests: 1200, windowSeconds: 60 };
+
+/** Acima disso a mensagem chegou atrasada e vale registrar. */
+const ATRASO_PARA_LOG_MS = 10 * 60 * 1000;
 
 // Simple in-memory lock to prevent concurrent processing of same message
 const _processingLock = new Set<string>();
@@ -74,6 +84,10 @@ export async function POST(request: NextRequest, contexto?: unknown) {
       const { ipAddress } = extractRequestMeta(request);
       const rl = rateLimit(WEBHOOK_LIMITER, ipAddress ?? "origem-desconhecida");
       if (!rl.allowed) {
+        // Era um descarte sem log: a mensagem sumia e ninguem via.
+        console.warn(
+          `[Webhook] RECUSADA: rate_limit ${ipAddress ?? "origem-desconhecida"} (teto ${WEBHOOK_LIMITER.maxRequests}/${WEBHOOK_LIMITER.windowSeconds}s)`
+        );
         return NextResponse.json(
           { error: "Rate limit exceeded" },
           { status: 429 }
@@ -91,6 +105,10 @@ export async function POST(request: NextRequest, contexto?: unknown) {
     const msgType = raw.chat?.wa_lastMessageType || raw.event || "unknown";
     const conversa = raw.chat?.wa_chatid || raw.chat?.chatid || raw.data?.key?.remoteJid || "?";
     console.log("[Webhook]", conversa, raw.chat?.stanzaID || raw.data?.key?.id || "?", msgType);
+    const idade = idadeDaMensagemMs(raw);
+    if (idade !== null && idade > ATRASO_PARA_LOG_MS) {
+      console.warn(`[Webhook] ATRASO: mensagem postada ha ${Math.round(idade / 60000)} min chegou agora (${conversa})`);
+    }
 
     // A vez desta conversa ANTES de baixar a foto: ver lib/webhook/fila.ts.
     liberarFila = await entrarNaFila(conversa);
